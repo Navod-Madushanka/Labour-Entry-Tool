@@ -1,0 +1,24 @@
+# Copy to config.yaml (git-ignored) and adjust paths for this PC.
+workbook_pattern: "Labour Entry Sheet * - INDIAN*.xlsb"
+month: 2026-10
+registration_files:
+  - "C:/Labour/External labour registeration-Indians.xlsx"
+holidays: [2026-10-25]          # office to confirm (open question 5)
+server: { host: 127.0.0.1, port: 8000, allow_lan: false }
+backups: { dir: "C:/Labour/backups", keep: 10 }
+template:
+  master_sheet: "Labour Detail"
+  master_rows: [3, 502]
+  master_cols: { calling_name: A, name: B, trade_group: C, id: D, daily_rate: E, bp: F, employee_code: G, epf: H }
+  activity_list: "L3:L311"      # read until first blank in practice
+  day_types: "N3:N6"
+  day_sheets: "1..31"
+  header: { date: F3, day_type: H3, sheet_no: F4, prepared_by: F5, project: C6 }
+  first_block_row: 9
+  block_size: 7
+  blocks: 500
+  cols: { calling_name: A, total: D, effective: E, in: G, out: H, activity: J, hours: K, additional: L,
+          upload_employee: M, upload_date: N, upload_activity: O, upload_hours: P, upload_ot: Q, remarks: R }
+  activity_rows: [1, 5]         # block-relative
+  zidle_row: 6
+  ot_row: 7

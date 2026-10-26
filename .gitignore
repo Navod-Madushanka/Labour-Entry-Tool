@@ -1,0 +1,34 @@
+# --- Privacy (PLAN.md §2 rule 6, §10): real workbooks and extracted personal data never go to git ---
+fixtures/private/
+backups/
+*.xlsb
+*.xlsx
+*.xlsm
+*.xls
+~$*
+audit*.sqlite
+audit*.sqlite-*
+*.csv
+
+# Local config (may hold real paths); the committed template is config.example.yaml
+config.yaml
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

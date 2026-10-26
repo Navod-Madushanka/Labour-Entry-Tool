@@ -1,0 +1,10 @@
+target-version = "py311"
+line-length = 100
+extend-exclude = ["frontend", "fixtures"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]  # en dashes / unicode in docstrings and messages are intended
+
+[lint.isort]
+known-first-party = ["app"]

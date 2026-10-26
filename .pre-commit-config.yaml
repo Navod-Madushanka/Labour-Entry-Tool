@@ -1,0 +1,26 @@
+# Run `pre-commit install` once, with the .venv activated (the pytest hook uses that Python).
+repos:
+  - repo: local
+    hooks:
+      # PLAN.md §2 rule 6 / §10: real workbooks and personal data never reach git.
+      - id: forbid-workbooks
+        name: forbid Excel workbooks and private fixtures
+        language: fail
+        entry: "Real workbooks / private data must not be committed (PLAN.md §10)."
+        files: '(\.(xlsb|xlsx|xlsm|xls|sqlite)$)|(^fixtures/private/)|(^backups/)'
+      - id: ruff
+        name: ruff lint
+        language: system
+        entry: python -m ruff check --fix
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        language: system
+        entry: python -m ruff format
+        types: [python]
+      - id: pytest
+        name: pytest (backend)
+        language: system
+        entry: python -m pytest backend/tests -q
+        pass_filenames: false
+        always_run: true
