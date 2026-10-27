@@ -26,6 +26,7 @@ from app.domain.codes import (
     person_key,
 )
 from app.domain.crosscheck import add_cross_entry_issues
+from app.domain.daybuilder import DEFAULT_WINDOW, DayBuild, build_day
 from app.domain.medical import (
     DEFAULT_ACTIVITY,
     DEFAULT_DAYS,
@@ -693,6 +694,18 @@ class EntryService:
         self.audit.finish(batch_id, "done", "employee codes")
         return CodeWriteResult(status="written", batch_id=batch_id, written=written,
                                mismatches=mismatches)  # fmt: skip
+
+    # --- day builder: start a sheet from the previous days (crews of identical entries) ---
+
+    def day_build(self, sheet: str, window: int = DEFAULT_WINDOW) -> DayBuild:
+        target = self.day(sheet)
+        names = set(self.workbook.day_sheet_names())
+        if not sheet.isdigit():
+            raise KeyError(f"sheet {sheet!r} is not a day number")
+        n = int(sheet)
+        wanted = {str(n - g) for g in range(1, window + 1)} | {str(n - 7), str(n - 14)}
+        days = {s: self.day(s) for s in sorted(wanted & names, key=int)}
+        return build_day(target, days, window)
 
     # --- medical leave (office practice): a "<base> M" line with N days, Sundays skipped ---
 

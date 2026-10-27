@@ -1,5 +1,24 @@
 # Changelog
 
+## Automation: start a day from previous days (27 Oct 2026)
+
+Patterns measured on the October INDIAN data (4,075 worker-days): 84% of a day's workers worked
+the day before; 82% of entries are identical to ≥5 others that day; crews change together (Out
+and/or activity, In almost never); 97% have one activity and 100% book all effective hours;
+Sundays use 07:00–16:00 (74%) and a different set of workers.
+
+- `domain/daybuilder.py`: carry each worker's last usable entry (≤3 days back) into crews of
+  identical entries; attendance ticked for 1–2 days back (85%/64% came) and unticked for 3 (55%);
+  Sundays tick last Sunday's workers and apply the most used Sunday shift. Single-activity crews
+  leave hours to be computed from In/Out.
+- `GET /api/days/{sheet}/build`; UI **Start day from previous days…** with crew-level edits,
+  untick/split per worker, then the normal queue, checks, write and read-back.
+- Queue: one click confirms a warning type for every entry that has it.
+- Golden replay test: ≥97% of workers proposed, ≥75% of attendance ticks right.
+
+Demo (sheet 26): 101 workers in 15 crews built in 0.4 s; 91 queued, checked in 0.35 s, written in
+one batch after 2 bulk confirmations.
+
 ## Medical leave (27 Oct 2026)
 
 Office practice (from Navod): a worker on medical leave gets a medical line `<base> M` (e.g.

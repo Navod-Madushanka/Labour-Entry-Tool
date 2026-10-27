@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.audit.store import Batch
+from app.domain.daybuilder import DayBuild
 from app.domain.writes import EntryInput, EntryPlan
 from app.excel.adapter import NotConnectedError, WorkbookError
 from app.service import (
@@ -85,6 +86,12 @@ async def master(request: Request, fresh: bool = False) -> MasterView:
 async def day(sheet: str, request: Request, fresh: bool = False) -> DayView:
     """One day sheet: header with its checks, and every entry with computed values and issues."""
     return await run_service(request, lambda s: s.day_view(sheet, fresh))
+
+
+@router.get("/days/{sheet}/build", response_model=DayBuild)
+async def day_build(sheet: str, request: Request, window: int = 3) -> DayBuild:
+    """Crews for an empty sheet from each worker's last entry (up to ``window`` days back)."""
+    return await run_service(request, lambda s: s.day_build(sheet, min(max(window, 1), 7)))
 
 
 @router.post("/days/{sheet}/header-fix", response_model=HeaderFixResult)

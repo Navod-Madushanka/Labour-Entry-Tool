@@ -215,3 +215,12 @@ details > summary { padding: 8px 10px; cursor: pointer; }
 .modal .field input, .modal .field select { width: auto; flex: none; }
 .modal input[type="checkbox"] { width: auto; flex: none; }
 .medical-plan .issues label { display: inline; }
+.modal.builder { width: min(1100px, 100%); }
+.crews { display: flex; flex-direction: column; gap: 8px; overflow: auto; margin-top: 8px; }
+.crew { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.crew-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+.modal .crew-head input { width: auto; flex: none; }
+.member { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+.member.off { opacity: 0.55; text-decoration: line-through; }
+.member input { width: auto; }
+.bulk { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }

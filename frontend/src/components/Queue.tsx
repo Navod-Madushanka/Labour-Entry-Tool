@@ -12,6 +12,7 @@ interface Props {
   items: QueueItem[];
   busy: boolean;
   onAck: (id: number, rule: string) => void;
+  onAckAll: (rule: string) => void;
   onOverwrite: (id: number) => void;
   onEdit: (id: number) => void;
   onRemove: (id: number) => void;
@@ -22,7 +23,7 @@ interface Props {
 const isClear = (i: EntryInput) =>
   i.time_in === null && i.time_out === null && !i.activities.length && i.additional === null && !i.remark;
 
-export function Queue({ items, busy, onAck, onOverwrite, onEdit, onRemove, onCommit, onClear }: Props) {
+export function Queue({ items, busy, onAck, onAckAll, onOverwrite, onEdit, onRemove, onCommit, onClear }: Props) {
   if (!items.length)
     return (
       <section className="queue empty">
@@ -33,11 +34,27 @@ export function Queue({ items, busy, onAck, onOverwrite, onEdit, onRemove, onCom
   const blocked = items.filter((i) => !i.plan || i.plan.blocking.length).length;
   const unconfirmed = items.filter((i) => i.plan && !i.plan.blocking.length && i.plan.unconfirmed.length).length;
   const ready = !busy && !blocked && !unconfirmed;
+  const pending = new Map<string, { count: number; example: string }>(); // warning -> entries
+  for (const it of items)
+    for (const i of it.plan?.unconfirmed ?? []) {
+      const p = pending.get(i.rule) ?? { count: 0, example: i.message };
+      pending.set(i.rule, { ...p, count: p.count + 1 });
+    }
   return (
     <section className="queue">
       <h2>
         Queue <span className="muted">({items.length})</span>
       </h2>
+      {pending.size > 0 && (
+        <div className="bulk small">
+          <span className="muted">Confirm a warning for every entry that has it:</span>
+          {[...pending].map(([rule, p]) => (
+            <button key={rule} className="small" title={`e.g. ${p.example}`} onClick={() => onAckAll(rule)}>
+              {rule} × {p.count}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="table-wrap">
         <table>
           <thead>

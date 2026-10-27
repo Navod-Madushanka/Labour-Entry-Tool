@@ -72,6 +72,25 @@ and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** 
   or **Header is right, write anyway**.
 - **Save workbook** saves in Excel; nothing is saved automatically.
 
+## Start a day from previous days (automation)
+
+October's data is very repetitive: 84% of a day's workers also worked the day before, 82% of
+entries are identical to at least 5 others that day (crews), crews change together (Out and/or
+activity; In is 07:00 in 99% of entries), and 100% of entries book all effective hours.
+
+**Start day from previous days…** builds the whole sheet: each worker's last entry (up to 3 days
+back), grouped into crews. Untick who is absent, change a crew's times or activity once for all its
+members, and split off (⤴) anyone who did something else; then **Add to the queue** and write as
+usual. Workers from the last 2 days start ticked; on a Sunday, last Sunday's workers are ticked
+and crews get the usual Sunday shift (07:00–16:00 in October).
+
+Replayed on October: 98% of each day's workers are proposed (about 3 a day to type new) and 78%
+of the attendance ticks are right by default. Roughly 165 small actions a day replace about 845
+typed fields.
+
+In the queue, **Confirm a warning for every entry that has it** (e.g. `W01 × 8`) replaces ticking
+the same warning over and over.
+
 ## Medical leave
 
 **Medical leave…** (next to Crew entry) gives a worker a medical line `<calling name> M`, e.g.
