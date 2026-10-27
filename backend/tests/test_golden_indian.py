@@ -161,7 +161,9 @@ def test_entry_counts(indian):
     assert len({e.calling_name for e in entries}) == 228
     lines = [a for e in entries for a in e.activities if not is_blank(a.code)]
     assert len(lines) == 4202
-    assert len({normalise_activity(a.code) for a in lines}) == 73
+    # 73 as typed; INC-41 day 16 has " 03-11-00-00-C-8 " (M06), so 72 once trimmed.
+    assert len({a.code for a in lines}) == 73
+    assert len({normalise_activity(a.code) for a in lines}) == 72
 
 
 def test_allocation(indian):

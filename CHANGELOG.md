@@ -1,5 +1,26 @@
 # Changelog
 
+## Phase 0 — Verified against the real INDIAN workbook (27 Oct 2026)
+
+The 26 Oct snapshot (SHA-256 matches PLAN.md §5.1) passes every golden test: Appendix A, and
+effective / OT / ZIDLE recomputed = Excel's cached values for 4,074/4,074 complete entries.
+
+**Fixed**
+- `xlsb_reader`: the activity list stopped only at an empty cell, but `Labour Detail!L312:L502`
+  hold a single space, so it read 500 codes. Whitespace-only now ends the list (309 codes).
+- `rules.zidle_hours`: Excel's ZIDLE cell (P, block row 6) is
+  `IFERROR(E - (IF(P1="",0,P1) + … + IF(P5="",0,P5)), "")`, decoded from the `.xlsb` formula
+  records. It uses `+`, not SUM, so a non-numeric hours cell (`INC-74` day 15, `13\``) hides the
+  whole ZIDLE line. `Computed.zidle` is now `None` in that case; numeric text is coerced like `+`.
+  `activity_hours` keeps SUM semantics for display and allocation counts.
+- Golden test: Appendix A's "73 distinct codes" counts codes as typed. Trimmed it is 72, because
+  `INC-41` day 16 has `" 03-11-00-00-C-8 "` (M06).
+
+**Demo**
+```powershell
+python -m pytest backend/tests -q   # 110 passed, 8 skipped (synthetic .xlsb needs Excel)
+```
+
 ## Phase 0 — Foundations (26 Oct 2026)
 
 **Built**

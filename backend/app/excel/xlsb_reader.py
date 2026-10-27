@@ -155,7 +155,8 @@ class XlsbReader:
 
         activities = []
         r = act_row
-        while (value := grid.get((r, act_col))) is not None:  # until the first blank
+        # Until the first blank; whitespace-only counts as blank (INDIAN pads L312:L502 with " ").
+        while (value := grid.get((r, act_col))) is not None and cell_text(value).strip():
             activities.append(ActivityCode(row=r, raw=cell_text(value)))
             r += 1
 

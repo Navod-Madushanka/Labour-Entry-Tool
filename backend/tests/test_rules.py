@@ -59,6 +59,14 @@ def test_zidle_partial_full_and_negative():
     assert rules.zidle_hours(13, [13, 8]) == -8  # INB-31 day 19 pattern
 
 
+def test_zidle_hidden_by_non_numeric_hours_like_excel_iferror():
+    assert rules.zidle_hours(13, ["13`"]) is None  # INC-74 day 15: no ZIDLE line
+    assert rules.zidle_hours(13, [6, "#N/A"]) is None
+    assert rules.zidle_hours(13, [" 6 ", True, None, "", 0]) == 6  # numeric text is coerced
+    c = rules.compute(7, 21, activity_hours=["13`"])
+    assert (c.effective, c.activity_hours, c.zidle) == (13, 0, None)
+
+
 def test_activity_sum_ignores_text_like_excel_sum():
     assert rules.sum_hours([5, "13`", None, True, 2.5]) == 7.5
 
