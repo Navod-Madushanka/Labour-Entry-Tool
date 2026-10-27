@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workbook Health Check</title>
+<!-- Phase 1 report page. Self-contained (no external requests, PLAN.md §10); moves into the
+     React frontend in Phase 3. Data: GET /api/health, /api/rules, /api/health.csv. -->
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #5d6677; --line: #dde1e8;
+    --block: #b42318; --block-bg: #fdecea; --warn: #9a6700; --warn-bg: #fff4d6;
+    --info: #1f5fbf; --info-bg: #e8f0fd; --accent: #1f5fbf; --row: #fafbfc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b2029; --text: #e6e9ef; --muted: #9aa3b2; --line: #2d3440;
+      --block: #ff8a80; --block-bg: #3a1d1d; --warn: #f2c14e; --warn-bg: #3a3017;
+      --info: #8ab4ff; --info-bg: #1b2a44; --accent: #8ab4ff; --row: #1f2530;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .muted { color: var(--muted); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           padding: 14px 16px; margin-top: 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .tile { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; cursor: pointer;
+          background: var(--panel); text-align: left; color: inherit; font: inherit; }
+  .tile b { display: block; font-size: 26px; }
+  .tile[aria-pressed="true"] { outline: 2px solid var(--accent); }
+  .tile.BLOCK b { color: var(--block); } .tile.WARN b { color: var(--warn); } .tile.INFO b { color: var(--info); }
+  .chip { display: inline-flex; gap: 6px; align-items: center; padding: 2px 8px; border-radius: 999px;
+          border: 1px solid var(--line); font-size: 13px; }
+  .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0; font-size: 15px; }
+  input, select, button.btn, a.btn { font: inherit; color: inherit; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  button.btn, a.btn { cursor: pointer; text-decoration: none; }
+  button.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+  input[type=search] { flex: 1 1 220px; min-width: 0; }
+  select { max-width: 100%; min-width: 0; flex: 0 1 auto; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-top: 10px; }
+  summary { padding: 10px 14px; cursor: pointer; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  summary .count { margin-left: auto; color: var(--muted); }
+  .sev { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 6px; }
+  .sev.BLOCK { color: var(--block); background: var(--block-bg); }
+  .sev.WARN { color: var(--warn); background: var(--warn-bg); }
+  .sev.INFO { color: var(--info); background: var(--info-bg); }
+  .table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; table-layout: fixed; min-width: 560px; }
+  col.c-loc { width: 150px; } col.c-who { width: 110px; } col.c-fix { width: 28%; }
+  th, td { text-align: left; padding: 7px 14px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  tr:nth-child(even) td { background: var(--row); }
+  td.loc, td.who { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .fix { color: var(--muted); }
+  .more { padding: 8px 14px; }
+  .error { color: var(--block); }
+  @media (max-width: 640px) {
+    .tiles { grid-template-columns: 1fr; }
+    th:nth-child(4), td:nth-child(4), col.c-fix { display: none; }
+    table { min-width: 0; } col.c-loc { width: 110px; } col.c-who { width: 84px; }
+    td.loc, td.who { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Workbook health check</h1>
+  <div id="source" class="muted">Loading…</div>
+
+  <section class="panel" aria-label="Holidays">
+    <div class="row">
+      <strong>Holidays</strong>
+      <span id="holidays" class="row"></span>
+      <input id="newHoliday" type="date" aria-label="Add a holiday">
+      <button class="btn" id="addHoliday">Add</button>
+      <button class="btn primary" id="apply">Re-check</button>
+      <button class="btn" id="reset">Use config.yaml</button>
+    </div>
+    <div class="muted" style="margin-top:6px;font-size:13px">
+      Sheets dated on these days should say "Holiday" (rule H02). Changes here apply to this check
+      only; to keep them, edit <code>holidays:</code> in config.yaml.
+    </div>
+  </section>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="panel row" aria-label="Filter">
+    <input type="search" id="q" placeholder="Search calling name, sheet, cell or text">
+    <select id="rule" aria-label="Rule"><option value="">All rules</option></select>
+    <a class="btn" id="csv" href="/api/health.csv">Download CSV</a>
+  </section>
+
+  <div id="groups"></div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const SEV = { BLOCK: "Errors", WARN: "Warnings", INFO: "Info" };
+const SEV_HELP = { BLOCK: "would block a write", WARN: "need a check", INFO: "for information" };
+const PAGE = 200;
+let rules = {}, report = null, holidays = null, sevFilter = "";
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const loc = (i) => i.sheet && !/^\d+$/.test(i.sheet)
+  ? `${i.sheet}!${i.cell ?? ""}` : [i.sheet ? `Sheet ${i.sheet}` : "", i.cell ?? ""].join(" ").trim();
+const query = () => holidays === null ? "" : `?holidays=${encodeURIComponent(holidays.join(","))}`;
+
+async function load() {
+  $("source").textContent = "Reading the workbook… (the first read takes a few seconds)";
+  $("groups").innerHTML = "";
+  try {
+    if (!Object.keys(rules).length) rules = await (await fetch("/api/rules")).json();
+    const res = await fetch("/api/health" + query());
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    report = await res.json();
+  } catch (e) {
+    $("source").innerHTML = `<span class="error">Could not run the check: ${esc(e.message)}</span>`;
+    return;
+  }
+  if (holidays === null) holidays = [...report.holidays];
+  $("csv").href = "/api/health.csv" + query();
+  const s = report.stats;
+  $("source").textContent = `${report.source.source_name} · month ${report.month} · ` +
+    `${s.entries} worker-days on ${s.sheets_with_entries} sheets, ${s.workers_with_entries} workers, ` +
+    `${s.overnight_shifts} overnight shifts · checked ${new Date(report.generated_at).toLocaleString()}`;
+  const ruleSel = $("rule"), current = ruleSel.value;
+  ruleSel.innerHTML = '<option value="">All rules</option>' + Object.entries(s.by_rule)
+    .map(([r, n]) => `<option value="${r}">${r} ${esc(rules[r]?.title)} (${n})</option>`).join("");
+  ruleSel.value = s.by_rule[current] ? current : "";
+  renderHolidays(); renderTiles(); render();
+}
+
+function renderHolidays() {
+  $("holidays").innerHTML = holidays.length ? holidays.map((d) =>
+    `<span class="chip">${d}<button title="Remove" data-d="${d}">×</button></span>`).join("")
+    : '<span class="muted">none</span>';
+}
+
+function renderTiles() {
+  $("tiles").innerHTML = Object.keys(SEV).map((k) =>
+    `<button class="tile ${k}" data-sev="${k}" aria-pressed="${sevFilter === k}">
+       <b>${report.stats.by_severity[k] ?? 0}</b>${SEV[k]} <span class="muted">· ${SEV_HELP[k]}</span>
+     </button>`).join("");
+}
+
+function render() {
+  const q = $("q").value.trim().toLowerCase(), rule = $("rule").value;
+  const groups = new Map();
+  for (const i of report.issues) {
+    if (sevFilter && i.severity !== sevFilter) continue;
+    if (rule && i.rule !== rule) continue;
+    if (q && ![loc(i), i.calling_name, i.message, i.suggestion].join(" ").toLowerCase().includes(q)) continue;
+    if (!groups.has(i.rule)) groups.set(i.rule, []);
+    groups.get(i.rule).push(i);
+  }
+  if (!groups.size) {
+    $("groups").innerHTML = `<p class="panel">${report.issues.length ? "No issues match the filter." : "No issues found."}</p>`;
+    return;
+  }
+  $("groups").innerHTML = [...groups].map(([r, list]) => {
+    const sev = list[0].severity, open = sev === "BLOCK" || list.length <= 20 || q || rule;
+    return `<details ${open ? "open" : ""} data-rule="${r}">
+      <summary><span class="sev ${sev}">${r}</span><strong>${esc(rules[r]?.title ?? r)}</strong>
+        <span class="count">${list.length}</span></summary>
+      <div class="table-wrap"><table>
+        <colgroup><col class="c-loc"><col class="c-who"><col><col class="c-fix"></colgroup>
+        <thead><tr><th>Where</th><th>Calling name</th><th>Problem</th><th>Suggested fix</th></tr></thead>
+        <tbody>${rows(list.slice(0, PAGE))}</tbody></table></div>
+      ${list.length > PAGE ? `<div class="more"><button class="btn" data-more="${r}">Show all ${list.length}</button></div>` : ""}
+    </details>`;
+  }).join("");
+  $("groups").groups = groups;
+}
+
+const rows = (list) => list.map((i) => `<tr><td class="loc">${esc(loc(i))}</td>
+  <td class="who">${esc(i.calling_name)}</td><td>${esc(i.message)}</td>
+  <td class="fix">${esc(i.suggestion)}</td></tr>`).join("");
+
+$("tiles").addEventListener("click", (e) => {
+  const t = e.target.closest(".tile"); if (!t) return;
+  sevFilter = sevFilter === t.dataset.sev ? "" : t.dataset.sev; renderTiles(); render();
+});
+$("groups").addEventListener("click", (e) => {
+  const r = e.target.dataset?.more; if (!r) return;
+  const d = e.target.closest("details");
+  d.querySelector("tbody").innerHTML = rows($("groups").groups.get(r));
+  e.target.parentElement.remove();
+});
+$("holidays").addEventListener("click", (e) => {
+  const d = e.target.dataset?.d; if (!d) return;
+  holidays = holidays.filter((x) => x !== d); renderHolidays();
+});
+$("addHoliday").onclick = () => {
+  const d = $("newHoliday").value;
+  if (d && !holidays.includes(d)) { holidays = [...holidays, d].sort(); renderHolidays(); }
+  $("newHoliday").value = "";
+};
+$("apply").onclick = load;
+$("reset").onclick = () => { holidays = null; load(); };
+$("q").addEventListener("input", render);
+$("rule").addEventListener("change", render);
+load();
+</script>
+</body>
+</html>

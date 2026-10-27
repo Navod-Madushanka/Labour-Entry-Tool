@@ -137,6 +137,15 @@ def compute_entry(entry: Entry, day_type: CellValue) -> Computed | None:
     )
 
 
+def upload_line_count(entry: Entry, computed: Computed) -> int:
+    """ERP upload lines Excel builds for an entry: one per activity row whose hours are filled and
+    non-zero (P = IF(K=0,"",K)), plus the ZIDLE line when non-zero and the OT line when OT > 0."""
+    lines = sum(not (a.hours is None or a.hours == "" or a.hours == 0) for a in entry.activities)
+    lines += computed.zidle is not None and not same_hours(computed.zidle, 0)
+    lines += computed.ot is not None
+    return lines
+
+
 # --- Roll-ups (read-only, display) -----------------------------------------------------------
 
 
