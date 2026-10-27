@@ -9,6 +9,7 @@ backups/
 audit*.sqlite
 audit*.sqlite-*
 *.csv
+smoke_report.json
 
 # Local config (may hold real paths); the committed template is config.example.yaml
 config.yaml
