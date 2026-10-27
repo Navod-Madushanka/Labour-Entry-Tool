@@ -81,3 +81,16 @@ def test_sanitize_is_deterministic(small_snapshot):
 def test_sanitize_leaves_errors(small_snapshot):
     small_snapshot.master.workers[2].id_no = "#N/A"
     assert sanitize_snapshot(small_snapshot).master.workers[2].id_no == "#N/A"
+
+
+def test_activity_list_skips_gaps():
+    from app.config import TemplateConfig
+    from app.excel.grid import master_from_grid
+
+    t = TemplateConfig()
+    grid = {(3, 12): "A-1", (4, 12): " ", (5, 12): "A-2", (400, 12): "A-3", (503, 12): "End"}
+    assert [(a.row, a.raw) for a in master_from_grid(grid, t).activities] == [
+        (3, "A-1"),
+        (5, "A-2"),
+        (400, "A-3"),
+    ]  # fmt: skip  (nothing past the worker rows)

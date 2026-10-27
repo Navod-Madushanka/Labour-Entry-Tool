@@ -1,6 +1,7 @@
 // Times are decimal hours in the workbook (7.5 = 07:30; overnight Out goes past 24).
 
-/** Accepts "7", "730", "0730", "7:30", "7h30" and decimal hours like "7.5"; null if invalid. */
+/** Accepts "7", "730", "0730", "7:30", "7h30", "7.30" (clock) and decimal hours like "7.5";
+ * null if invalid. */
 export function parseClock(text: string): number | null {
   const t = text.trim();
   if (!t) return null;
@@ -15,8 +16,12 @@ export function parseClock(text: string): number | null {
   } else if ((match = t.match(/^(\d{1,2})(\d{2})$/))) {
     h = +match[1];
     m = +match[2];
+  } else if ((match = t.match(/^(\d{1,2})\.(15|30|45)$/))) {
+    // "7.30" is a clock time (07:30): .15/.30/.45 are never quarter-hour decimals.
+    h = +match[1];
+    m = +match[2];
   } else if ((match = t.match(/^(\d{1,2})?\.(\d+)$/))) {
-    const value = parseFloat(t);
+    const value = parseFloat(t); // decimal hours as in the workbook: 7.5 = 07:30
     h = Math.floor(value);
     m = Math.round((value - h) * 60);
   } else {

@@ -224,3 +224,30 @@ def test_save_and_copy(wb, book, tmp_path):
     wb.save()
     wb.save_copy(tmp_path / "b" / "copy.xlsb")
     assert book.saved == 1 and book.copies == [str((tmp_path / "b" / "copy.xlsb").resolve())]
+
+
+def test_calculation_restore_failure_is_reported(wb, book):
+    class StuckApp(App):
+        def __setattr__(self, name, value):
+            if name == "calculation" and value == "automatic" and getattr(self, "stuck", False):
+                raise ComError(-1, "refused")
+            super().__setattr__(name, value)
+
+    book.app = StuckApp()
+    book.app.stuck = True
+    with pytest.raises(WorkbookError, match="Calculation Options > Automatic"):
+        wb.write_ranges([RangeWrite(sheet="1", address="G16:H16", values=[[7.0, 19.0]])])
+    assert book.app.screen_updating is True and book.app.calculated == 1  # the rest still ran
+    assert book.fake.read_range("1", "G16:H16") == [[7.0, 19.0]]  # and the data is in
+
+
+def test_master_read_is_capped(wb, book, monkeypatch):
+    seen = []
+    real = wb.read_range
+    monkeypatch.setattr(
+        wb, "read_range", lambda sheet, address: seen.append(address) or real(sheet, address)
+    )
+    huge = type("U", (), {"last_cell": type("C", (), {"row": 1048576})()})()
+    monkeypatch.setattr(Sheet, "used_range", property(lambda self: huge))  # restored afterwards
+    wb.read_master()
+    assert seen == ["A1:N1002"]  # 502 worker rows + 500 margin, not a million

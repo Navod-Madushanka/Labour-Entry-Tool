@@ -265,3 +265,27 @@ def test_header_fix_and_undo(service, fake):
 def test_header_fix_rejects_unknown_fields(service):
     with pytest.raises(ValueError):
         service.fix_header("1", ["prepared_by"], USER)
+
+
+def test_read_back_failure_after_a_good_write(small_snapshot, tmp_path):
+    from app.excel.adapter import WorkbookBusyError
+
+    class FlakyRead(FakeWorkbook):
+        fail = False
+
+        def read_range(self, sheet, address):
+            if self.fail:
+                raise WorkbookBusyError("Excel is busy.")
+            return super().read_range(sheet, address)
+
+        def write_ranges(self, writes):
+            super().write_ranges(writes)
+            self.fail = True  # Excel turns busy right after the write
+
+    fake = FlakyRead(small_snapshot)
+    svc = EntryService(lambda: fake, Config(month="2026-10"), AuditStore(), BackupManager(tmp_path))
+    res = svc.commit([entry()], USER)
+    assert res.status == "written" and "read-back failed" in res.error
+    assert svc.audit.batch(res.batch_id).status == "done"  # not left pending
+    fake.fail = False
+    assert fake.read_range("1", "G16:H16") == [[7.0, 19.0]]

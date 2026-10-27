@@ -347,7 +347,12 @@ class EntryService:
             self.audit.finish(batch_id, "failed", str(exc))
             return result("failed", batch_id=batch_id, backup=str(backup), error=str(exc))
         self.unsaved = True
-        readback = [self._read_back(p) for p in changed]
+        try:
+            readback = [self._read_back(p) for p in changed]
+        except WorkbookError as exc:  # written, but Excel could not be read back just now
+            self.audit.finish(batch_id, "done", f"read-back failed: {exc}")
+            return result("written", batch_id=batch_id, backup=str(backup),
+                          error=f"Written, but the check read-back failed: {exc}")  # fmt: skip
         bad_reads = sum(not r.ok for r in readback)
         self.audit.finish(
             batch_id, "done", f"{bad_reads} read-back mismatches" if bad_reads else None
@@ -687,10 +692,13 @@ class EntryService:
                                    error=str(exc))  # fmt: skip
         self.unsaved = True
         mismatches = []
-        for c in changes:
-            [[now]] = wb.read_range(c.sheet, c.cell)
-            if not same_value(now, c.new):
-                mismatches.append(f"{c.cell} reads {now!r}, wrote {c.new!r}")
+        try:
+            for c in changes:
+                [[now]] = wb.read_range(c.sheet, c.cell)
+                if not same_value(now, c.new):
+                    mismatches.append(f"{c.cell} reads {now!r}, wrote {c.new!r}")
+        except WorkbookError as exc:  # written; only the check failed
+            mismatches.append(f"Written, but the check read-back failed: {exc}")
         self.audit.finish(batch_id, "done", "employee codes")
         return CodeWriteResult(status="written", batch_id=batch_id, written=written,
                                mismatches=mismatches)  # fmt: skip
@@ -762,6 +770,9 @@ class EntryService:
         if plan.problems or row is None or name is None:
             return plan
         start = intended_date(req.start, self.config.month_start)
+        if start is None:  # e.g. sheet 31 in a 30-day month
+            plan.problems.append(f"Sheet {req.start} is not a day of {self.config.month}.")
+            return plan
         dates = medical_dates(start, req.days, self.config.month_start, self.config.holidays,
                               req.skip_holidays)  # fmt: skip
         plan.later = dates.later

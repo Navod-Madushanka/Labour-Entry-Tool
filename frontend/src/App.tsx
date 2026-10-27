@@ -195,16 +195,17 @@ export function App() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await api.commit(queue.map((q) => withHeaderAck(q.input)), user, dryRun);
+      const sent = queue; // entries added while this runs stay in the queue
+      const res = await api.commit(sent.map((q) => withHeaderAck(q.input)), user, dryRun);
       setResult(res);
+      const planOf = new Map(sent.map((q, n) => [q.id, res.plans[n]]));
       if (res.status === "written" || res.status === "unchanged") {
-        const sheets = new Set(queue.map((q) => q.input.sheet));
-        setQueue([]);
-        await Promise.all([...sheets].map(reloadDay));
+        setQueue((items) => items.filter((it) => !planOf.has(it.id)));
+        await Promise.all([...new Set(sent.map((q) => q.input.sheet))].map(reloadDay));
         refreshBatches();
         refreshStatus();
       } else {
-        setQueue((items) => items.map((it, n) => ({ ...it, plan: res.plans[n] ?? it.plan })));
+        setQueue((items) => items.map((it) => ({ ...it, plan: planOf.get(it.id) ?? it.plan })));
       }
     } catch (e) {
       fail(e);
@@ -337,6 +338,10 @@ export function App() {
               onPick={setSheet}
               onAcknowledge={() => setHeaderAck((a) => ({ ...a, [sheet]: true }))}
               onFix={fixHeader}
+              onReload={() => {
+                api.master(true).then(setMaster).catch(fail);
+                api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))).catch(fail);
+              }}
             />
             <EntryForm
               master={master}

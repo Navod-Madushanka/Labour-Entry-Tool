@@ -118,3 +118,14 @@ def test_api(setup):
         assert c.post("/api/medical", json={**body, "user": "Navod"}).status_code == 422  # approve
         res = c.post("/api/medical", json={**body, "user": "Navod", "approve": True}).json()
         assert res["status"] == "written" and res["row"]["written"]["A7"] == [None, "INB-01 M"]
+
+
+def test_start_sheet_outside_the_month(small_snapshot, tmp_path):
+    snap = small_snapshot.model_copy(deep=True)
+    snap.days.append(
+        DaySheet(header=DayHeader(sheet="31"), block_names=list(snap.days[0].block_names))
+    )
+    fake = FakeWorkbook(snap)
+    svc = EntryService(lambda: fake, Config(month="2026-11"), AuditStore(), BackupManager(tmp_path))
+    plan = svc.medical_preview(MedicalRequest(base="INB-01", start="31"))
+    assert plan.problems == ["Sheet 31 is not a day of 2026-11."] and plan.plans == []

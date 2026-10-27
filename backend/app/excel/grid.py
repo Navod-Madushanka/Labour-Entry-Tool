@@ -84,12 +84,15 @@ def master_from_grid(grid: Grid, t: TemplateConfig) -> MasterData:
             )
         )
 
-    activities = []
-    r = act_row
-    # Until the first blank; whitespace-only counts as blank (INDIAN pads L312:L502 with " ").
-    while (value := grid.get((r, act_col))) is not None and cell_text(value).strip():
-        activities.append(ActivityCode(row=r, raw=cell_text(value)))
-        r += 1
+    # Every non-blank cell from the first list row down to the end of the worker rows (or the
+    # configured list end, if later). Blank and space-only cells are skipped, not the end: INDIAN
+    # pads L312:L502 with " ", and a gap must not hide the codes below it.
+    list_end = max(t.master_rows[1], parse_range(t.activity_list)[1][0])
+    activities = [
+        ActivityCode(row=r, raw=cell_text(value))
+        for r in range(act_row, list_end + 1)
+        if (value := grid.get((r, act_col))) is not None and cell_text(value).strip()
+    ]
 
     day_types = [
         cell_text(v)

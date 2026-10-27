@@ -1,5 +1,24 @@
 # Changelog
 
+## Code review fixes (27 Oct 2026)
+
+- **Excel left on manual calculation:** if switching calculation back failed after a batch (Excel
+  busy at that moment), the error was lost and the workbook could stay on manual. Each restore
+  step (calculation, screen updating, recalculation) is now tried separately, and a failure is
+  reported with the steps to fix it in Excel.
+- **Read-back failure after a good write** (entries, employee codes): the batch stayed "pending"
+  and the UI reported a failure for data that was written. Now: status written, audit done, and a
+  message that only the check failed.
+- **Labour Detail read capped** at the worker rows + 500 (formatting far down could stretch Excel's
+  used range to a million rows).
+- **Activity list gaps:** a blank cell in column L no longer hides the codes below it.
+- **"7.30" typed as a time** now means 07:30 (it was read as 7.3 decimal hours = 07:18 and
+  rejected). .15/.30/.45 are never quarter-hour decimals, so this is unambiguous.
+- **Queue:** entries added while a write is running are no longer cleared when it finishes.
+- **Reload from Excel** on the day bar, for changes made directly in Excel.
+- **Medical leave** from a sheet that is not a day of the month now explains instead of failing.
+- Browser smoke tests for medical leave and the codes page added to `frontend/e2e/`.
+
 ## Automation: start a day from previous days (27 Oct 2026)
 
 Patterns measured on the October INDIAN data (4,075 worker-days): 84% of a day's workers worked

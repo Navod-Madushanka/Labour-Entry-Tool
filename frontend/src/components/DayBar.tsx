@@ -9,11 +9,12 @@ interface Props {
   onPick: (sheet: string) => void;
   onAcknowledge: () => void;
   onFix: (issues: Issue[]) => void;
+  onReload: () => void;
 }
 
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
-export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAcknowledge, onFix }: Props) {
+export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAcknowledge, onFix, onReload }: Props) {
   const h = day?.header;
   const issues = day?.header_issues ?? [];
   const blocking = issues.some((i) => i.severity === "BLOCK");
@@ -42,6 +43,9 @@ export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAck
             <span className="muted">{day?.entries.length ?? 0} entries</span>
           </>
         )}
+        <button className="link small" onClick={onReload} title="Read this sheet and Labour Detail again (after editing Excel directly)">
+          Reload from Excel
+        </button>
       </div>
       {issues.length > 0 && (
         <div className={`banner ${blocking ? "BLOCK" : "WARN"}`} role="alert">

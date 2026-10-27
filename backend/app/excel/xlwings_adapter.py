@@ -49,6 +49,7 @@ BUSY_HRESULTS = frozenset({RPC_E_CALL_REJECTED, VBA_E_IGNORE, RPC_E_SERVERCALL_R
 GONE_HRESULTS = frozenset({-2147023174, -2147023170, -2147417848})  # RPC unavailable / disconnected
 
 EXCEL_EPOCH_DT = dt.datetime.combine(EXCEL_EPOCH, dt.time())
+MASTER_MARGIN = 500  # rows read past Labour Detail's last worker row
 
 
 # --- Pure helpers ------------------------------------------------------------------------------
@@ -210,7 +211,10 @@ class XlwingsWorkbook:
         t = self.template
         sht = self._sheet(t.master_sheet)
         used = self._com(lambda: sht.used_range.last_cell.row)
-        grid = self._grid(t.master_sheet, max(used, t.master_rows[1]), master_max_col(t))
+        # Formatting far down can stretch the used range to a million rows: never read past the
+        # worker rows / activity list (plus a margin for a longer list).
+        last = min(max(used, t.master_rows[1]), t.master_rows[1] + MASTER_MARGIN)
+        grid = self._grid(t.master_sheet, last, master_max_col(t))
         return master_from_grid(grid, t)
 
     def day_sheet_names(self) -> list[str]:
@@ -237,13 +241,35 @@ class XlwingsWorkbook:
         self._com(lambda: setattr(app, "calculation", "manual"))
         try:
             for w in writes:
-                sht = self._sheet(w.sheet)
+                try:
+                    sht = self._sheet(w.sheet)
+                except KeyError as exc:
+                    raise WorkbookError(str(exc)) from exc
                 rng = self._com(lambda sht=sht, w=w: sht.range(w.address))
                 self._com(lambda rng=rng, w=w: setattr(rng, "value", w.values))
-        finally:
-            self._com(lambda: setattr(app, "calculation", calculation))
-            self._com(lambda: setattr(app, "screen_updating", screen))
-            self._com(app.calculate)
+        except BaseException:
+            self._restore(app, calculation, screen, report=False)  # the write error wins
+            raise
+        self._restore(app, calculation, screen, report=True)
+
+    def _restore(self, app: Any, calculation: str, screen: bool, report: bool) -> None:
+        """Put calculation and screen updating back. Each step is tried even if another fails;
+        a workbook left on manual calculation would silently stop updating its formulas."""
+        failed = []
+        for label, step in (
+            ("calculation", lambda: setattr(app, "calculation", calculation)),
+            ("screen updating", lambda: setattr(app, "screen_updating", screen)),
+            ("recalculation", app.calculate),
+        ):
+            try:
+                self._com(step)
+            except WorkbookError:
+                failed.append(label)
+        if failed and report:
+            raise WorkbookError(
+                f"Written, but Excel did not take back: {', '.join(failed)}. In Excel, set "
+                f"Formulas > Calculation Options > {calculation.title()} and press F9."
+            )
 
     def save(self) -> None:
         self._com(self.book.save)
