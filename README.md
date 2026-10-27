@@ -46,6 +46,32 @@ python -m app.main                       # web report at http://localhost:8000/h
 - The web report needs `workbook_file:` in `config.yaml`. The API is `GET /api/health`,
   `GET /api/health.csv` (both take `?holidays=YYYY-MM-DD,...`) and `GET /api/rules`.
 
+## Entry screen (Phase 3)
+
+```powershell
+cd backend
+python -m app.main            # open http://localhost:8000 with the workbook open in Excel
+python -m app.main --demo "C:/Labour/Labour Entry Sheet October 2026 - INDIAN (2).xlsb"
+```
+
+`--demo` loads a copy of the workbook (`.xlsb` or a snapshot `.json`) into memory: the whole
+screen works, but Excel is not used and nothing is saved. Good for trying it out or training.
+
+Keyboard flow: **worker** (calling name, name or employee code; Enter picks) → **In** → **Out**
+(Enter moves on; ↑/↓ change by 15 minutes; Out earlier than In means overnight) → **activity** →
+**hours** (prefilled with the remaining effective hours) → **Enter** adds it to the queue. The times
+and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** changes the day.
+
+- The preview shows what Excel will compute (total, effective, OT, ZIDLE, day count) and every
+  check. Red (BLOCK) cannot be written; amber warnings need a tick in the queue.
+- **Write to Excel** writes the whole queue as one batch, then shows Excel's read-back.
+- Suggestions: the worker's usual times, a copy of yesterday, the crew's activity today, recent
+  activity codes. **Crew entry** queues many workers at once (by trade, search or saved crew).
+- The day list shows what is already on the sheet (Edit = overwrite, Clear). Recent batches can be
+  undone. A wrong sheet header shows a red banner with **Fix** (writes F3/H3/F4 after you confirm)
+  or **Header is right, write anyway**.
+- **Save workbook** saves in Excel; nothing is saved automatically.
+
 ## Live Excel (Phase 2)
 
 With the workbook open in Excel, `python -m app.main` attaches to it (the one open book matching
@@ -55,7 +81,10 @@ checks and every warning is acknowledged.
 | Route | What it does |
 |---|---|
 | `GET /api/status` | connected?, workbook name, unsaved changes, this session's backup |
-| `POST /api/preview` | plan and check entries; writes nothing |
+| `GET /api/master` | workers (with employee-code status), activity codes, day types, sheets |
+| `GET /api/days/{sheet}` | one sheet: header checks and every entry with computed values |
+| `POST /api/preview` | plan and check entries against the cached sheets; writes nothing |
+| `POST /api/days/{sheet}/header-fix` | write F3/H3/F4 (needs `approve: true`) |
 | `POST /api/entries` | write a batch (`dry_run: true` only checks it); returns the read-back per worker |
 | `GET /api/batches` | recent batches from the audit log |
 | `POST /api/batches/{id}/undo` | write the old values back (refused if the cells changed since) |

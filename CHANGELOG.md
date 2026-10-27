@@ -1,5 +1,42 @@
 # Changelog
 
+## Phase 3 — Entry UI (27 Oct 2026)
+
+**Built**
+- React + TypeScript + Vite app (`frontend/`), built into `backend/app/static/app/` and served at
+  `/`. Committed build, so the office PC needs only Python.
+- Name prompt (once per browser), status bar (workbook, DEMO badge, unsaved changes, Save
+  workbook), day bar with entry counts and a header banner (H01–H03) offering **Fix** or **write
+  anyway**.
+- Keyboard-first entry form: worker search (calling name/name/employee code, fuzzy and
+  hyphen-free), HH:MM times with 15-minute arrow steps and automatic overnight, 5 activity lines
+  with hours prefilled from the remaining effective hours, additional hours and remark.
+- Live preview from the server (total, effective, OT, ZIDLE, SUMMARY day count, BP Bill day) with
+  every check inline; existing entry notice with **Edit** (overwrite).
+- Suggestions: usual In/Out, copy of yesterday, the trade's activity and times today, recent codes;
+  activity codes ordered by use this month. Month stats per worker (days, hours).
+- Queue re-checked on the server whenever it changes (batch entries see each other); warnings are
+  confirmed per entry; **Write to Excel** commits one batch and shows the read-back.
+- Crew entry: by trade, search or saved crew (browser storage); same as the form or copy of
+  yesterday. Day list with Edit/Clear. Recent batches with Undo.
+- Backend: cached master/day reads for previews (writes still re-read), `GET /api/master`,
+  `GET /api/days/{sheet}`, W02/W03 for new entries (`domain/crosscheck.py`), header fix with
+  approval, audit and undo (`POST /api/days/{sheet}/header-fix`), `python -m app.main --demo`.
+
+**Demo**
+```powershell
+python -m app.main --demo fixtures/sanitized/indian_2026-10.json   # http://localhost:8000
+python -m pytest backend/tests -q   # 243 passed with the real .xlsb in fixtures/private/
+node frontend/e2e/ui-smoke.cjs      # keyboard flow, crew, edit, undo, header fix: passed
+```
+On the INDIAN demo: 248 workers queued for one sheet are checked in 0.8 s; the 18 flagged W03
+are the role-suffix codes and shared IDs booked at the same time (correct). Two bugs found by the
+browser test and fixed: focus moved a tick late after Enter (fast typists lost keys), and the form
+took focus from the name prompt.
+
+**Not verified yet:** the "done when" items on real Excel (writes, read-back, timing) wait for the
+Phase 2 smoke test on Windows.
+
 ## Phase 2 — Live Excel adapter (27 Oct 2026)
 
 **Built**

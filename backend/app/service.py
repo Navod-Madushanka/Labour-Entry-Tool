@@ -17,20 +17,39 @@ from pydantic import BaseModel, Field
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore, Batch, Change
 from app.config import Config
-from app.domain.models import CellValue, MasterData, as_number
-from app.domain.rules import same_hours
-from app.domain.validators import make_issue
+from app.domain.codes import EmployeeCodeStatus, employee_code_status, person_key
+from app.domain.crosscheck import add_cross_entry_issues
+from app.domain.models import (
+    CellValue,
+    Computed,
+    DayHeader,
+    DaySheet,
+    Entry,
+    Issue,
+    MasterData,
+    as_number,
+)
+from app.domain.rules import compute_entry, same_hours
+from app.domain.validators import (
+    calendar_day_type,
+    check_entry,
+    check_header,
+    intended_date,
+    make_issue,
+)
 from app.domain.writes import (
     ActivityInput,
     EntryInput,
     EntryPlan,
     RangeWrite,
     block_writes,
+    header_fix_cells,
     plan_entry,
     same_value,
     unwritable_cells,
 )
 from app.excel.adapter import LiveWorkbook, WorkbookError
+from app.excel.grid import date_to_excel_serial
 from app.excel.refs import col_to_index, index_to_col, parse_cell
 
 
@@ -63,12 +82,55 @@ class UndoResult(BaseModel):
     error: str | None = None
 
 
+class HeaderFixResult(BaseModel):
+    status: Literal["written", "unchanged", "rejected", "failed"]
+    batch_id: int | None = None
+    changes: dict[str, tuple[CellValue, CellValue]] = Field(default_factory=dict)
+    error: str | None = None
+
+
 class Status(BaseModel):
     connected: bool
+    mode: Literal["live", "demo"] = "live"
     workbook: str | None = None
     error: str | None = None
     unsaved_changes: bool = False
     backup: str | None = None
+
+
+class WorkerView(BaseModel):
+    row: int
+    block: int
+    calling_name: str
+    person: str  # base code: a calling name and its role-suffix codes share it
+    name: CellValue = None
+    trade_group: CellValue = None
+    employee_code: CellValue = None
+    code_status: EmployeeCodeStatus
+
+
+class MasterView(BaseModel):
+    workbook: str
+    month: str
+    holidays: list
+    sheets: list[str]
+    workers: list[WorkerView]
+    activities: list[str]  # trimmed, unique, in list order
+    day_types: list[str]
+
+
+class EntryView(BaseModel):
+    entry: Entry
+    computed: Computed | None = None
+    issues: list[Issue] = Field(default_factory=list)
+
+
+class DayView(BaseModel):
+    header: DayHeader
+    expected_date: str | None = None
+    expected_day_type: str | None = None
+    header_issues: list[Issue] = Field(default_factory=list)
+    entries: list[EntryView] = Field(default_factory=list)
 
 
 class EntryService:
@@ -78,13 +140,17 @@ class EntryService:
         config: Config,
         audit: AuditStore,
         backups: BackupManager,
+        mode: Literal["live", "demo"] = "live",
     ):
         self._connect = connect
+        self.mode = mode
         self.config = config
         self.template = config.template
         self.audit = audit
         self.backups = backups
         self._workbook: LiveWorkbook | None = None
+        self._master: MasterData | None = None
+        self._days: dict[str, DaySheet] = {}
         self.unsaved = False
 
     # --- connection ---
@@ -97,27 +163,85 @@ class EntryService:
 
     def disconnect(self) -> None:
         self._workbook = None
+        self._master = None
+        self._days.clear()
+
+    # --- cached reads (previews); writes always re-read ---
+
+    def master(self, fresh: bool = False) -> MasterData:
+        if fresh or self._master is None:
+            self._master = self.workbook.read_master()
+        return self._master
+
+    def day(self, sheet: str, fresh: bool = False) -> DaySheet:
+        if sheet not in self.workbook.day_sheet_names():
+            raise KeyError(f"no day sheet {sheet!r}")
+        if fresh or sheet not in self._days:
+            self._days[sheet] = self.workbook.read_day(sheet)
+        return self._days[sheet]
+
+    def _forget(self, sheets) -> None:
+        for sheet in sheets:
+            self._days.pop(sheet, None)
+
+    def master_view(self, fresh: bool = False) -> MasterView:
+        m, t = self.master(fresh), self.template
+        return MasterView(
+            workbook=self.workbook.name,
+            month=self.config.month,
+            holidays=self.config.holidays,
+            sheets=self.workbook.day_sheet_names(),
+            workers=[
+                WorkerView(row=w.row, block=t.block_for_master_row(w.row),
+                           calling_name=w.calling_name, person=person_key(w.calling_name),
+                           name=w.name, trade_group=w.trade_group,
+                           employee_code=w.employee_code,
+                           code_status=employee_code_status(w.employee_code))
+                for w in m.workers
+            ],
+            activities=list(dict.fromkeys(a.code for a in m.activities)),
+            day_types=m.day_types,
+        )  # fmt: skip
+
+    def day_view(self, sheet: str, fresh: bool = False) -> DayView:
+        day, t = self.day(sheet, fresh), self.template
+        codes = {a.code for a in self.master().activities}
+        month, holidays = self.config.month_start, self.config.holidays
+        expected = intended_date(sheet, month)
+        return DayView(
+            header=day.header,
+            expected_date=expected.isoformat() if expected else None,
+            expected_day_type=calendar_day_type(expected, holidays) if expected else None,
+            header_issues=check_header(day.header, month, holidays, t),
+            entries=[
+                EntryView(entry=e, computed=compute_entry(e, day.header.day_type),
+                          issues=check_entry(e, day.header.day_type, codes, t))
+                for e in day.entries
+            ],
+        )  # fmt: skip
 
     def status(self) -> Status:
         try:
             wb = self.workbook
         except WorkbookError as exc:
-            return Status(connected=False, error=str(exc))
+            return Status(connected=False, mode=self.mode, error=str(exc))
         backup = self.backups.session_backup(wb.name)
-        return Status(connected=True, workbook=wb.name, unsaved_changes=self.unsaved,
+        return Status(connected=True, mode=self.mode, workbook=wb.name,
+                      unsaved_changes=self.unsaved,
                       backup=str(backup) if backup else None)  # fmt: skip
 
     # --- preview / commit ---
 
-    def preview(self, entries: list[EntryInput]) -> list[EntryPlan]:
-        return self._plan(entries, self.workbook.read_master())
+    def preview(self, entries: list[EntryInput], fresh: bool = False) -> list[EntryPlan]:
+        """Plans against the cached sheets (fast enough to run while typing)."""
+        return self._plan(entries, self.master(fresh), fresh)
 
     def commit(self, entries: list[EntryInput], user: str, dry_run: bool = False) -> CommitResult:
         started = time.perf_counter()
         if not user.strip():
             raise ValueError("a user name is required for writes")
         wb = self.workbook
-        plans = self._plan(entries, wb.read_master())
+        plans = self._plan(entries, self.master(fresh=True), fresh=True)
 
         def result(status, **kw) -> CommitResult:
             return CommitResult(status=status, plans=plans,
@@ -144,6 +268,7 @@ class EntryService:
             for p in changed for cell, (old, new) in p.changes.items()
         ]  # fmt: skip
         batch_id = self.audit.start("write", user, wb.name, changes)
+        self._forget({w.sheet for w in writes})  # cached copies are stale from here on
         try:
             wb.write_ranges(writes)
         except WorkbookError as exc:
@@ -158,9 +283,11 @@ class EntryService:
         )
         return result("written", batch_id=batch_id, backup=str(backup), readback=readback)
 
-    def _plan(self, entries: list[EntryInput], master: MasterData) -> list[EntryPlan]:
+    def _plan(
+        self, entries: list[EntryInput], master: MasterData, fresh: bool = False
+    ) -> list[EntryPlan]:
         codes = {a.code for a in master.activities}
-        days = {sheet: self.workbook.read_day(sheet) for sheet in {e.sheet for e in entries}}
+        days = {sheet: self.day(sheet, fresh) for sheet in {e.sheet for e in entries}}
         plans, seen = [], set()
         for e in entries:
             plan = plan_entry(e, days[e.sheet], codes, self.config.month_start,
@@ -172,6 +299,10 @@ class EntryService:
                                               calling_name=e.calling_name))  # fmt: skip
             seen.add(key)
             plans.append(plan)
+        names = set(self.workbook.day_sheet_names())
+        around = {str(int(s) + d) for s in days if s.isdigit() for d in (-1, 1)} & names
+        context = {**{s: self.day(s) for s in around - set(days)}, **days}
+        add_cross_entry_issues(plans, context, master, self.template)
         return plans
 
     def _read_back(self, plan: EntryPlan) -> ReadBack:
@@ -225,8 +356,13 @@ class EntryService:
             return reject(f"Batch was written to {batch.workbook}, not {wb.name}.")
 
         t = self.template
+        header_cells = set(header_fix_cells(t).values())
         by_block: dict[tuple[str, int], list[Change]] = {}
+        header_changes: list[Change] = []
         for ch in self.audit.changes(batch_id):
+            if ch.cell in header_cells:
+                header_changes.append(ch)
+                continue
             row = parse_cell(ch.cell)[0]
             first = row - (row - t.first_block_row) % t.block_size
             by_block.setdefault((ch.sheet, first), []).append(ch)
@@ -234,6 +370,17 @@ class EntryService:
         writes: list[RangeWrite] = []
         undo_changes: list[Change] = []
         conflicts: list[str] = []
+        for ch in header_changes:  # header fixes: cell by cell
+            [[now]] = self.workbook.read_range(ch.sheet, ch.cell)
+            if same_value(now, ch.old):
+                continue
+            if not same_value(now, ch.new):
+                conflicts.append(
+                    f"{ch.sheet}!{ch.cell} changed since: now {now!r}, wrote {ch.new!r}"
+                )
+                continue
+            writes.append(RangeWrite(sheet=ch.sheet, address=ch.cell, values=[[ch.old]]))
+            undo_changes.append(Change(sheet=ch.sheet, cell=ch.cell, old=now, new=ch.old))
         for (sheet, r), changes in by_block.items():
             current = self._read_inputs(sheet, r)
             name = changes[0].calling_name
@@ -257,13 +404,14 @@ class EntryService:
             return UndoResult(status="conflict", batch_id=batch_id, conflicts=conflicts)
         if not undo_changes:
             return reject("Nothing to undo: the cells already hold the old values.")
-        if bad := unwritable_cells(writes, t):
+        if bad := unwritable_cells(writes, t, allow_header=bool(header_changes)):
             raise RuntimeError(f"refusing to write outside the input cells: {bad}")
         try:
             self.backups.ensure(wb.name, wb.save_copy)
         except (OSError, WorkbookError) as exc:
             return UndoResult(status="failed", batch_id=batch_id, error=f"Backup failed: {exc}")
         undo_id = self.audit.start("undo", user, wb.name, undo_changes, undo_of=batch_id)
+        self._forget({w.sheet for w in writes})
         try:
             wb.write_ranges(writes)
         except WorkbookError as exc:
@@ -316,6 +464,54 @@ class EntryService:
         for i in range(n):
             writes[1].values[i][0] = cells[f"{c.activity}{r + i}"]
         return writes
+
+    # --- header fix (H01-H03; needs the user's explicit approval, PLAN.md §2 rule 2) ---
+
+    def fix_header(self, sheet: str, fields: list[str], user: str) -> HeaderFixResult:
+        """Write the expected date (F3), day type (H3) and/or sheet number (F4) of a day sheet."""
+        if not user.strip():
+            raise ValueError("a user name is required for writes")
+        cells = header_fix_cells(self.template)
+        if unknown := set(fields) - set(cells):
+            raise ValueError(f"unknown header fields: {sorted(unknown)}")
+        expected = intended_date(sheet, self.config.month_start)
+        if expected is None:
+            return HeaderFixResult(status="rejected", error=f"Sheet {sheet} is not a day of "
+                                   f"{self.config.month}.")  # fmt: skip
+        wb = self.workbook
+        h = self.day(sheet, fresh=True).header
+        current = {"date": h.date_raw, "day_type": h.day_type, "sheet_no": h.sheet_no}
+        wanted = {
+            "date": date_to_excel_serial(expected),
+            "day_type": calendar_day_type(expected, self.config.holidays),
+            "sheet_no": float(sheet),
+        }
+        changes = [
+            Change(sheet=sheet, cell=cells[f], old=current[f], new=wanted[f])
+            for f in fields if not same_value(current[f], wanted[f])
+        ]  # fmt: skip
+        if not changes:
+            return HeaderFixResult(status="unchanged")
+        writes = [RangeWrite(sheet=sheet, address=c.cell, values=[[c.new]]) for c in changes]
+        if bad := unwritable_cells(writes, self.template, allow_header=True):
+            raise RuntimeError(f"refusing to write outside the header cells: {bad}")
+        try:
+            self.backups.ensure(wb.name, wb.save_copy)
+        except (OSError, WorkbookError) as exc:
+            return HeaderFixResult(status="failed", error=f"Backup failed, nothing written: {exc}")
+        batch_id = self.audit.start("write", user, wb.name, changes)
+        self._forget({sheet})
+        result = {c.cell: (c.old, c.new) for c in changes}
+        try:
+            wb.write_ranges(writes)
+        except WorkbookError as exc:
+            self.unsaved = True
+            self.audit.finish(batch_id, "failed", str(exc))
+            return HeaderFixResult(status="failed", batch_id=batch_id, changes=result,
+                                   error=str(exc))  # fmt: skip
+        self.unsaved = True
+        self.audit.finish(batch_id, "done", "header fix")
+        return HeaderFixResult(status="written", batch_id=batch_id, changes=result)
 
     # --- save / history ---
 

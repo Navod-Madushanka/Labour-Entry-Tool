@@ -11,7 +11,7 @@ from app.config import TemplateConfig
 from app.domain import rules
 from app.domain.codes import is_excel_error
 from app.domain.models import CellValue, DaySheet, MasterData, WorkbookSnapshot, as_number
-from app.domain.writes import RangeWrite, writable_cell
+from app.domain.writes import RangeWrite, unwritable_cells
 from app.excel.adapter import ProtectionError, WorkbookBusyError
 from app.excel.grid import (
     Grid,
@@ -115,10 +115,9 @@ class FakeWorkbook:
         if self.busy_failures:
             self.busy_failures -= 1
             raise WorkbookBusyError("Excel is busy (a cell is being edited).")
-        for w in writes:
-            for cell, _ in w.cells():
-                if not writable_cell(self.template, cell):
-                    raise ProtectionError(f"The cell {w.sheet}!{cell} is protected.")
+        for w in writes:  # unlocked cells: the block inputs and the day-sheet header
+            if bad := unwritable_cells([w], self.template, allow_header=True):
+                raise ProtectionError(f"The cell {bad[0]} is protected.")
         for w in writes:
             grid = self._grid(w.sheet)
             for cell, value in w.cells():

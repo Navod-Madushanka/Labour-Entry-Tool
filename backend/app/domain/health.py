@@ -359,7 +359,8 @@ def check_rest(ctx: _Context) -> list[Issue]:
     return issues
 
 
-def _identities(w: Worker | None, calling_name: str) -> set[tuple[str, str]]:
+def identities(w: Worker | None, calling_name: str) -> set[tuple[str, str]]:
+    """Keys that make two calling names the same person: base code, valid employee code, ID."""
     keys = {("person", person_key(calling_name))}
     if w is not None:
         if employee_code_status(w.employee_code) == EmployeeCodeStatus.VALID:
@@ -376,7 +377,7 @@ def check_double_bookings(ctx: _Context) -> list[Issue]:
         done = [e for e in day.entries if e.is_complete and e.calling_name]
         owner: dict[tuple[str, str], list[Entry]] = defaultdict(list)
         for e in done:
-            for key in _identities(ctx.worker(e), e.calling_name):
+            for key in identities(ctx.worker(e), e.calling_name):
                 owner[key].append(e)
         pairs: dict[tuple[int, int], set[str]] = defaultdict(set)
         for (kind, _), group in owner.items():

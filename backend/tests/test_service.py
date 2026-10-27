@@ -24,7 +24,8 @@ def acts(hours, code="03-11-00-00"):
 
 
 def entry(name="INB-01 CH", **kw):
-    base = dict(sheet="1", calling_name=name, time_in=7.0, time_out=19.0,
+    # INB-01 CH and INH-03 are the same person as INB-01 (7-19 on sheet 1): W03 acknowledged.
+    base = dict(sheet="1", calling_name=name, time_in=7.0, time_out=19.0, acknowledged=["W03"],
                 activities=[ActivityInput(code="03-11-00-00", hours=11.0)])  # fmt: skip
     return EntryInput(**{**base, **kw})
 
@@ -78,7 +79,9 @@ def test_dry_run_and_rejections_write_nothing(service, fake):
 
 
 def test_acknowledged_warning_is_written(service, fake):
-    res = service.commit([entry(time_out=22.0, activities=acts(14.0), acknowledged=["W05"])], USER)
+    res = service.commit(
+        [entry(time_out=22.0, activities=acts(14.0), acknowledged=["W05", "W03"])], USER
+    )
     assert res.status == "written" and res.readback[0].effective == 14.0
 
 
@@ -237,3 +240,28 @@ def test_worker_runs_jobs_in_order_on_one_thread():
     assert asyncio.run(worker.run(lambda: 42)) == 42
     worker.stop()
     assert not worker.thread.is_alive()
+
+
+# --- header fix ---------------------------------------------------------------------------------
+
+
+def test_header_fix_and_undo(service, fake):
+    fake.grids["1"][(3, 8)] = "Saturday"  # H3 wrong: 1 Oct 2026 is a Thursday
+    fake.grids["1"][(4, 6)] = 2.0  # F4 wrong
+    assert {i.rule for i in service.day_view("1", fresh=True).header_issues} == {"H02", "H03"}
+    res = service.fix_header("1", ["day_type", "sheet_no", "date"], USER)
+    assert res.status == "written"
+    assert res.changes == {"H3": ("Saturday", "Normal Day"), "F4": (2.0, 1.0)}  # date was right
+    assert service.day_view("1").header_issues == []
+    assert fake.read_day("1").entries[0].cached.upload[6].ot == 3.0  # OT recalculated
+    assert service.fix_header("1", ["day_type"], USER).status == "unchanged"
+    undo = service.undo(res.batch_id, USER)
+    assert undo.status == "undone"
+    assert fake.read_range("1", "H3:H3") == [["Saturday"]] and fake.read_range("1", "F4:F4") == [
+        [2.0]
+    ]
+
+
+def test_header_fix_rejects_unknown_fields(service):
+    with pytest.raises(ValueError):
+        service.fix_header("1", ["prepared_by"], USER)

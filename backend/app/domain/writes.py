@@ -85,6 +85,8 @@ class EntryPlan(BaseModel):
     writes: list[RangeWrite] = Field(default_factory=list)
     old: dict[str, CellValue] = Field(default_factory=dict)  # every target cell's current value
     preview: Computed | None = None
+    day_count: float | None = None  # SUMMARY day count (1, 0.5 or 0)
+    bp_day: bool | None = None  # BP Bill counts the day (effective >= 6)
     issues: list[Issue] = Field(default_factory=list)
 
     @computed_field
@@ -148,12 +150,22 @@ def writable_cell(template: TemplateConfig, cell: str) -> bool:
     return col in {col_to_index(x) for x in allowed}
 
 
-def unwritable_cells(writes: list[RangeWrite], template: TemplateConfig) -> list[str]:
+def header_fix_cells(template: TemplateConfig) -> dict[str, str]:
+    """Header cells the tool may fix after explicit approval (H01-H03): field -> cell."""
+    h = template.header
+    return {"date": h.date, "day_type": h.day_type, "sheet_no": h.sheet_no}
+
+
+def unwritable_cells(
+    writes: list[RangeWrite], template: TemplateConfig, allow_header: bool = False
+) -> list[str]:
+    """Cells outside the §5.4 inputs (plus F3/H3/F4 when a header fix was approved)."""
+    header = set(header_fix_cells(template).values()) if allow_header else set()
     return [
         f"{w.sheet}!{cell}"
         for w in writes
         for cell, _ in w.cells()
-        if not writable_cell(template, cell)
+        if not (writable_cell(template, cell) or cell in header)
     ]
 
 
@@ -268,4 +280,7 @@ def plan_entry(
     would_be = as_entry(entry, block, row)
     issues += check_entry(would_be, day.header.day_type, activity_codes, t)
     plan.preview = rules.compute_entry(would_be, day.header.day_type)
+    if plan.preview is not None:
+        plan.day_count = rules.summary_day_count(plan.preview.effective, day.header.day_type)
+        plan.bp_day = rules.bp_bill_counts_day(plan.preview.effective)
     return plan

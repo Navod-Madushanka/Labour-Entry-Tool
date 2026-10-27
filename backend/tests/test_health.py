@@ -190,9 +190,10 @@ def test_api_csv_and_rules(client):
     assert client.get("/api/rules").json()["E05"]["severity"] == "BLOCK"
 
 
-def test_api_page(client):
-    res = client.get("/", follow_redirects=True)
-    assert res.status_code == 200 and "Workbook health check" in res.text
+def test_pages(client):
+    assert "Workbook health check" in client.get("/health").text
+    res = client.get("/", follow_redirects=True)  # the entry UI when built, else the report
+    assert res.status_code == 200 and ('id="root"' in res.text or "health check" in res.text)
 
 
 def test_api_without_workbook():
