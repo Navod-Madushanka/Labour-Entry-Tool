@@ -1,9 +1,14 @@
 # Copy to config.yaml (git-ignored) and adjust paths for this PC.
 workbook_pattern: "Labour Entry Sheet * - INDIAN*.xlsb"
+# The .xlsb the health check reads from disk (no Excel needed). Read-only.
+workbook_file: "C:/Labour/Labour Entry Sheet October 2026 - INDIAN (2).xlsb"
 month: 2026-10
 registration_files:
   - "C:/Labour/External labour registeration-Indians.xlsx"
-holidays: [2026-10-25]          # office to confirm (open question 5)
+# Public holidays (YYYY-MM-DD). Sheets on these dates should say "Holiday" (rule H02).
+# Not confirmed yet (PLAN.md §12 q5): edit as the office confirms. Override per run with
+# --holiday on the command line, or the holiday box on the report page.
+holidays: [2026-10-25]
 server: { host: 127.0.0.1, port: 8000, allow_lan: false }
 backups: { dir: "C:/Labour/backups", keep: 10 }
 template:

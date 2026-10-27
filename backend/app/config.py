@@ -117,6 +117,7 @@ class TemplateConfig(BaseModel):
 
 class Config(BaseModel):
     workbook_pattern: str = "Labour Entry Sheet * - INDIAN*.xlsb"
+    workbook_file: Path | None = None  # read from disk (pyxlsb) by the health check
     month: str = Field(description="YYYY-MM")
     registration_files: list[Path] = []
     holidays: list[dt.date] = []

@@ -1,5 +1,38 @@
 # Changelog
 
+## Phase 1 — Health check (27 Oct 2026)
+
+**Built**
+- `domain/validators.py`: the §7 catalogue (`RULES`) and per-entry checks E01–E06, W01, W04–W06,
+  W08, M06, plus header checks H01–H03. Pure functions, reused by the entry UI in Phase 3.
+- `domain/health.py`: `run_health(snapshot, month_start, holidays)` adds the month-wide checks:
+  M01–M05 (master data), W02 (< 8 h rest before the next sheet's shift), W03 (same base code,
+  employee code or ID with overlapping times), W07 (upload lines per worker with a blank/0
+  employee). H01/H02 messages state the impact (worker-days, hours, OT under the right rule).
+- `rules.upload_line_count`: lines Excel builds per entry (K filled and non-zero, ZIDLE ≠ 0, OT > 0).
+- CLI `python -m app.health` (console summary + CSV), FastAPI app `python -m app.main` with
+  `GET /api/health`, `/api/health.csv`, `/api/rules` and a self-contained report page at `/health`
+  (filters, search, editable holidays). The page moves into the React frontend in Phase 3.
+- Config: `workbook_file` (the `.xlsb` the health check reads). Holidays stay editable in
+  `config.yaml`, per run with `--holiday` / `--no-holidays`, or on the page. LAN stays off unless
+  `allow_lan: true`.
+- Messages use calling names only, never names or ID numbers.
+
+**Demo** (INDIAN snapshot; every Appendix B item with its count, checked by `test_golden_indian.py`)
+```powershell
+python -m app.health "fixtures/private/Labour Entry Sheet October 2026 - INDIAN (2).xlsb"
+# Errors: 7   Warnings: 712   Info: 12   -> 731 rows in the CSV
+python -m pytest backend/tests -q   # 159 passed, 8 skipped (with the real .xlsb in fixtures/private/)
+```
+
+**Severity choices** (the plan gives none for M rules): M01–M03 and M06 are WARN, M04/M05 INFO.
+Existing entries are reported under their own E/W rule (M07 in the plan).
+
+**Not in this phase**
+- Registration cross-checks (§5.8): need the registration `.xlsx`, so they come with the
+  registration reader in Phase 4.
+- Holidays for 2026 are still unconfirmed (§12 q5). The example config lists only 2026-10-25.
+
 ## Phase 0 — Verified against the real INDIAN workbook (27 Oct 2026)
 
 The 26 Oct snapshot (SHA-256 matches PLAN.md §5.1) passes every golden test: Appendix A, and

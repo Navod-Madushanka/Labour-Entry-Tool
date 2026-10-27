@@ -20,6 +20,7 @@ from app.domain.codes import (
     normalise_activity,
     parse_calling_name,
 )
+from app.domain.health import run_health
 from app.domain.models import WorkbookSnapshot, as_number, is_blank
 from app.domain.rules import compute_entry, same_hours
 from app.excel.fake_adapter import load_snapshot
@@ -222,3 +223,83 @@ def test_upload_lines_without_valid_employee(indian):
         elif status == EmployeeCodeStatus.ZERO:
             zero_lines += lines
     assert (blank_lines, len(blank_workers), zero_lines) == (1358, 36, 48)
+
+
+# --- Phase 1 health check: PLAN.md Appendix B ----------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def health(indian):
+    return run_health(indian, dt.date(2026, 10, 1), [dt.date(2026, 10, 25)], T)
+
+
+def _of(report, rule):
+    return [i for i in report.issues if i.rule == rule]
+
+
+def test_health_rule_counts(health):
+    """Every rule's count. Beyond Appendix B: E01 INB-33 day 7 (In blank), E03 INB-17 day 15
+    (code without hours), W06 (In >= 12) and W08 (unallocated hours)."""
+    assert health.stats.by_rule == {
+        "E01": 1, "E03": 2, "E05": 1, "H01": 1, "H02": 2, "H03": 1,
+        "M02": 38, "M03": 4, "M04": 2, "M05": 4, "M06": 1,
+        "W01": 206, "W02": 374, "W03": 32, "W04": 16, "W06": 3, "W07": 37, "W08": 6,
+    }  # fmt: skip
+
+
+def test_health_headers(health):
+    headers = {(i.rule, i.sheet): i for i in health.issues if i.rule.startswith("H")}
+    assert set(headers) == {("H01", "16"), ("H02", "4"), ("H02", "31"), ("H03", "31")}
+    assert (
+        "Saturday' on a Sunday. 118 worker-days, 1070 h effective. OT is 421 h now; the "
+        "Sunday rule gives 1070 h." in headers[("H02", "4")].message
+    )
+    assert "Dated 2026-10-15" in headers[("H01", "16")].message
+    assert "208 worker-days" in headers[("H01", "16")].message
+    assert "'Normal Day' on a Saturday" in headers[("H02", "31")].message
+    assert "Sheet no. is 30" in headers[("H03", "31")].message
+
+
+def test_health_master(health):
+    m02 = _of(health, "M02")
+    assert sorted(int(i.cell[1:]) for i in m02) == [193, *range(214, 251)]
+    assert [i.calling_name for i in m02 if "is 0" in i.message] == ["INH-21"]
+    m03 = {i.calling_name: i.message for i in _of(health, "M03")}
+    assert set(m03) == {"INB-59", "INH-14", "INH-16", "INH-19"}
+    assert "INR-09" in m03["INB-59"] and "INH-17" in m03["INH-14"] and "INR-03" in m03["INH-16"]
+    assert "two employee codes" in m03["INH-19"] and "INR-07" in m03["INH-19"]
+    m04 = sorted(i.message.split(" on ")[0] for i in _of(health, "M04"))
+    assert m04 == ["Trade group 'Masan'", "Trade group 'Superviser'"]
+    assert sorted(int(re.search(r"on (\d+) row", i.message)[1]) for i in _of(health, "M04")) == [
+        2, 37,
+    ]  # fmt: skip
+    m05 = [i.message for i in _of(health, "M05")]
+    assert "Activity ' 01-52-23-00' has stray spaces." in m05
+    for code in ("03-31-05-35-P", "03-11-00-00-C-8", "31-23-23-01-C-1"):
+        assert any(f"'{code}' is listed 2 times" in m for m in m05)
+
+
+def test_health_entries(health):
+    [e05] = _of(health, "E05")
+    assert (e05.sheet, e05.calling_name) == ("19", "INB-31")
+    assert "effective is 13 h" in e05.message and "ZIDLE -8 h" in e05.message
+    e03 = {(i.sheet, i.calling_name): i.message for i in _of(health, "E03")}
+    assert "'13`'" in e03[("15", "INC-74")]
+    assert set(e03) == {("15", "INC-74"), ("15", "INB-17")}
+    [m06] = _of(health, "M06")
+    assert (m06.sheet, m06.calling_name) == ("16", "INC-41")
+    w04 = Counter(re.search(r"hours (-?\d+)", i.message)[1] for i in _of(health, "W04"))
+    assert w04 == {"-1": 14, "1": 1, "7": 1}
+    assert ("18", "INB-77") in {(i.sheet, i.calling_name) for i in _of(health, "W04")}
+    assert health.stats.overnight_shifts == 257
+
+
+def test_health_double_bookings(health):
+    w03 = Counter(i.calling_name for i in _of(health, "W03"))
+    assert w03 == {"INR-09": 14, "INH-17": 17, "INR-07": 1}  # paired with INB-59, INH-14, INH-19
+
+
+def test_health_upload_lines(health):
+    lines = {i.calling_name: int(i.message.split()[0]) for i in _of(health, "W07")}
+    assert lines.pop("INH-21") == 48
+    assert (sum(lines.values()), len(lines)) == (1358, 36)

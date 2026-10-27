@@ -27,6 +27,25 @@ python -m ruff check . ; python -m ruff format --check .
 | `test_xlsb_reader` | `fixtures/synthetic/template_synthetic.xlsb` | create it with `python scripts/make_synthetic_xlsb.py` (uses a hidden Excel instance, fake data only) |
 | `test_golden_indian` | the real INDIAN `.xlsb` in `fixtures/private/`, or its sanitized JSON in `fixtures/sanitized/` | checks PLAN.md Appendix A and the Phase 0 "done" rule |
 
+## Health check (Phase 1, read-only)
+
+Reads the workbook from disk with pyxlsb, so Excel is not needed and nothing is written.
+
+```powershell
+cd backend
+python -m app.health "C:/Labour/Labour Entry Sheet October 2026 - INDIAN (2).xlsb"   # summary + CSV
+python -m app.health --holiday 2026-10-25 --holiday 2026-11-01 --all                 # uses workbook_file from config.yaml
+python -m app.main                       # web report at http://localhost:8000/health
+```
+
+- The CSV (`<workbook>_health.csv`) lists every issue with sheet, cell, calling name, message and
+  suggested fix. CSV files are git-ignored.
+- **Holidays** for rule H02 come from `holidays:` in `config.yaml`. They are not confirmed yet, so
+  edit that list as the office confirms them. For a single run, use `--holiday` (repeatable) or
+  `--no-holidays`, or the holiday box on the report page.
+- The web report needs `workbook_file:` in `config.yaml`. The API is `GET /api/health`,
+  `GET /api/health.csv` (both take `?holidays=YYYY-MM-DD,...`) and `GET /api/rules`.
+
 ## Fixtures and privacy (PLAN.md §10)
 
 - Real workbooks go **only** in `fixtures/private/`. That folder, every `*.xlsb`/`*.xlsx`, `backups/`,
