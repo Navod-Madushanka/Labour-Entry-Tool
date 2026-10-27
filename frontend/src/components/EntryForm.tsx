@@ -153,7 +153,10 @@ export function EntryForm(props: Props) {
               setHighlight(0);
             }}
             onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            onBlur={() =>
+              // Late close (lets a click on the list land), but not if focus came back meanwhile.
+              setTimeout(() => document.activeElement !== refs.current.worker && setOpen(false), 150)
+            }
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -161,9 +164,10 @@ export function EntryForm(props: Props) {
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
                 setHighlight((h) => Math.max(h - 1, 0));
-              } else if ((e.key === "Enter" || e.key === "Tab") && open && matches[highlight] && !form.worker) {
+              } else if ((e.key === "Enter" || e.key === "Tab") && !form.worker && form.query.trim() && matches.length) {
+                // Typed but not picked yet: take the highlighted (or best) match, list shown or not.
                 e.preventDefault();
-                pick(matches[highlight]);
+                pick(matches[open ? highlight : 0] ?? matches[0]);
               } else onKey(e, "in");
             }}
           />

@@ -20,7 +20,7 @@ async function keyboardFlow(out) {
   await p.waitForSelector('text=Sheet 26');
   const code = await p.evaluate(async () => (await (await fetch('/api/master')).json()).activities[0]);
   // keyboard flow: worker -> In -> Out -> activity -> hours -> Enter
-  await p.locator('#worker').fill('inb01'); await p.keyboard.press('Enter');
+  await p.locator('#worker').fill('inb0'); await p.keyboard.press('Enter'); // top match INB-01
   await p.keyboard.type('7'); await p.keyboard.press('Enter');
   await p.keyboard.type('19'); await p.keyboard.press('Enter');
   await p.keyboard.type(code); await p.keyboard.press('Enter');

@@ -131,7 +131,10 @@ def main(argv: list[str] | None = None) -> None:
         if not args.demo.exists():
             parser.error(f"file not found: {args.demo}")
         config = config.model_copy(
-            update={"excel": config.excel.model_copy(update={"enabled": True})}
+            update={
+                "excel": config.excel.model_copy(update={"enabled": True}),
+                "workbook_file": args.demo,  # the health report checks the demo workbook too
+            }
         )
         factory = lambda cfg: demo_service(cfg, args.demo)  # noqa: E731
         print(f"DEMO MODE on {args.demo.name}: changes stay in memory, Excel is not touched.")
