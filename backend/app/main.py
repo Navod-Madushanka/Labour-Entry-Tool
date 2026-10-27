@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import entries, health
+from app.api import entries, health, registration
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config, load_config
@@ -92,8 +92,10 @@ def create_app(
         return service
 
     app.state.get_service = get_service
+    app.state.registrations = registration.FileCache()
     app.include_router(health.router)
     app.include_router(entries.router)
+    app.include_router(registration.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")
@@ -124,8 +126,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--demo", type=Path, metavar="FILE",
                         help="demo mode on a copy of FILE (.xlsb or snapshot .json) in memory; "
                              "Excel is not used and nothing is saved")  # fmt: skip
+    parser.add_argument("--registration", type=Path, action="append", metavar="FILE",
+                        help="registration .xlsx to check (repeat for more); replaces the "
+                             "config list")  # fmt: skip
     args = parser.parse_args(argv)
     config = load_config(args.config)
+    if args.registration:
+        config = config.model_copy(update={"registration_files": args.registration})
     factory = None
     if args.demo:
         if not args.demo.exists():

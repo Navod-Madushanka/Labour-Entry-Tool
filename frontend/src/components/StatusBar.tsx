@@ -1,6 +1,7 @@
 import type { Status } from "../api";
 
 interface Props {
+  page: "entry" | "codes";
   status: Status | null;
   user: string;
   historyLoaded: number;
@@ -9,10 +10,18 @@ interface Props {
   onChangeUser: () => void;
 }
 
-export function StatusBar({ status, user, historyLoaded, historyTotal, onSave, onChangeUser }: Props) {
+export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser }: Props) {
   return (
     <header className="statusbar">
       <strong className="brand">Labour Entry</strong>
+      <nav className="tabs">
+        <a href="#" className={page === "entry" ? "active" : ""}>
+          Entry
+        </a>
+        <a href="#codes" className={page === "codes" ? "active" : ""}>
+          Codes &amp; registration
+        </a>
+      </nav>
       {status?.mode === "demo" && (
         <span className="badge demo" title="Changes stay in memory; Excel is not used">
           DEMO

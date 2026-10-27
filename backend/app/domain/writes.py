@@ -156,17 +156,32 @@ def header_fix_cells(template: TemplateConfig) -> dict[str, str]:
     return {"date": h.date, "day_type": h.day_type, "sheet_no": h.sheet_no}
 
 
+def employee_code_cell(template: TemplateConfig, cell: str) -> bool:
+    """``Labour Detail`` column G of a worker row (Phase 4, written only after approval)."""
+    (row, col), _ = parse_range(cell)
+    first, last = template.master_rows
+    return first <= row <= last and col == col_to_index(template.master_cols.employee_code)
+
+
 def unwritable_cells(
-    writes: list[RangeWrite], template: TemplateConfig, allow_header: bool = False
+    writes: list[RangeWrite],
+    template: TemplateConfig,
+    allow_header: bool = False,
+    allow_codes: bool = False,
 ) -> list[str]:
-    """Cells outside the §5.4 inputs (plus F3/H3/F4 when a header fix was approved)."""
+    """Cells the tool must not write: anything but the §5.4 inputs of a day sheet, plus F3/H3/F4
+    when a header fix was approved and Labour Detail G when employee codes were approved."""
     header = set(header_fix_cells(template).values()) if allow_header else set()
-    return [
-        f"{w.sheet}!{cell}"
-        for w in writes
-        for cell, _ in w.cells()
-        if not (writable_cell(template, cell) or cell in header)
-    ]
+    day_sheets = set(template.day_sheet_names())
+
+    def ok(sheet: str, cell: str) -> bool:
+        if sheet in day_sheets:
+            return writable_cell(template, cell) or cell in header
+        if sheet == template.master_sheet:
+            return allow_codes and employee_code_cell(template, cell)
+        return False
+
+    return [f"{w.sheet}!{cell}" for w in writes for cell, _ in w.cells() if not ok(w.sheet, cell)]
 
 
 # --- Planning ---------------------------------------------------------------------------------

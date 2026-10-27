@@ -5,6 +5,7 @@ import { CrewDialog } from "./components/CrewDialog";
 import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
+import { MasterTools } from "./components/MasterTools";
 import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
@@ -57,6 +58,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [crewOpen, setCrewOpen] = useState(false);
+  const [page, setPage] = useState<"entry" | "codes">(() => (window.location.hash === "#codes" ? "codes" : "entry"));
   const nextId = useRef(1);
   const loading = useRef(new Set<string>());
 
@@ -115,6 +117,12 @@ export function App() {
     if (!month[s]) reloadDay(s);
     setForm((f) => ({ ...f, overwrite: false }));
   };
+
+  useEffect(() => {
+    const onHash = () => setPage(window.location.hash === "#codes" ? "codes" : "entry");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   // Day navigation with Alt+Left / Alt+Right.
   useEffect(() => {
@@ -207,9 +215,11 @@ export function App() {
     setResult(null);
     try {
       const res = await api.undo(b.id, user);
-      if (res.status === "undone") setMessage(`Batch #${b.id} undone.`);
+      if (res.status === "undone") setMessage(`Batch #${b.id} undone.${res.note ? ` ${res.note}` : ""}`);
       else setMessage(`Undo ${res.status}: ${res.error ?? res.conflicts.join("; ")}`);
-      await Promise.all(b.sheets.map(reloadDay));
+      const daySheets = b.sheets.filter((s) => master?.sheets.includes(s));
+      if (daySheets.length < b.sheets.length) api.master(true).then(setMaster).catch(fail); // Labour Detail
+      await Promise.all(daySheets.map(reloadDay));
       refreshBatches();
       refreshStatus();
     } catch (e) {
@@ -270,6 +280,7 @@ export function App() {
   return (
     <>
       <StatusBar
+        page={page}
         status={status}
         user={user}
         historyLoaded={Object.keys(month).length}
@@ -299,6 +310,18 @@ export function App() {
         )}
         {!master ? (
           <p className="muted">{status && !status.connected ? "Open the workbook in Excel; this page retries every 10 seconds." : "Loading…"}</p>
+        ) : page === "codes" ? (
+          <>
+            <MasterTools
+              user={user}
+              onChanged={() => {
+                api.master(true).then(setMaster).catch(fail);
+                refreshBatches();
+                refreshStatus();
+              }}
+            />
+            <Batches batches={batches} busy={busy} onUndo={undo} />
+          </>
         ) : (
           <>
             <DayBar

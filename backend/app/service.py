@@ -17,7 +17,12 @@ from pydantic import BaseModel, Field
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore, Batch, Change
 from app.config import Config
-from app.domain.codes import EmployeeCodeStatus, employee_code_status, person_key
+from app.domain.codes import (
+    EmployeeCodeStatus,
+    employee_code_status,
+    is_excel_error,
+    person_key,
+)
 from app.domain.crosscheck import add_cross_entry_issues
 from app.domain.models import (
     CellValue,
@@ -80,12 +85,30 @@ class UndoResult(BaseModel):
     undo_batch_id: int | None = None
     conflicts: list[str] = Field(default_factory=list)
     error: str | None = None
+    note: str | None = None
 
 
 class HeaderFixResult(BaseModel):
     status: Literal["written", "unchanged", "rejected", "failed"]
     batch_id: int | None = None
     changes: dict[str, tuple[CellValue, CellValue]] = Field(default_factory=dict)
+    error: str | None = None
+
+
+class CodeWrite(BaseModel):
+    row: int  # Labour Detail row
+    calling_name: str  # must still be on that row
+    code: str
+
+
+class CodeWriteResult(BaseModel):
+    status: Literal["written", "rejected", "failed"]
+    batch_id: int | None = None
+    written: dict[str, tuple[CellValue, CellValue]] = Field(
+        default_factory=dict
+    )  # cell -> old, new
+    problems: list[str] = Field(default_factory=list)
+    mismatches: list[str] = Field(default_factory=list)  # read-back
     error: str | None = None
 
 
@@ -359,7 +382,11 @@ class EntryService:
         header_cells = set(header_fix_cells(t).values())
         by_block: dict[tuple[str, int], list[Change]] = {}
         header_changes: list[Change] = []
+        code_changes: list[Change] = []
         for ch in self.audit.changes(batch_id):
+            if ch.sheet == t.master_sheet:
+                code_changes.append(ch)
+                continue
             if ch.cell in header_cells:
                 header_changes.append(ch)
                 continue
@@ -381,6 +408,26 @@ class EntryService:
                 continue
             writes.append(RangeWrite(sheet=ch.sheet, address=ch.cell, values=[[ch.old]]))
             undo_changes.append(Change(sheet=ch.sheet, cell=ch.cell, old=now, new=ch.old))
+        lost_formulas = 0
+        for ch in code_changes:  # Labour Detail codes: cell by cell, row must not have moved
+            row = parse_cell(ch.cell)[0]
+            name_cell = f"{t.master_cols.calling_name}{row}"
+            [[name]] = self.workbook.read_range(ch.sheet, name_cell)
+            [[now]] = self.workbook.read_range(ch.sheet, ch.cell)
+            if name != ch.calling_name:
+                conflicts.append(f"{ch.sheet}!{name_cell} is now {name!r}, was {ch.calling_name!r}")
+                continue
+            if not same_value(now, ch.new):
+                if not same_value(now, ch.old):
+                    conflicts.append(f"{ch.sheet}!{ch.cell} changed since: now {now!r}, "
+                                     f"wrote {ch.new!r}")  # fmt: skip
+                continue
+            old = ch.old
+            if is_excel_error(old):  # was a lookup formula; the tool never writes formulas
+                old, lost_formulas = None, lost_formulas + 1
+            writes.append(RangeWrite(sheet=ch.sheet, address=ch.cell, values=[[old]]))
+            undo_changes.append(Change(sheet=ch.sheet, cell=ch.cell, calling_name=ch.calling_name,
+                                       old=now, new=old))  # fmt: skip
         for (sheet, r), changes in by_block.items():
             current = self._read_inputs(sheet, r)
             name = changes[0].calling_name
@@ -404,7 +451,8 @@ class EntryService:
             return UndoResult(status="conflict", batch_id=batch_id, conflicts=conflicts)
         if not undo_changes:
             return reject("Nothing to undo: the cells already hold the old values.")
-        if bad := unwritable_cells(writes, t, allow_header=bool(header_changes)):
+        allow = {"allow_header": bool(header_changes), "allow_codes": bool(code_changes)}
+        if bad := unwritable_cells(writes, t, **allow):
             raise RuntimeError(f"refusing to write outside the input cells: {bad}")
         try:
             self.backups.ensure(wb.name, wb.save_copy)
@@ -412,6 +460,9 @@ class EntryService:
             return UndoResult(status="failed", batch_id=batch_id, error=f"Backup failed: {exc}")
         undo_id = self.audit.start("undo", user, wb.name, undo_changes, undo_of=batch_id)
         self._forget({w.sheet for w in writes})
+        if code_changes:
+            self._master = None
+            self._days.clear()
         try:
             wb.write_ranges(writes)
         except WorkbookError as exc:
@@ -421,7 +472,9 @@ class EntryService:
                               error=str(exc))  # fmt: skip
         self.unsaved = True
         self.audit.finish(undo_id, "done")
-        return UndoResult(status="undone", batch_id=batch_id, undo_batch_id=undo_id)
+        note = (f"{lost_formulas} cell(s) held a broken lookup formula (#N/A); they are blank now. "
+                "The backup copy still has the formulas.") if lost_formulas else None  # fmt: skip
+        return UndoResult(status="undone", batch_id=batch_id, undo_batch_id=undo_id, note=note)
 
     def _read_inputs(self, sheet: str, r: int) -> dict:
         """Column A and every input cell of the block starting at row r, in one read."""
@@ -512,6 +565,70 @@ class EntryService:
         self.unsaved = True
         self.audit.finish(batch_id, "done", "header fix")
         return HeaderFixResult(status="written", batch_id=batch_id, changes=result)
+
+    # --- employee codes in Labour Detail (Phase 4; approved by the user, PLAN.md §2 rule 2) ---
+
+    def write_codes(self, items: list[CodeWrite], user: str) -> CodeWriteResult:
+        """Write approved employee codes into Labour Detail G (replacing blanks, 0 and the broken
+        #N/A lookups with values). Every row is re-checked on a fresh read first."""
+        if not user.strip():
+            raise ValueError("a user name is required for writes")
+        t, wb = self.template, self.workbook
+        master = self.master(fresh=True)
+        by_row = {w.row: w for w in master.workers}
+        holders: dict[str, list[str]] = {}
+        for w in master.workers:
+            if employee_code_status(w.employee_code) == EmployeeCodeStatus.VALID:
+                holders.setdefault(w.employee_code, []).append(w.calling_name)
+        problems, changes = [], []
+        col = t.master_cols.employee_code
+        for item in items:
+            w = by_row.get(item.row)
+            code = item.code.strip().upper()
+            if w is None or w.calling_name != item.calling_name:
+                now = w.calling_name if w else "nobody"
+                problems.append(f"Row {item.row} is {now} now, not {item.calling_name}.")
+            elif employee_code_status(w.employee_code) == EmployeeCodeStatus.VALID:
+                problems.append(f"{w.calling_name} already has {w.employee_code}.")
+            elif employee_code_status(code) != EmployeeCodeStatus.VALID:
+                problems.append(f"{code!r} for {w.calling_name} is not X##### or XIN###.")
+            elif others := [n for n in holders.get(code, [])
+                            if person_key(n) != person_key(w.calling_name)]:  # fmt: skip
+                problems.append(f"{code} is already used by {', '.join(others)}.")
+            else:
+                cell = f"{col}{w.row}"
+                change = Change(sheet=t.master_sheet, cell=cell, calling_name=w.calling_name,
+                                old=w.employee_code, new=code)  # fmt: skip
+                changes.append(change)
+        if problems or not changes:
+            return CodeWriteResult(status="rejected", problems=problems or ["Nothing to write."])
+        writes = [RangeWrite(sheet=c.sheet, address=c.cell, values=[[c.new]]) for c in changes]
+        if bad := unwritable_cells(writes, t, allow_codes=True):
+            raise RuntimeError(f"refusing to write outside Labour Detail G: {bad}")
+        try:
+            self.backups.ensure(wb.name, wb.save_copy)
+        except (OSError, WorkbookError) as exc:
+            return CodeWriteResult(status="failed", error=f"Backup failed, nothing written: {exc}")
+        batch_id = self.audit.start("write", user, wb.name, changes)
+        self._master = None
+        self._days.clear()  # upload lines on every sheet look the codes up
+        written = {c.cell: (c.old, c.new) for c in changes}
+        try:
+            wb.write_ranges(writes)
+        except WorkbookError as exc:
+            self.unsaved = True
+            self.audit.finish(batch_id, "failed", str(exc))
+            return CodeWriteResult(status="failed", batch_id=batch_id, written=written,
+                                   error=str(exc))  # fmt: skip
+        self.unsaved = True
+        mismatches = []
+        for c in changes:
+            [[now]] = wb.read_range(c.sheet, c.cell)
+            if not same_value(now, c.new):
+                mismatches.append(f"{c.cell} reads {now!r}, wrote {c.new!r}")
+        self.audit.finish(batch_id, "done", "employee codes")
+        return CodeWriteResult(status="written", batch_id=batch_id, written=written,
+                               mismatches=mismatches)  # fmt: skip
 
     # --- save / history ---
 

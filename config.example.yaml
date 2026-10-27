@@ -3,8 +3,12 @@ workbook_pattern: "Labour Entry Sheet * - INDIAN*.xlsb"
 # The .xlsb the health check reads from disk (no Excel needed). Read-only.
 workbook_file: "C:/Labour/Labour Entry Sheet October 2026 - INDIAN (2).xlsb"
 month: 2026-10
+# Registration workbooks for the Phase 4 checks and employee-code proposals. Columns are found by
+# header text, so Indian and supply layouts both work; a sheet that is only a list of calling
+# names is read as a list. Missing files are reported, not fatal.
 registration_files:
   - "C:/Labour/External labour registeration-Indians.xlsx"
+  - "C:/Labour/Labour Registration Supply September.xlsx"
 # Public holidays (YYYY-MM-DD). Sheets on these dates should say "Holiday" (rule H02).
 # Not confirmed yet (PLAN.md §12 q5): edit as the office confirms. Override per run with
 # --holiday on the command line, or the holiday box on the report page.

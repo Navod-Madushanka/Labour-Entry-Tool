@@ -72,6 +72,42 @@ and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** 
   or **Header is right, write anyway**.
 - **Save workbook** saves in Excel; nothing is saved automatically.
 
+## Employee codes and registration (Phase 4)
+
+The **Codes & registration** tab (or `#codes`) lists every Labour Detail row whose employee code is
+blank, `#N/A` or `0`, with a proposed code:
+
+- from a registration file row with the same calling name (`INH22` = `INH-22`), or
+- for a role code like `INC-46 M`, its base code's employee code.
+
+You can also type a code the office gave you. Ticked codes are written into `Labour Detail!G` only
+after you confirm; this replaces the broken `#N/A` lookup formulas with values. A backup is made
+first, and the batch can be undone. Undo cannot bring the formulas back (the tool never writes
+formulas), so those cells become blank; the backup still has them. A code that already belongs
+to someone else in Labour Detail is never pre-ticked.
+
+The same tab checks the registration files (`registration_files` in `config.yaml`; columns are
+found by header, so Indian and supply layouts both work, and a sheet with just calling names is
+read as a list):
+
+| Rule | Checks |
+|---|---|
+| R01 | calling-name format, duplicates |
+| R02 | one employee code or ID on different calling names |
+| R03 | designation trade spelling (`Supply-Supervior`), trade letter vs designation, trade group vs calling-name prefix |
+| R04 | NIC format; NIC vs date of birth and gender (supply rows; Indian rows carry passports) |
+| R05 | unreadable or mixed date formats, under 18 on the first day |
+| R06 | calling-name list vs registration |
+
+It also shows the next free calling name per prefix and, for this workbook's groups, ID conflicts
+between registration and Labour Detail (CSV for the office).
+
+```powershell
+cd backend
+python -m app.registration "C:/Labour/Labour Registration Supply September.xlsx" --workbook "C:/Labour/...INDIAN (2).xlsb"
+python -m app.main --demo "...INDIAN (2).xlsb" --registration "C:/Labour/Labour Registration Supply September.xlsx"
+```
+
 ## Live Excel (Phase 2)
 
 With the workbook open in Excel, `python -m app.main` attaches to it (the one open book matching

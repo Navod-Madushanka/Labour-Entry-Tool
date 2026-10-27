@@ -10,13 +10,13 @@ import argparse
 import csv
 import datetime as dt
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import TextIO
 
 from app.config import Config, TemplateConfig, load_config
 from app.domain.health import SEVERITY_ORDER, HealthReport, rule_title, run_health
-from app.domain.models import WorkbookSnapshot
+from app.domain.models import Issue, WorkbookSnapshot
 from app.excel.fake_adapter import load_snapshot
 from app.excel.xlsb_reader import XlsbReader
 
@@ -55,9 +55,13 @@ def check_file(
 
 
 def write_csv(report: HealthReport, fh: TextIO) -> None:
+    write_issues_csv(report.issues, fh)
+
+
+def write_issues_csv(issues: Iterable[Issue], fh: TextIO) -> None:
     writer = csv.DictWriter(fh, fieldnames=CSV_COLUMNS)
     writer.writeheader()
-    for issue in report.issues:
+    for issue in issues:
         row = issue.model_dump(include=set(CSV_COLUMNS))
         writer.writerow({**row, "title": rule_title(issue.rule)})
 

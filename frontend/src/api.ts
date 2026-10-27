@@ -167,6 +167,7 @@ export interface UndoResult {
   undo_batch_id: number | null;
   conflicts: string[];
   error: string | null;
+  note: string | null;
 }
 
 export interface HeaderFixResult {
@@ -174,6 +175,52 @@ export interface HeaderFixResult {
   batch_id: number | null;
   changes: Record<string, [CellValue, CellValue]>;
   error: string | null;
+}
+
+export interface CodeProposal {
+  row: number;
+  calling_name: string;
+  current: CellValue;
+  status: CodeStatus;
+  proposed: string | null;
+  source: "registration" | "base code" | null;
+  found_in: string | null;
+  notes: string[];
+  conflicts: string[];
+  selectable: boolean;
+}
+
+export interface IdConflict {
+  kind: "name differs" | "one character" | "not found";
+  registration: string;
+  calling_name: string;
+  worker: string | null;
+  message: string;
+}
+
+export interface CodesResponse {
+  files: string[];
+  proposals: CodeProposal[];
+  conflicts: IdConflict[];
+}
+
+export interface CodeWriteResult {
+  status: "written" | "rejected" | "failed";
+  batch_id: number | null;
+  written: Record<string, [CellValue, CellValue]>;
+  problems: string[];
+  mismatches: string[];
+  error: string | null;
+}
+
+export interface RegistrationReport {
+  files: { name: string; kind: string; sheets: { title: string; kind: string; rows: number }[] }[];
+  rows: number;
+  no_hyphen: number;
+  next_numbers: Record<string, string>;
+  issues: Issue[];
+  by_rule: Record<string, number>;
+  missing: string[];
 }
 
 export class ApiError extends Error {
@@ -220,4 +267,9 @@ export const api = {
       approve: true,
     }),
   save: () => call<{ saved: boolean }>("POST", "/api/save"),
+  rules: () => call<Record<string, { severity: Severity; title: string }>>("GET", "/api/rules"),
+  registration: () => call<RegistrationReport>("GET", "/api/registration"),
+  codes: () => call<CodesResponse>("GET", "/api/codes"),
+  writeCodes: (items: { row: number; calling_name: string; code: string }[], user: string) =>
+    call<CodeWriteResult>("POST", "/api/codes/write", { items, user, approve: true }),
 };

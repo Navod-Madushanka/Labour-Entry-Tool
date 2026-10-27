@@ -194,7 +194,7 @@ def check_employee_codes(ctx: _Context) -> list[Issue]:
                 "employee_code",
                 w.row,
                 calling_name=w.calling_name,
-                suggestion="Look the code up in the registration file (Phase 4 proposes it).",
+                suggestion="Fix it on the Codes & registration page.",
             )
         )
     for code, group in by_code.items():

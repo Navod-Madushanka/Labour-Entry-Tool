@@ -17,7 +17,7 @@ export function Batches({ batches, busy, onUndo }: Props) {
           <li key={b.id} className={b.undone_by ? "undone" : ""}>
             <span>
               <b>#{b.id}</b> {new Date(b.created_at).toLocaleTimeString()} · {b.user} ·{" "}
-              {b.kind === "undo" ? `undo of #${b.undo_of}` : b.note === "header fix" ? "header fix" : "write"} · sheet{" "}
+              {b.kind === "undo" ? `undo of #${b.undo_of}` : b.note === "header fix" || b.note === "employee codes" ? b.note : "write"} · sheet{" "}
               {b.sheets.join(", ")} · {b.cells} cells
               {b.calling_names.length > 0 && (
                 <span className="muted small">

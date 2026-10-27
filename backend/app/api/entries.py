@@ -51,7 +51,7 @@ class HeaderFixRequest(UserRequest):
     approve: bool = False  # the user saw the old and new values and said yes
 
 
-async def _run(request: Request, fn: Callable[[EntryService], Any]) -> Any:
+async def run_service(request: Request, fn: Callable[[EntryService], Any]) -> Any:
     """Run ``fn(service)`` on the Excel thread and map workbook errors to HTTP errors."""
     service: EntryService = request.app.state.get_service()
     try:
@@ -69,19 +69,19 @@ async def _run(request: Request, fn: Callable[[EntryService], Any]) -> Any:
 async def get_status(request: Request) -> Status:
     if (reason := request.app.state.excel_disabled) is not None:
         return Status(connected=False, error=reason)
-    return await _run(request, lambda s: s.status())
+    return await run_service(request, lambda s: s.status())
 
 
 @router.get("/master", response_model=MasterView)
 async def master(request: Request, fresh: bool = False) -> MasterView:
     """Workers (Labour Detail order = block order), activity codes, day types, sheets."""
-    return await _run(request, lambda s: s.master_view(fresh))
+    return await run_service(request, lambda s: s.master_view(fresh))
 
 
 @router.get("/days/{sheet}", response_model=DayView)
 async def day(sheet: str, request: Request, fresh: bool = False) -> DayView:
     """One day sheet: header with its checks, and every entry with computed values and issues."""
-    return await _run(request, lambda s: s.day_view(sheet, fresh))
+    return await run_service(request, lambda s: s.day_view(sheet, fresh))
 
 
 @router.post("/days/{sheet}/header-fix", response_model=HeaderFixResult)
@@ -90,34 +90,36 @@ async def header_fix(sheet: str, body: HeaderFixRequest, request: Request) -> He
     cells are outside the normal input cells (PLAN.md §2 rule 2)."""
     if not body.approve:
         raise HTTPException(422, "A header fix needs the user's explicit approval.")
-    return await _run(request, lambda s: s.fix_header(sheet, body.fields, body.user))
+    return await run_service(request, lambda s: s.fix_header(sheet, body.fields, body.user))
 
 
 @router.post("/preview", response_model=PreviewResponse)
 async def preview(body: PreviewRequest, request: Request) -> PreviewResponse:
     """Plan and check entries against the cached sheets (fast; for typing); writes nothing.
     A commit re-reads the sheets and checks again."""
-    return PreviewResponse(plans=await _run(request, lambda s: s.preview(body.entries)))
+    return PreviewResponse(plans=await run_service(request, lambda s: s.preview(body.entries)))
 
 
 @router.post("/entries", response_model=CommitResult)
 async def commit(body: CommitRequest, request: Request) -> CommitResult:
     """Write a batch (or check it with ``dry_run``). Status ``rejected`` lists what blocks it."""
-    return await _run(request, lambda s: s.commit(body.entries, body.user, dry_run=body.dry_run))
+    return await run_service(
+        request, lambda s: s.commit(body.entries, body.user, dry_run=body.dry_run)
+    )
 
 
 @router.get("/batches", response_model=list[Batch])
 async def batches(request: Request, limit: int = 20) -> list[Batch]:
-    return await _run(request, lambda s: s.recent_batches(min(max(limit, 1), 200)))
+    return await run_service(request, lambda s: s.recent_batches(min(max(limit, 1), 200)))
 
 
 @router.post("/batches/{batch_id}/undo", response_model=UndoResult)
 async def undo(batch_id: int, body: UserRequest, request: Request) -> UndoResult:
-    return await _run(request, lambda s: s.undo(batch_id, body.user))
+    return await run_service(request, lambda s: s.undo(batch_id, body.user))
 
 
 @router.post("/save")
 async def save(request: Request) -> dict[str, bool]:
     """Save the workbook in Excel (only on the user's request, PLAN.md §8)."""
-    await _run(request, lambda s: s.save())
+    await run_service(request, lambda s: s.save())
     return {"saved": True}

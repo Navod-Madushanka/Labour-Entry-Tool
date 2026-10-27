@@ -68,6 +68,12 @@ RULES: dict[str, Rule] = {
         Rule("M04", "INFO", "Trade group spelling"),
         Rule("M05", "INFO", "Activity list duplicates or stray spaces"),
         Rule("M06", "WARN", "Typed activity code has stray spaces"),
+        Rule("R01", "WARN", "Registration calling name: format or duplicate"),
+        Rule("R02", "WARN", "Registration employee code or ID used twice"),
+        Rule("R03", "INFO", "Designation or trade group spelling"),
+        Rule("R04", "WARN", "NIC number: format, date of birth or gender mismatch"),
+        Rule("R05", "WARN", "Registration dates: unreadable, mixed formats or under 18"),
+        Rule("R06", "INFO", "Calling-name list and registration differ"),
     ]
 }
 

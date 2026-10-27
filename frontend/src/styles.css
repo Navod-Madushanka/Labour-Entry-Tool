@@ -194,3 +194,20 @@ tr.row-ok td:first-child { box-shadow: inset 3px 0 var(--ok); }
   table.lines td:first-child input { width: 100%; }
   table.lines { width: 100%; }
 }
+
+nav.tabs { display: flex; gap: 4px; }
+nav.tabs a { padding: 4px 10px; border-radius: 6px; text-decoration: none; color: var(--text); }
+nav.tabs a.active { background: var(--info-bg); color: var(--info); font-weight: 600; }
+table.plain { border-collapse: collapse; width: 100%; }
+table.plain th, table.plain td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.plain th { font-size: 12px; color: var(--muted); font-weight: 500; }
+details { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; }
+details > summary { padding: 8px 10px; cursor: pointer; }
+.sev { font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 6px; }
+.sev.BLOCK { color: var(--block); background: var(--block-bg); }
+.sev.WARN { color: var(--warn); background: var(--warn-bg); }
+.sev.INFO { color: var(--info); background: var(--info-bg); }
+.nowrap { white-space: nowrap; }
+.file-list { margin: 0 0 8px; padding-left: 18px; }
+.chip.static { cursor: default; border: 1px solid var(--line); background: var(--row); }
+.next-numbers { margin-top: 12px; }

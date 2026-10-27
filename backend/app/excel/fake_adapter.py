@@ -115,8 +115,8 @@ class FakeWorkbook:
         if self.busy_failures:
             self.busy_failures -= 1
             raise WorkbookBusyError("Excel is busy (a cell is being edited).")
-        for w in writes:  # unlocked cells: the block inputs and the day-sheet header
-            if bad := unwritable_cells([w], self.template, allow_header=True):
+        for w in writes:  # unlocked: block inputs, day-sheet header, Labour Detail codes
+            if bad := unwritable_cells([w], self.template, allow_header=True, allow_codes=True):
                 raise ProtectionError(f"The cell {bad[0]} is protected.")
         for w in writes:
             grid = self._grid(w.sheet)
@@ -127,7 +127,10 @@ class FakeWorkbook:
                 else:
                     grid[key] = value
         self.batches.append(list(writes))
-        for sheet in {w.sheet for w in writes}:
+        written = {w.sheet for w in writes}
+        if self.template.master_sheet in written:  # the upload lines look codes up in G
+            written = set(self.grids)
+        for sheet in written:
             self._recalculate(sheet)
 
     def save(self) -> None:

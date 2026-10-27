@@ -1,5 +1,36 @@
 # Changelog
 
+## Phase 4 — Employee codes and registration (27 Oct 2026)
+
+**Built**
+- `registration/reader.py`: openpyxl reader that finds columns by header text (Indian layout with
+  the extra Designation column, supply layout, or a plain calling-name list). Real Excel dates are
+  kept as ISO text.
+- `registration/checks.py`: R01–R06 (calling names, duplicate codes/IDs, designation/trade
+  spelling, NIC format and NIC vs date of birth/gender with the Feb-29 rule, unreadable/mixed dates,
+  under 18, list vs registration) and the next free calling name per prefix.
+- `registration/proposals.py`: code proposals for blank/#N/A/0 rows (registration by normalised
+  calling name, else base code), soft notes (ID differs, code given twice in the registration),
+  hard conflicts (code already used by another person); ID cross-check registration ↔ Labour
+  Detail (name differs / one character / not found).
+- `service.write_codes`: approved writes into Labour Detail G with a fresh re-check per row,
+  backup, audit, read-back; undo restores codes (former `#N/A` formulas come back blank, with a
+  note). The write guard is now sheet-aware: day-sheet inputs only on day sheets, F3/H3/F4 only
+  for an approved header fix, Labour Detail G only for approved codes.
+- API `/api/registration` (+ CSV), `/api/codes`, `/api/codes/conflicts.csv`, `/api/codes/write`;
+  CLI `python -m app.registration`; `--registration` for the server/demo; UI tab
+  **Codes & registration**.
+
+**On the files provided** (September 2026 supply registration + its 73-name list): 17 findings,
+including 5 dates of birth that disagree with the NIC, 3 invalid NIC numbers, 2 unreadable dates
+of birth, 2 dates written yyyy.mm.dd, `Supply-Supervior` twice, 1 trade group ≠ calling name, and
+2 names only on the list (checked by `test_golden_registration.py`).
+
+**Not possible yet:** the plan's Indian numbers (36 codes from the registration, 13 duplicate XIN,
+29 ID conflicts) need the Indian registration file, which is not available. These supply files
+have no employee codes and no Indian workers, so for INDIAN only `INC-46 M` (base code) can be
+proposed; the other 37 can be typed in from the office's list.
+
 ## Phase 3 — Entry UI (27 Oct 2026)
 
 **Built**
