@@ -168,16 +168,22 @@ def unwritable_cells(
     template: TemplateConfig,
     allow_header: bool = False,
     allow_codes: bool = False,
+    allow_worker_rows: Collection[int] = (),
 ) -> list[str]:
     """Cells the tool must not write: anything but the §5.4 inputs of a day sheet, plus F3/H3/F4
-    when a header fix was approved and Labour Detail G when employee codes were approved."""
+    when a header fix was approved, Labour Detail G when employee codes were approved, and
+    Labour Detail A-H of the given rows when adding a worker (e.g. a medical line) was approved."""
     header = set(header_fix_cells(template).values()) if allow_header else set()
     day_sheets = set(template.day_sheet_names())
+    worker_cols = {col_to_index(c) for c in template.master_cols.model_dump().values()}
 
     def ok(sheet: str, cell: str) -> bool:
         if sheet in day_sheets:
             return writable_cell(template, cell) or cell in header
         if sheet == template.master_sheet:
+            (row, col), _ = parse_range(cell)
+            if row in allow_worker_rows and col in worker_cols:
+                return True
             return allow_codes and employee_code_cell(template, cell)
         return False
 

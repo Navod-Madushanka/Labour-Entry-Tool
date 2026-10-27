@@ -8,6 +8,7 @@ write, then a read-back that compares Excel's results with the preview.
 
 from __future__ import annotations
 
+import datetime as dt
 import time
 from collections.abc import Callable
 from typing import Literal
@@ -19,11 +20,20 @@ from app.audit.store import AuditStore, Batch, Change
 from app.config import Config
 from app.domain.codes import (
     EmployeeCodeStatus,
+    cell_text,
     employee_code_status,
     is_excel_error,
     person_key,
 )
 from app.domain.crosscheck import add_cross_entry_issues
+from app.domain.medical import (
+    DEFAULT_ACTIVITY,
+    DEFAULT_DAYS,
+    DEFAULT_IN,
+    DEFAULT_OUT,
+    medical_dates,
+    medical_name,
+)
 from app.domain.models import (
     CellValue,
     Computed,
@@ -32,13 +42,16 @@ from app.domain.models import (
     Entry,
     Issue,
     MasterData,
+    Worker,
     as_number,
+    is_blank,
 )
-from app.domain.rules import compute_entry, same_hours
+from app.domain.rules import compute_entry, effective_hours, same_hours
 from app.domain.validators import (
     calendar_day_type,
     check_entry,
     check_header,
+    fmt_hours,
     intended_date,
     make_issue,
 )
@@ -109,6 +122,40 @@ class CodeWriteResult(BaseModel):
     )  # cell -> old, new
     problems: list[str] = Field(default_factory=list)
     mismatches: list[str] = Field(default_factory=list)  # read-back
+    error: str | None = None
+
+
+class MedicalRequest(BaseModel):
+    base: str  # the worker's calling name, e.g. INC-08 (the medical line is INC-08 M)
+    start: str  # first day sheet
+    days: int = Field(DEFAULT_DAYS, ge=1, le=31)
+    time_in: float = DEFAULT_IN
+    time_out: float = DEFAULT_OUT
+    activity: str = DEFAULT_ACTIVITY
+    remark: str | None = None
+    skip_holidays: bool = False  # Sundays are always skipped
+    acknowledged: dict[str, list[str]] = Field(default_factory=dict)  # sheet -> rules
+
+
+class MedicalPlan(BaseModel):
+    base: str
+    name: str | None = None
+    row: int | None = None  # Labour Detail row of the medical line
+    new_row: bool = False
+    new_row_cells: list[str] = Field(default_factory=list)  # cells copied from the base row
+    entries: list[EntryInput] = Field(default_factory=list)
+    plans: list[EntryPlan] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    later: list[dt.date] = Field(default_factory=list)  # dates past this month
+    notes: list[str] = Field(default_factory=list)
+    problems: list[str] = Field(default_factory=list)  # stop everything
+
+
+class MedicalResult(BaseModel):
+    status: Literal["written", "rejected", "failed"]
+    plan: MedicalPlan
+    row: CodeWriteResult | None = None  # the Labour Detail row batch, when one was added
+    entries: CommitResult | None = None
     error: str | None = None
 
 
@@ -309,8 +356,14 @@ class EntryService:
     def _plan(
         self, entries: list[EntryInput], master: MasterData, fresh: bool = False
     ) -> list[EntryPlan]:
-        codes = {a.code for a in master.activities}
         days = {sheet: self.day(sheet, fresh) for sheet in {e.sheet for e in entries}}
+        return self._plan_on(entries, master, days)
+
+    def _plan_on(
+        self, entries: list[EntryInput], master: MasterData, days: dict[str, DaySheet]
+    ) -> list[EntryPlan]:
+        """Plan entries against the given sheets (fresh, cached, or simulated)."""
+        codes = {a.code for a in master.activities}
         plans, seen = [], set()
         for e in entries:
             plan = plan_entry(e, days[e.sheet], codes, self.config.month_start,
@@ -409,6 +462,13 @@ class EntryService:
             writes.append(RangeWrite(sheet=ch.sheet, address=ch.cell, values=[[ch.old]]))
             undo_changes.append(Change(sheet=ch.sheet, cell=ch.cell, old=now, new=ch.old))
         lost_formulas = 0
+        name_col = col_to_index(t.master_cols.calling_name)
+        added_rows = {parse_cell(ch.cell)[0] for ch in code_changes
+                      if parse_cell(ch.cell)[1] == name_col and is_blank(ch.old)}  # fmt: skip
+        for row in sorted(added_rows):  # a worker the tool added: only while their block is empty
+            if used := self._sheets_with_input(t.block_for_master_row(row)):
+                conflicts.append(f"The worker added in Labour Detail row {row} still has entries "
+                                 f"on sheet(s) {', '.join(used)}; undo those first.")  # fmt: skip
         for ch in code_changes:  # Labour Detail codes: cell by cell, row must not have moved
             row = parse_cell(ch.cell)[0]
             name_cell = f"{t.master_cols.calling_name}{row}"
@@ -451,7 +511,11 @@ class EntryService:
             return UndoResult(status="conflict", batch_id=batch_id, conflicts=conflicts)
         if not undo_changes:
             return reject("Nothing to undo: the cells already hold the old values.")
-        allow = {"allow_header": bool(header_changes), "allow_codes": bool(code_changes)}
+        allow = {
+            "allow_header": bool(header_changes),
+            "allow_codes": bool(code_changes),
+            "allow_worker_rows": {parse_cell(ch.cell)[0] for ch in code_changes},
+        }
         if bad := unwritable_cells(writes, t, **allow):
             raise RuntimeError(f"refusing to write outside the input cells: {bad}")
         try:
@@ -629,6 +693,167 @@ class EntryService:
         self.audit.finish(batch_id, "done", "employee codes")
         return CodeWriteResult(status="written", batch_id=batch_id, written=written,
                                mismatches=mismatches)  # fmt: skip
+
+    # --- medical leave (office practice): a "<base> M" line with N days, Sundays skipped ---
+
+    def _sheets_with_input(self, block: int) -> list[str]:
+        """Day sheets where this block has any input (read straight from the workbook)."""
+        t = self.template
+        r = t.block_row(block)
+        cols = t.cols
+        used = []
+        for sheet in self.workbook.day_sheet_names():
+            values = self.workbook.read_range(sheet, f"{cols.time_in}{r}:{cols.remarks}{r + 4}")
+            if any(not is_blank(v) for row in values for v in row):
+                used.append(sheet)
+        return used
+
+    def _medical_setup(self, req: MedicalRequest, master: MasterData):
+        """Base worker, medical name, its Labour Detail row (existing or the first empty slot),
+        the cells to write for a new row, and problems that stop everything."""
+        t = self.template
+        problems: list[str] = []
+        base = next((w for w in master.workers if w.calling_name == req.base), None)
+        name = medical_name(req.base)
+        if base is None:
+            problems.append(f"{req.base} is not in Labour Detail.")
+        if name is None:
+            problems.append(f"{req.base} is not a base calling name (no role suffix allowed).")
+        existing = next((w for w in master.workers if w.calling_name == name), None)
+        cells: dict[str, CellValue] = {}
+        if existing is not None:
+            row = existing.row
+        else:
+            used = {w.row for w in master.workers}
+            free = [r for r in range(t.master_rows[0], t.master_rows[1] + 1) if r not in used]
+            row = free[0] if free else None
+            if row is None:
+                problems.append("Labour Detail has no empty worker row left.")
+            elif base is not None and name is not None:
+                c = t.master_cols
+                values = {c.calling_name: name, c.name: base.name, c.trade_group: base.trade_group,
+                          c.id: base.id_no, c.daily_rate: base.daily_rate, c.bp: base.bp,
+                          c.employee_code: base.employee_code, c.epf: base.epf}  # fmt: skip
+                cells = {f"{col}{row}": v for col, v in values.items()
+                         if v is not None and not is_excel_error(v)}  # fmt: skip
+        return base, name, existing, row, cells, problems
+
+    def medical_preview(self, req: MedicalRequest, fresh: bool = False) -> MedicalPlan:
+        t = self.template
+        master = self.master(fresh)
+        base, name, existing, row, cells, problems = self._medical_setup(req, master)
+        plan = MedicalPlan(base=req.base, name=name, row=row, new_row=existing is None,
+                           new_row_cells=sorted(cells), problems=problems)  # fmt: skip
+        if req.start not in self.workbook.day_sheet_names():
+            plan.problems.append(f"No day sheet {req.start!r}.")
+        if plan.problems or row is None or name is None:
+            return plan
+        start = intended_date(req.start, self.config.month_start)
+        dates = medical_dates(start, req.days, self.config.month_start, self.config.holidays,
+                              req.skip_holidays)  # fmt: skip
+        plan.later = dates.later
+        plan.skipped = [f"{d:%a %d %b}: {why}" for d, why in dates.skipped]
+        if existing is None:
+            plan.notes.append(f"{name} will be added to Labour Detail row {row} (copied from "
+                              f"{req.base}: {', '.join(sorted(cells))}).")  # fmt: skip
+        elif employee_code_status(existing.employee_code) != EmployeeCodeStatus.VALID:
+            plan.notes.append(f"{name} has no valid employee code (Labour Detail row {row}); "
+                              "fix it on the Codes & registration page.")  # fmt: skip
+        if (
+            base is not None
+            and employee_code_status(base.employee_code) != EmployeeCodeStatus.VALID
+        ):
+            plan.notes.append(f"{req.base} has no valid employee code either.")
+        if dates.later:
+            later = ", ".join(f"{d:%d %b}" for d in dates.later)
+            plan.notes.append(f"{len(dates.later)} day(s) fall in the next month: enter them in "
+                              f"next month's workbook ({later}).")  # fmt: skip
+        plan.entries = [self._medical_entry(req, d.sheet, name) for d in dates.days]
+        if not plan.entries:
+            return plan
+        # Plan against the sheets as they will be: with the new row, the block shows the name.
+        master_after = master.model_copy(deep=True)
+        if existing is None:
+            master_after.workers.append(Worker(row=row, calling_name=name, name=base.name,
+                                               trade_group=base.trade_group, id_no=base.id_no,
+                                               employee_code=base.employee_code))  # fmt: skip
+            master_after.workers.sort(key=lambda w: w.row)
+        block = t.block_for_master_row(row)
+        days = {}
+        for sheet in {e.sheet for e in plan.entries}:
+            day = self.day(sheet, fresh).model_copy(deep=True)
+            if existing is None:
+                while len(day.block_names) <= block:
+                    day.block_names.append(None)
+                day.block_names[block] = name
+            days[sheet] = day
+        plan.plans = self._plan_on(plan.entries, master_after, days)
+        for p in plan.plans:
+            if p.preview is not None and p.preview.ot is not None:
+                day_type = cell_text(days[p.input.sheet].header.day_type)
+                p.issues.append(make_issue("W09", f"Excel books {fmt_hours(p.preview.ot)} h OT on "
+                                           f"this medical day ({day_type}).",
+                                           sheet=p.input.sheet, calling_name=name))  # fmt: skip
+        return plan
+
+    def _medical_entry(self, req: MedicalRequest, sheet: str, name: str) -> EntryInput:
+        effective = effective_hours(req.time_in, req.time_out)
+        return EntryInput(sheet=sheet, calling_name=name, time_in=req.time_in,
+                          time_out=req.time_out, remark=req.remark,
+                          activities=[ActivityInput(code=req.activity, hours=effective)],
+                          acknowledged=req.acknowledged.get(sheet, []))  # fmt: skip
+
+    def medical_leave(self, req: MedicalRequest, user: str) -> MedicalResult:
+        """Add the medical line to Labour Detail if needed, then write the days as one batch."""
+        if not user.strip():
+            raise ValueError("a user name is required for writes")
+        plan = self.medical_preview(req, fresh=True)
+        if plan.problems or not plan.plans or not all(p.ok for p in plan.plans):
+            return MedicalResult(status="rejected", plan=plan)
+        row_batch = None
+        if plan.new_row:
+            row_batch = self._add_worker(req, user)
+            if row_batch.status != "written":
+                error = row_batch.error or "; ".join(row_batch.problems)
+                return MedicalResult(status="failed", plan=plan, row=row_batch, error=error)
+        result = self.commit(plan.entries, user)
+        status = "written" if result.status == "written" else "failed"
+        return MedicalResult(status=status, plan=plan, row=row_batch, entries=result,
+                             error=result.error)  # fmt: skip
+
+    def _add_worker(self, req: MedicalRequest, user: str) -> CodeWriteResult:
+        """Write the medical line into the first empty Labour Detail row (one audited batch)."""
+        t, wb = self.template, self.workbook
+        _, name, existing, row, cells, problems = self._medical_setup(req, self.master(fresh=True))
+        if problems or existing is not None or row is None:
+            return CodeWriteResult(status="rejected", problems=problems or ["Row exists already."])
+        current = wb.read_range(t.master_sheet, f"A{row}:{t.master_cols.epf}{row}")[0]
+        if any(not is_blank(v) for v in current):
+            return CodeWriteResult(status="rejected",
+                                   problems=[f"Labour Detail row {row} is not empty."])  # fmt: skip
+        changes = [Change(sheet=t.master_sheet, cell=cell, calling_name=name, old=None, new=value)
+                   for cell, value in cells.items()]  # fmt: skip
+        writes = [RangeWrite(sheet=c.sheet, address=c.cell, values=[[c.new]]) for c in changes]
+        if bad := unwritable_cells(writes, t, allow_worker_rows={row}):
+            raise RuntimeError(f"refusing to write outside Labour Detail row {row}: {bad}")
+        try:
+            self.backups.ensure(wb.name, wb.save_copy)
+        except (OSError, WorkbookError) as exc:
+            return CodeWriteResult(status="failed", error=f"Backup failed, nothing written: {exc}")
+        batch_id = self.audit.start("write", user, wb.name, changes)
+        self._master = None
+        self._days.clear()  # every day sheet shows the new block
+        written = {c.cell: (c.old, c.new) for c in changes}
+        try:
+            wb.write_ranges(writes)
+        except WorkbookError as exc:
+            self.unsaved = True
+            self.audit.finish(batch_id, "failed", str(exc))
+            return CodeWriteResult(status="failed", batch_id=batch_id, written=written,
+                                   error=str(exc))  # fmt: skip
+        self.unsaved = True
+        self.audit.finish(batch_id, "done", "new worker")
+        return CodeWriteResult(status="written", batch_id=batch_id, written=written)
 
     # --- save / history ---
 

@@ -6,6 +6,7 @@ import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
 import { MasterTools } from "./components/MasterTools";
+import { MedicalDialog } from "./components/MedicalDialog";
 import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
@@ -58,6 +59,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [crewOpen, setCrewOpen] = useState(false);
+  const [medicalOpen, setMedicalOpen] = useState(false);
   const [page, setPage] = useState<"entry" | "codes">(() => (window.location.hash === "#codes" ? "codes" : "entry"));
   const nextId = useRef(1);
   const loading = useRef(new Set<string>());
@@ -345,8 +347,9 @@ export function App() {
               activityOrder={activityOrder}
               onQueue={onQueue}
               onCrew={() => setCrewOpen(true)}
+              onMedical={() => setMedicalOpen(true)}
               focusToken={focusToken}
-              dialogOpen={askName || crewOpen}
+              dialogOpen={askName || crewOpen || medicalOpen}
             />
             {result && <CommitResultView result={result} onClose={() => setResult(null)} />}
             <Queue
@@ -388,6 +391,21 @@ export function App() {
               onClear={(v) => v.entry.calling_name && addToQueue([clearInput(sheet, v.entry.calling_name)])}
             />
             <Batches batches={batches} busy={busy} onUndo={undo} />
+            {medicalOpen && (
+              <MedicalDialog
+                master={master}
+                sheet={sheet}
+                user={user}
+                initialWorker={form.worker?.calling_name ?? null}
+                onDone={(sheets) => {
+                  api.master(true).then(setMaster).catch(fail);
+                  Promise.all([...new Set(sheets)].map(reloadDay));
+                  refreshBatches();
+                  refreshStatus();
+                }}
+                onClose={() => setMedicalOpen(false)}
+              />
+            )}
             {crewOpen && (
               <CrewDialog
                 master={master}

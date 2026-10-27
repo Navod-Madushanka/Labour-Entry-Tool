@@ -223,6 +223,40 @@ export interface RegistrationReport {
   missing: string[];
 }
 
+export interface MedicalRequest {
+  base: string;
+  start: string;
+  days: number;
+  time_in: number;
+  time_out: number;
+  activity: string;
+  remark: string | null;
+  skip_holidays: boolean;
+  acknowledged: Record<string, string[]>;
+}
+
+export interface MedicalPlan {
+  base: string;
+  name: string | null;
+  row: number | null;
+  new_row: boolean;
+  new_row_cells: string[];
+  entries: EntryInput[];
+  plans: EntryPlan[];
+  skipped: string[];
+  later: string[];
+  notes: string[];
+  problems: string[];
+}
+
+export interface MedicalResult {
+  status: "written" | "rejected" | "failed";
+  plan: MedicalPlan;
+  row: CodeWriteResult | null;
+  entries: CommitResult | null;
+  error: string | null;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -267,6 +301,9 @@ export const api = {
       approve: true,
     }),
   save: () => call<{ saved: boolean }>("POST", "/api/save"),
+  medicalPreview: (req: MedicalRequest) => call<MedicalPlan>("POST", "/api/medical/preview", req),
+  medical: (req: MedicalRequest, user: string) =>
+    call<MedicalResult>("POST", "/api/medical", { ...req, user, approve: true }),
   rules: () => call<Record<string, { severity: Severity; title: string }>>("GET", "/api/rules"),
   registration: () => call<RegistrationReport>("GET", "/api/registration"),
   codes: () => call<CodesResponse>("GET", "/api/codes"),

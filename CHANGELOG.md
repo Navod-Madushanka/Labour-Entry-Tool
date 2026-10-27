@@ -1,5 +1,24 @@
 # Changelog
 
+## Medical leave (27 Oct 2026)
+
+Office practice (from Navod): a worker on medical leave gets a medical line `<base> M` (e.g.
+`INC-08 M`) with 10 days, Sundays skipped, In 7 Out 16, activity `00-00-10-00`.
+
+- `domain/medical.py`: medical name and working-day planning (Sundays skipped, holidays optional,
+  days past the month listed separately).
+- `service.medical_preview` / `medical_leave`: adds the line to the first empty Labour Detail row
+  when new (copying name, trade, ID, employee code from the base; approved, audited, undoable only
+  once its days are undone), then writes the days as one batch through the normal checks.
+  Previews plan against the sheets as they will be (the new block already named).
+- New warning W09: a medical day with OT (Saturday 2.5 h, holiday 8 h, as Excel computes it).
+- Write guard: Labour Detail A–H only for the specific new row. The fake workbook now derives
+  each block's column A from Labour Detail like the real formula.
+- API `POST /api/medical/preview`, `POST /api/medical` (needs `approve`); UI **Medical leave…**.
+
+On the INDIAN demo, `INC-08` from 26 Oct: row 251 added, 6 days written (26–31 Oct), 4 listed for
+November; from 20 Oct the preview flags 21–24 Oct (he worked those days) and Saturday OT.
+
 ## Phase 4 — Employee codes and registration (27 Oct 2026)
 
 **Built**

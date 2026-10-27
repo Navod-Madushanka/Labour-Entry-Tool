@@ -26,6 +26,7 @@ interface Props {
   activityOrder: string[];
   onQueue: (input: EntryInput) => void;
   onCrew: () => void;
+  onMedical: () => void;
   focusToken: number; // changes when the worker field should take focus
   dialogOpen: boolean; // never steal focus from a dialog
 }
@@ -39,7 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function EntryForm(props: Props) {
-  const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onCrew } = props;
+  const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onCrew, onMedical } = props;
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [plan, setPlan] = useState<EntryPlan | null>(null);
@@ -354,6 +355,7 @@ export function EntryForm(props: Props) {
             Clear <kbd>Esc</kbd>
           </button>
           <button onClick={onCrew}>Crew entry…</button>
+          <button onClick={onMedical}>Medical leave…</button>
         </div>
       </div>
 

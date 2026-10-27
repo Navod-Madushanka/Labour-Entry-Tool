@@ -115,8 +115,10 @@ class FakeWorkbook:
         if self.busy_failures:
             self.busy_failures -= 1
             raise WorkbookBusyError("Excel is busy (a cell is being edited).")
-        for w in writes:  # unlocked: block inputs, day-sheet header, Labour Detail codes
-            if bad := unwritable_cells([w], self.template, allow_header=True, allow_codes=True):
+        rows = range(self.template.master_rows[0], self.template.master_rows[1] + 1)
+        for w in writes:  # unlocked: block inputs, day-sheet header, Labour Detail A-H
+            if bad := unwritable_cells([w], self.template, allow_header=True, allow_codes=True,
+                                       allow_worker_rows=rows):  # fmt: skip
                 raise ProtectionError(f"The cell {bad[0]} is protected.")
         for w in writes:
             grid = self._grid(w.sheet)
@@ -162,8 +164,13 @@ class FakeWorkbook:
         formula_cols = ("total", "effective", "upload_employee", "upload_date",
                         "upload_activity", "upload_hours", "upload_ot")  # fmt: skip
         n_act = t.activity_rows[1] - t.activity_rows[0] + 1
+        names = {t.block_for_master_row(w.row): w.calling_name for w in self.read_master().workers}
         for k in range(t.blocks):
             r0 = t.block_row(k)
+            if (name := names.get(k)) is not None:  # A = 'Labour Detail'!A{3+k}
+                grid[(r0, c["calling_name"])] = name
+            else:
+                grid.pop((r0, c["calling_name"]), None)
             for r in range(r0, r0 + t.block_size):
                 for col in formula_cols:
                     grid.pop((r, c[col]), None)

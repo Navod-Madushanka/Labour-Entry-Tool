@@ -59,6 +59,7 @@ RULES: dict[str, Rule] = {
         Rule("W06", "WARN", "In at or after 12:00 (Excel still deducts lunch)"),
         Rule("W07", "WARN", "No valid employee code: ERP upload lines go out blank"),
         Rule("W08", "INFO", "Unallocated hours go to ZIDLE"),
+        Rule("W09", "WARN", "Medical day with OT (Saturday or holiday rule)"),
         Rule("H01", "BLOCK", "Sheet date does not match the sheet number"),
         Rule("H02", "BLOCK", "Day type does not match the calendar"),
         Rule("H03", "WARN", "Sheet number (F4) does not match the sheet"),

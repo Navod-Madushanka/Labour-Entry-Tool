@@ -211,3 +211,7 @@ details > summary { padding: 8px 10px; cursor: pointer; }
 .file-list { margin: 0 0 8px; padding-left: 18px; }
 .chip.static { cursor: default; border: 1px solid var(--line); background: var(--row); }
 .next-numbers { margin-top: 12px; }
+.medical-plan { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+.modal .field input, .modal .field select { width: auto; flex: none; }
+.modal input[type="checkbox"] { width: auto; flex: none; }
+.medical-plan .issues label { display: inline; }

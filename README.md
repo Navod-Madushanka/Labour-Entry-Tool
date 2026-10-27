@@ -72,6 +72,22 @@ and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** 
   or **Header is right, write anyway**.
 - **Save workbook** saves in Excel; nothing is saved automatically.
 
+## Medical leave
+
+**Medical leave…** (next to Crew entry) gives a worker a medical line `<calling name> M`, e.g.
+`INC-08 M`, with one entry per working day: In 07:00, Out 16:00, activity `00-00-10-00`, hours =
+the effective hours (8). Defaults: 10 days from the chosen first day, **Sundays skipped**
+(holidays only when *Skip holidays too* is ticked); all fields can be changed.
+
+- If `INC-08 M` is not in Labour Detail yet, it is added in the first empty worker row, copying
+  name, trade group, ID and employee code from `INC-08` (so the ERP lines carry his code). Day
+  sheets follow Labour Detail order, so the new line appears on every sheet.
+- The preview shows each day with Excel's numbers and every check: a day `INC-08` also worked
+  (W03), Saturday/holiday OT on a medical day (W09), wrong sheet headers. Warnings need a tick.
+- Days past the month end are listed for next month's workbook; only this month's are written.
+- Two batches (the new Labour Detail row, then the days), each with a backup and undo. The row
+  can only be undone after its days are.
+
 ## Employee codes and registration (Phase 4)
 
 The **Codes & registration** tab (or `#codes`) lists every Labour Detail row whose employee code is

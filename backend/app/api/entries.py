@@ -22,6 +22,9 @@ from app.service import (
     EntryService,
     HeaderFixResult,
     MasterView,
+    MedicalPlan,
+    MedicalRequest,
+    MedicalResult,
     Status,
     UndoResult,
 )
@@ -91,6 +94,26 @@ async def header_fix(sheet: str, body: HeaderFixRequest, request: Request) -> He
     if not body.approve:
         raise HTTPException(422, "A header fix needs the user's explicit approval.")
     return await run_service(request, lambda s: s.fix_header(sheet, body.fields, body.user))
+
+
+class MedicalWriteRequest(MedicalRequest):
+    user: str = Field(min_length=1)
+    approve: bool = False  # adding a Labour Detail row needs the user's explicit approval
+
+
+@router.post("/medical/preview", response_model=MedicalPlan)
+async def medical_preview(body: MedicalRequest, request: Request) -> MedicalPlan:
+    """The medical line, its Labour Detail row (new or existing), the dates and every check."""
+    return await run_service(request, lambda s: s.medical_preview(body))
+
+
+@router.post("/medical", response_model=MedicalResult)
+async def medical(body: MedicalWriteRequest, request: Request) -> MedicalResult:
+    """Add '<base> M' to Labour Detail if needed (one batch), then write the days (another)."""
+    if not body.approve:
+        raise HTTPException(422, "Medical leave needs the user's explicit approval.")
+    req = MedicalRequest(**body.model_dump(exclude={"user", "approve"}))
+    return await run_service(request, lambda s: s.medical_leave(req, body.user))
 
 
 @router.post("/preview", response_model=PreviewResponse)
