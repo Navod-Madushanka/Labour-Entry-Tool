@@ -6,6 +6,7 @@ Times are decimal hours (7.5 = 07:30); an overnight Out is written past 24 (30 =
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from app.domain.models import CellValue, Computed, Entry, as_number
@@ -67,9 +68,41 @@ def sum_hours(values: Iterable[CellValue]) -> float:
     return sum(n for v in values if (n := as_number(v)) is not None)
 
 
-def zidle_hours(effective: float, activity_hours: Iterable[CellValue]) -> float:
-    """Unallocated hours (block row 6). Can go negative when activities exceed effective."""
-    return effective - sum_hours(activity_hours)
+_NUMERIC_TEXT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def arith_value(value: CellValue) -> float | None:
+    """A cell used in Excel ``+``/``-`` arithmetic: numbers and booleans count, numeric text
+    (``" 13 "``) is coerced, other text and errors give ``#VALUE!`` (None here).
+
+    Only plain decimal text is coerced; Excel also accepts forms like ``"7:30"`` or ``"50%"``,
+    which E03 blocks and the health check flags anyway.
+    """
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        return float(text) if _NUMERIC_TEXT_RE.fullmatch(text) else None
+    return None
+
+
+def zidle_hours(effective: float, activity_hours: Iterable[CellValue]) -> float | None:
+    """Unallocated hours (block row 6). Can go negative when activities exceed effective.
+
+    Excel computes ``IFERROR(E - (IF(P1="",0,P1) + ... + IF(P5="",0,P5)), "")`` with ``+``, not
+    SUM, so one non-numeric hours cell (text like "13`") hides the whole ZIDLE line: None.
+    """
+    allocated = 0.0
+    for value in activity_hours:
+        if value is None or value == "" or value == 0:  # P = IF(K=0,"",K)
+            continue
+        number = arith_value(value)
+        if number is None:
+            return None
+        allocated += number
+    return effective - allocated
 
 
 def compute(
@@ -79,14 +112,14 @@ def compute(
     day_type: CellValue = NORMAL_DAY,
     activity_hours: Iterable[CellValue] = (),
 ) -> Computed:
+    activity_hours = list(activity_hours)
     effective = effective_hours(time_in, time_out, additional)
-    allocated = sum_hours(activity_hours)
     return Computed(
         total=total_hours(time_in, time_out),
         effective=effective,
         ot_raw=ot_hours(effective, day_type),
-        activity_hours=allocated,
-        zidle=effective - allocated,
+        activity_hours=sum_hours(activity_hours),
+        zidle=zidle_hours(effective, activity_hours),
     )
 
 

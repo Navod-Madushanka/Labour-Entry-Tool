@@ -154,8 +154,8 @@ class Computed(BaseModel):
     total: float
     effective: float
     ot_raw: float | None  # effective - threshold; None for an unknown day type
-    activity_hours: float
-    zidle: float
+    activity_hours: float  # like Excel SUM (text ignored), for display and allocation
+    zidle: float | None  # None when Excel's IFERROR hides the ZIDLE line (non-numeric hours)
 
     @property
     def ot(self) -> float | None:
