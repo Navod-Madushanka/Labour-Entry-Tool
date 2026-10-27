@@ -10,7 +10,9 @@ registration_files:
 # --holiday on the command line, or the holiday box on the report page.
 holidays: [2026-10-25]
 server: { host: 127.0.0.1, port: 8000, allow_lan: false }
-backups: { dir: "C:/Labour/backups", keep: 10 }
+backups: { dir: "C:/Labour/backups", keep: 10 }   # copy before the first write of each session
+audit: { db: "C:/Labour/audit.sqlite" }           # every written cell with its old value (undo)
+excel: { enabled: true, busy_timeout: 10 }        # live writes into the open workbook (Windows)
 template:
   master_sheet: "Labour Detail"
   master_rows: [3, 502]

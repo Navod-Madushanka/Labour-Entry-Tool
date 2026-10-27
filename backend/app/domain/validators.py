@@ -3,7 +3,7 @@
 Pure functions over the models; they never change values. The health check runs them over a whole
 workbook, and the entry UI (Phase 3) runs them on a single entry before it is queued. Checks that
 need more than one entry (W02 rest, W03 overlap, W07 per worker) and master-data checks live in
-``health``. E07-E09 are write-time checks and belong to the write path (Phase 2).
+``health``. The write-time checks E07-E09 live in ``writes``.
 """
 
 from __future__ import annotations
@@ -48,6 +48,9 @@ RULES: dict[str, Rule] = {
         Rule("E04", "BLOCK", "Activity code not in the activity list"),
         Rule("E05", "BLOCK", "Activity hours exceed effective hours"),
         Rule("E06", "BLOCK", "More than 5 activity lines"),
+        Rule("E07", "BLOCK", "Calling name not found in one block of the sheet"),
+        Rule("E08", "BLOCK", "Block already has input (overwrite not confirmed)"),
+        Rule("E09", "BLOCK", "Write outside the input cells"),
         Rule("W01", "WARN", "Effective hours over 16"),
         Rule("W02", "WARN", "Less than 8 h rest before the next day's shift"),
         Rule("W03", "WARN", "Same person booked twice with overlapping times"),

@@ -13,7 +13,9 @@ from collections import Counter
 
 import pytest
 
-from app.config import TemplateConfig
+from app.audit.backups import BackupManager
+from app.audit.store import AuditStore
+from app.config import Config, TemplateConfig
 from app.domain.codes import (
     EmployeeCodeStatus,
     employee_code_status,
@@ -23,8 +25,11 @@ from app.domain.codes import (
 from app.domain.health import run_health
 from app.domain.models import WorkbookSnapshot, as_number, is_blank
 from app.domain.rules import compute_entry, same_hours
-from app.excel.fake_adapter import load_snapshot
+from app.domain.validators import RULES
+from app.domain.writes import ActivityInput, EntryInput, same_value
+from app.excel.fake_adapter import FakeWorkbook, load_snapshot
 from app.excel.xlsb_reader import XlsbReader
+from app.service import EntryService
 from tests.conftest import FIXTURES
 
 pytestmark = pytest.mark.golden
@@ -303,3 +308,53 @@ def test_health_upload_lines(health):
     lines = {i.calling_name: int(i.message.split()[0]) for i in _of(health, "W07")}
     assert lines.pop("INH-21") == 48
     assert (sum(lines.values()), len(lines)) == (1358, 36)
+
+
+# --- Phase 2: the fake workbook recalculates like Excel ---------------------------------------
+
+
+def test_fake_workbook_formulas_match_excel(indian):
+    """FakeWorkbook drops every cached formula result and recomputes it; the write-path tests
+    rely on it matching Excel's D, E and M-Q for every block with input."""
+    fake = FakeWorkbook(indian, T)
+    mismatches = []
+    for day in indian.days:
+        recomputed = {e.block: e.cached for e in fake.read_day(day.header.sheet).entries}
+        for e in day.entries:
+            mine, excel = recomputed[e.block], e.cached
+            pairs = [("D", excel.total, mine.total), ("E", excel.effective, mine.effective)]
+            for xl, me in zip(excel.upload, mine.upload, strict=True):
+                for field in ("employee", "date", "activity", "hours", "ot"):
+                    value = getattr(xl, field)
+                    value = None if isinstance(value, str) and not value.strip() else value
+                    pairs.append((f"{field}@{xl.row}", value, getattr(me, field)))
+            mismatches += [(day.header.sheet, e.calling_name, *p) for p in pairs
+                           if not same_value(p[1], p[2])]  # fmt: skip
+    assert mismatches == []
+
+
+def test_full_day_write_and_undo_on_fake(indian, tmp_path):
+    """Phase 2 'done' rehearsal without Excel: the busiest day's entries re-entered on empty sheet
+    26 as one batch; every read-back equals the preview, and undo leaves sheet 26 as it was."""
+    fake = FakeWorkbook(indian, T)
+    config = Config(month="2026-10", holidays=[dt.date(2026, 10, 25)])
+    svc = EntryService(lambda: fake, config, AuditStore(), BackupManager(tmp_path, 2))
+    before = fake.read_range("26", "A9:R3508")
+    source = max(indian.days, key=lambda d: len(d.entries))
+    inputs = [
+        EntryInput(sheet="26", calling_name=e.calling_name, time_in=e.time_in,
+                   time_out=e.time_out, additional=e.additional, remark=e.remark,
+                   activities=[ActivityInput(code=a.code, hours=a.hours)
+                               for a in e.activities if a.code or a.hours],
+                   acknowledged=[r for r, rule in RULES.items() if rule.severity == "WARN"])
+        for e in source.entries
+        if e.is_complete and all(isinstance(a.hours, float | None) for a in e.activities)
+    ]  # fmt: skip
+    res = svc.commit(inputs, "golden")
+    assert res.status == "written", [
+        (p.input.calling_name, p.blocking) for p in res.plans if not p.ok
+    ]
+    assert len(res.readback) == len(inputs) > 200
+    assert [r for r in res.readback if not r.ok] == []
+    assert svc.undo(res.batch_id, "golden").status == "undone"
+    assert fake.read_range("26", "A9:R3508") == before

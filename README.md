@@ -46,6 +46,38 @@ python -m app.main                       # web report at http://localhost:8000/h
 - The web report needs `workbook_file:` in `config.yaml`. The API is `GET /api/health`,
   `GET /api/health.csv` (both take `?holidays=YYYY-MM-DD,...`) and `GET /api/rules`.
 
+## Live Excel (Phase 2)
+
+With the workbook open in Excel, `python -m app.main` attaches to it (the one open book matching
+`workbook_pattern`) and serves the write API. Nothing is written unless every entry passes its
+checks and every warning is acknowledged.
+
+| Route | What it does |
+|---|---|
+| `GET /api/status` | connected?, workbook name, unsaved changes, this session's backup |
+| `POST /api/preview` | plan and check entries; writes nothing |
+| `POST /api/entries` | write a batch (`dry_run: true` only checks it); returns the read-back per worker |
+| `GET /api/batches` | recent batches from the audit log |
+| `POST /api/batches/{id}/undo` | write the old values back (refused if the cells changed since) |
+| `POST /api/save` | save the workbook in Excel |
+
+- Before the first write of a session a copy goes to `backups.dir` (newest 10 kept). Every
+  changed cell is logged with its old value in `audit.db` (calling names and values only).
+- Only the §5.4 input cells are ever written: `G:H`, `J:K` (rows 1–5), `L` and `R` of a block.
+- If Excel is busy (a cell is being edited) the call is retried for `excel.busy_timeout` seconds.
+
+**Smoke test on Windows** (needs a *copy* of the workbook open in Excel, nothing else matching):
+
+```powershell
+cd backend
+python ../scripts/excel_smoke.py --i-am-using-a-copy --pattern "*COPY*.xlsb"
+```
+
+It writes six test entries into empty blocks of an empty day sheet, compares Excel's recalculated
+values with the preview, checks the backup and sheet protection, undoes everything and confirms
+every cell is back. It prints PASS/FAIL per step and writes `smoke_report.json` (no names or IDs).
+Close the copy without saving afterwards.
+
 ## Fixtures and privacy (PLAN.md §10)
 
 - Real workbooks go **only** in `fixtures/private/`. That folder, every `*.xlsb`/`*.xlsx`, `backups/`,

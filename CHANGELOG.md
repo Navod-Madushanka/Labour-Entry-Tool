@@ -1,5 +1,44 @@
 # Changelog
 
+## Phase 2 — Live Excel adapter (27 Oct 2026)
+
+**Built**
+- `domain/writes.py`: `EntryInput` → `EntryPlan` (ranges, old values, preview, issues) with the
+  write-time checks E07 (calling name in exactly one block), E08 (overwrite must be confirmed) and
+  E09 (only §5.4 input cells). BLOCK stops a write; every WARN and H01/H02 must be acknowledged.
+- `service.EntryService`: preview, commit, read-back, undo, save. A commit re-reads each day sheet,
+  plans every entry, writes only if all pass: backup → audit rows (pending) → one batched write →
+  read-back of Excel's E/ZIDLE/OT and the written inputs against the preview.
+- Undo writes the old values back through the same guard; refused when a cell changed since or the
+  block now belongs to another calling name. Works for failed (partly written) batches too.
+- `audit/store.py` (sqlite, before/after per cell), `audit/backups.py` (copy before the first write
+  of a session, newest N kept), `excel/worker.py` (one thread runs every workbook call in order).
+- `excel/xlwings_adapter.py`: attach by name pattern, bulk reads into the shared grid builder,
+  batched writes with calculation paused and restored, SaveCopyAs, save, busy retry with backoff.
+- `excel/grid.py`: grid → models code shared by the pyxlsb reader and the live adapter.
+- `excel/fake_adapter.FakeWorkbook`: writable in-memory workbook that recalculates D, E and M–Q
+  like Excel. Golden test: it reproduces Excel's cached results for all 4,075 INDIAN entries.
+- API: `/api/status`, `/api/preview`, `/api/entries`, `/api/batches`, `/api/batches/{id}/undo`,
+  `/api/save`. Config: `audit.db`, `excel.enabled`, `excel.busy_timeout`.
+- `scripts/excel_smoke.py`: the Phase 2 "done" check for a copy of the workbook in Excel
+  (`--fake snapshot.json` runs it without Excel).
+
+**Demo**
+```powershell
+python -m pytest backend/tests -q   # 232 passed with the real .xlsb in fixtures/private/
+python scripts/excel_smoke.py --fake fixtures/sanitized/indian_2026-10.json   # ALL PASSED
+```
+Golden rehearsal on the fake: the busiest day (200+ workers) re-entered on sheet 26 as one batch,
+every read-back equal to the preview, undo leaves the sheet exactly as before.
+
+**Decision:** PLAN.md §8 says to write `J:L` as a 5×3 block, but §5.4 forbids writing `L` in
+block rows 2–5. The tool writes `J:K` (5 rows) and `L` (row 1) as separate ranges.
+
+**Not verified yet (needs Windows + Excel):** the smoke test on a copy of the INDIAN workbook:
+protection errors, Excel's recalculated values vs preview, undo, backup, and write timing (§8: if
+one write takes > 3 s, write in batches only). Cross-entry warnings W02/W03 for new entries come
+with the entry UI (Phase 3).
+
 ## Phase 1 — Health check (27 Oct 2026)
 
 **Built**

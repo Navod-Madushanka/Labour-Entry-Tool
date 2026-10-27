@@ -30,6 +30,15 @@ class BackupConfig(BaseModel):
     keep: int = 10
 
 
+class ExcelConfig(BaseModel):
+    enabled: bool = True  # live Excel writes (Windows only); off = health check only
+    busy_timeout: float = 10.0  # seconds to retry while Excel is busy (a cell being edited)
+
+
+class AuditConfig(BaseModel):
+    db: Path = Path("audit.sqlite")
+
+
 class HeaderCells(BaseModel):
     date: str = "F3"
     day_type: str = "H3"
@@ -123,6 +132,8 @@ class Config(BaseModel):
     holidays: list[dt.date] = []
     server: ServerConfig = ServerConfig()
     backups: BackupConfig = BackupConfig()
+    excel: ExcelConfig = ExcelConfig()
+    audit: AuditConfig = AuditConfig()
     template: TemplateConfig = TemplateConfig()
 
     @field_validator("month", mode="before")
