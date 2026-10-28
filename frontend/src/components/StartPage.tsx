@@ -6,7 +6,7 @@ import {
   type Issue,
   type Readiness,
   type SetupState,
-  type Severity,
+  type PlainIssue,
 } from "../api";
 import { store } from "../store";
 
@@ -39,10 +39,6 @@ function sheetDate(month: string | null, sheet: string | null): Date | null {
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-function where(i: Issue): string {
-  const place = i.sheet && !/^\d+$/.test(i.sheet) ? `${i.sheet}!${i.cell ?? ""}` : [i.sheet && `Sheet ${i.sheet}`, i.cell].filter(Boolean).join(" ");
-  return [place, i.calling_name].filter(Boolean).join(" · ");
-}
 
 /** Choose the workbook -> check it and fix what can be fixed -> readiness -> entry. */
 export function StartPage({ initial, onDone }: Props) {
@@ -54,12 +50,8 @@ export function StartPage({ initial, onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<HealthReport | null>(null);
   const [ready, setReady] = useState<Readiness | null>(null);
-  const [rules, setRules] = useState<Record<string, { severity: Severity; title: string }>>({});
   const started = useRef(false);
 
-  useEffect(() => {
-    api.rules().then(setRules).catch(() => undefined);
-  }, []);
 
   // Dropping a file anywhere on the page must not make the browser open it instead.
   useEffect(() => {
@@ -188,7 +180,6 @@ export function StartPage({ initial, onDone }: Props) {
         <CheckStep
           setup={setup}
           report={report}
-          rules={rules}
           user={user}
           setUser={saveUser}
           run={run}
@@ -343,7 +334,6 @@ function ChooseStep({ setup, practice, setPractice, user, setUser, busy, onFile,
 interface CheckProps {
   setup: SetupState;
   report: HealthReport;
-  rules: Record<string, { severity: Severity; title: string }>;
   user: string;
   setUser: (v: string) => void;
   run: <T>(label: string, fn: () => Promise<T>) => Promise<T | undefined>;
@@ -352,7 +342,7 @@ interface CheckProps {
   onContinue: () => void;
 }
 
-function CheckStep({ setup, report, rules, user, setUser, run, onChanged, onSetup, onContinue }: CheckProps) {
+function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onContinue }: CheckProps) {
   const issues = report.issues;
   const header = issues.filter((i) => HEADER.includes(i.rule));
   const codes = issues.filter((i) => CODES.includes(i.rule));
@@ -366,12 +356,12 @@ function CheckStep({ setup, report, rules, user, setUser, run, onChanged, onSetu
   const needName = !user.trim();
 
   const bySheet = useMemo(() => {
-    const m = new Map<string, Issue[]>();
+    const m = new Map<string, PlainIssue[]>();
     for (const i of header) m.set(i.sheet ?? "", [...(m.get(i.sheet ?? "") ?? []), i]);
     return [...m.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
   }, [header]);
 
-  const fixSheets = async (sheets: [string, Issue[]][]) => {
+  const fixSheets = async (sheets: [string, PlainIssue[]][]) => {
     const done = await run(`Fixing ${sheets.length === 1 ? `sheet ${sheets[0][0]}` : `${sheets.length} sheets`}…`, async () => {
       for (const [sheet, list] of sheets) {
         const res = await api.headerFix(sheet, [...new Set(list.map((i) => FIELD[i.rule]))], user.trim());
@@ -398,7 +388,7 @@ function CheckStep({ setup, report, rules, user, setUser, run, onChanged, onSetu
         <h2>
           {errors === 0 && warnings === 0
             ? "No problems found"
-            : `${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}`}
+            : `${errors} mistake${errors === 1 ? "" : "s"} to correct, ${warnings} thing${warnings === 1 ? "" : "s"} worth checking`}
         </h2>
         <p className="muted">
           {s.workers} workers in Labour Detail; {s.entries} worker-days entered on {s.sheets_with_entries} sheets.
@@ -454,7 +444,7 @@ function CheckStep({ setup, report, rules, user, setUser, run, onChanged, onSetu
                     <b>Sheet {sheet}</b>
                     {list.map((i) => (
                       <div key={i.rule} className={`issue ${i.severity}`}>
-                        {i.message} {i.suggestion && <span className="fix">→ {i.suggestion}</span>}
+                        <b>{i.plain.title}.</b> {i.plain.what}
                       </div>
                     ))}
                   </div>
@@ -479,23 +469,23 @@ function CheckStep({ setup, report, rules, user, setUser, run, onChanged, onSetu
         <CodeFixer setup={setup} codeIssues={codes} user={user} run={run} onSetup={onSetup} onChanged={onChanged} />
       )}
 
-      {other.length > 0 && <ExcelIssues issues={other} rules={rules} mode={setup.mode} />}
+      {other.length > 0 && <ExcelIssues issues={other} mode={setup.mode} />}
 
       {warns.length > 0 && (
         <details className="card">
           <summary>
-            {warns.length} warning{warns.length === 1 ? "" : "s"} on days already entered: worth a look, not required
+            {warns.length} thing{warns.length === 1 ? "" : "s"} worth checking on days already entered (not required): click to see
           </summary>
-          <IssueGroups issues={warns} rules={rules} />
+          <IssueGroups issues={warns} />
         </details>
       )}
 
       {info.length > 0 && (
         <details className="card">
           <summary>
-            {info.length} note{info.length === 1 ? "" : "s"} (no action needed)
+            {info.length} small note{info.length === 1 ? "" : "s"} (nothing to do): click to see
           </summary>
-          <IssueGroups issues={info} rules={rules} />
+          <IssueGroups issues={info} />
         </details>
       )}
 
@@ -509,48 +499,51 @@ function CheckStep({ setup, report, rules, user, setUser, run, onChanged, onSetu
   );
 }
 
-function ExcelIssues({ issues, rules, mode }: { issues: Issue[]; rules: CheckProps["rules"]; mode: SetupState["mode"] }) {
+function ExcelIssues({ issues, mode }: { issues: PlainIssue[]; mode: SetupState["mode"] }) {
   return (
     <section className="card">
-      <h2>Fix these in Excel</h2>
+      <h2>Mistakes to correct in Excel</h2>
       <p className="muted small">
         {mode === "live"
-          ? "Change them in the open workbook, then press Check again. They are on days already entered; you can still go on and enter new days."
-          : "This is a practice copy: fix them in Excel, save, and drop the file here again. You can also go on and try the tool."}
+          ? "Correct them in the open workbook, then press Check again. They are on days already entered, so you can also go on and enter new days first."
+          : "This is a practice copy: correct them in Excel, save, and drop the file here again. You can also go on and try the tool."}
       </p>
-      <IssueGroups issues={issues} rules={rules} />
+      <IssueGroups issues={issues} />
     </section>
   );
 }
 
-function IssueGroups({ issues, rules }: { issues: Issue[]; rules: CheckProps["rules"] }) {
+function IssueGroups({ issues }: { issues: PlainIssue[] }) {
   const groups = useMemo(() => {
-    const m = new Map<string, Issue[]>();
-    for (const i of issues) m.set(i.rule, [...(m.get(i.rule) ?? []), i]);
+    const m = new Map<string, PlainIssue[]>();
+    for (const i of issues) m.set(i.plain.title, [...(m.get(i.plain.title) ?? []), i]);
     return [...m.entries()];
   }, [issues]);
   return (
     <div className="groups">
-      {groups.map(([rule, list]) => (
-        <IssueGroup key={rule} rule={rule} title={rules[rule]?.title ?? rule} list={list} />
+      {groups.map(([title, list]) => (
+        <IssueGroup key={title} title={title} list={list} />
       ))}
     </div>
   );
 }
 
-function IssueGroup({ rule, title, list }: { rule: string; title: string; list: Issue[] }) {
+function IssueGroup({ title, list }: { title: string; list: PlainIssue[] }) {
   const [all, setAll] = useState(false);
   const shown = all ? list : list.slice(0, 5);
+  const sameFix = list.every((i) => i.plain.fix === list[0].plain.fix);
   return (
     <div className="group">
       <h3 className="group-title">
-        <span className={`sev ${list[0].severity}`}>{rule}</span> {title} <span className="muted">({list.length})</span>
+        {title} <span className="muted">({list.length === 1 ? "1 place" : `${list.length} places`})</span>
       </h3>
-      <ul className="issues">
+      {sameFix && <p className="todo">What to do: {list[0].plain.fix}</p>}
+      <ul className="issues plain">
         {shown.map((i, n) => (
           <li key={n} className={`issue ${i.severity}`}>
-            <span className="where">{where(i)}</span> {i.message}
-            {i.suggestion && <span className="fix"> → {i.suggestion}</span>}
+            <div className="where">{i.plain.where}</div>
+            <div>{i.plain.what}</div>
+            {!sameFix && <div className="todo">What to do: {i.plain.fix}</div>}
           </li>
         ))}
       </ul>
@@ -562,7 +555,6 @@ function IssueGroup({ rule, title, list }: { rule: string; title: string; list: 
     </div>
   );
 }
-
 // --- employee codes from the registration files --------------------------------------------------
 
 interface CodeProps {
@@ -616,7 +608,7 @@ function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodePro
       <h2>Employee codes</h2>
       <p>
         {workers > 0 ? `${workers} worker${workers === 1 ? "" : "s"} ha${workers === 1 ? "s" : "ve"} no valid employee code` : "Some upload lines have no employee code"}
-        : their hours can be entered, but the ERP upload lines stay blank. The tool can find the codes in the
+        : their hours can be entered, but their lines in the payroll upload stay blank. The tool can find the codes in the
         registration files.
       </p>
       <div

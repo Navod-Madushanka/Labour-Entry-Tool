@@ -1,5 +1,13 @@
 # Changelog
 
+## Problems in plain words (28 Oct 2026)
+
+- The start page describes every problem the way an Excel user sees it, with no rule codes or
+  tool terms ("effective", "ZIDLE", "ERP", "block"). Each problem has a short title, where it is
+  (sheet, row, column name and cell, worker) and what is wrong with the actual values, plus a
+  "What to do" line. Problems are grouped by what is wrong; the summary reads "8 mistakes to
+  correct, 712 things worth checking". The wording comes from `app/domain/plain.py`.
+
 ## Guided start page (28 Oct 2026)
 
 - **Start page:** the tool now starts empty. Drop the workbook on the page, browse to it, or pick

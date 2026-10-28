@@ -27,7 +27,8 @@ from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config
 from app.domain.health import HealthReport, run_health
-from app.domain.models import SnapshotMeta, WorkbookSnapshot
+from app.domain.models import Issue, SnapshotMeta, WorkbookSnapshot
+from app.domain.plain import Plain, explain
 from app.excel.adapter import WorkbookError
 from app.service import EntryService
 from app.setup import Readiness, guess_month, month_from_name, next_sheet, readiness
@@ -273,12 +274,20 @@ def _require(request: Request) -> Session:
     return session
 
 
-@router.post("/check", response_model=HealthReport)
-async def check(request: Request) -> HealthReport:
+class PlainIssue(Issue):
+    plain: Plain  # the same problem in words for Excel users
+
+
+class CheckReport(HealthReport):
+    issues: list[PlainIssue]
+
+
+@router.post("/check", response_model=CheckReport)
+async def check(request: Request) -> CheckReport:
     """Read every sheet of the chosen workbook (fresh) and run the health check."""
     session = _require(request)
 
-    def run(service: EntryService) -> HealthReport:
+    def run(service: EntryService) -> CheckReport:
         snap = service.snapshot()
         s = session.state
         if s.path is None:  # chosen from Excel's open workbooks: the sheets tell the month too
@@ -292,7 +301,10 @@ async def check(request: Request) -> HealthReport:
                 "name (e.g. 'October 2026') or the date in F3 of sheet 1."
             )
         config = request.app.state.config
-        return run_health(snap, config.month_start, config.holidays, config.template)
+        report = run_health(snap, config.month_start, config.holidays, config.template)
+        issues = [PlainIssue(**i.model_dump(), plain=explain(i, config.template))
+                  for i in report.issues]  # fmt: skip
+        return CheckReport(**report.model_dump(exclude={"issues"}), issues=issues)
 
     return await run_service(request, run)
 

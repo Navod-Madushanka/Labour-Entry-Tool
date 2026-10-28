@@ -265,3 +265,7 @@ button.big { font-size: 16px; padding: 10px 22px; }
 .actions.footer { justify-content: flex-end; margin-bottom: 24px; }
 details.card > summary { cursor: pointer; }
 .fix-list li > div:first-child { flex: 1 1 320px; }
+.issues.plain li { padding: 6px 10px; }
+.issues.plain .where { font-weight: 600; }
+.todo { margin: 2px 0 6px; font-weight: 500; }
+.issues.plain .todo { margin: 2px 0 0; }

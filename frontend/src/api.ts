@@ -287,6 +287,10 @@ export interface SetupState {
   ready: boolean;
 }
 
+export interface PlainIssue extends Issue {
+  plain: { title: string; where: string; what: string; fix: string };
+}
+
 export interface HealthReport {
   source: { source_name: string };
   month: string;
@@ -299,7 +303,7 @@ export interface HealthReport {
     by_rule: Record<string, number>;
     by_severity: Record<string, number>;
   };
-  issues: Issue[];
+  issues: PlainIssue[];
 }
 
 export interface ReadinessCheck {

@@ -168,7 +168,7 @@ def readiness(
             "warn",
             "Employee codes",
             f"{len(no_code)} workers have no valid code ({names}). Their hours can be entered, "
-            "but their ERP upload lines stay blank until a code is added.",
+            "but their lines in the payroll upload stay blank until a code is added.",
         )
     else:
         add("codes", "ok", "Employee codes", "Every worker has an employee code.")
