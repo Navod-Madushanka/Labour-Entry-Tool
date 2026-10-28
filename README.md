@@ -4,14 +4,39 @@ A local web tool that adds search, suggestions and validation to the monthly lab
 and writes entries into the open Excel workbook. The workbook remains the system of record.
 **[PLAN.md](PLAN.md) is the spec. Read it first.** Progress is tracked in [CHANGELOG.md](CHANGELOG.md).
 
-## Setup (Windows, Python 3.11+; this PC uses 3.12)
+## Start (Windows)
+
+1. Get the code once: `git clone https://github.com/Navod-Madushanka/Labour-Entry-Tool.git`
+   (later, `git pull` in that folder gets updates).
+2. **Double-click `start.bat`.** The first run sets itself up (needs Python 3.11+ and the internet
+   once; a few minutes). After that it starts in seconds and opens the browser.
+3. On the start page:
+   - type your name;
+   - **drop the monthly .xlsb on the page, or press Browse…** (Browse opens it in Excel if it
+     isn't open yet; a dropped file must already be open in Excel). Workbooks already open in
+     Excel are listed too, one click each;
+   - the tool reads every sheet and lists the problems. It can **fix wrong sheet dates and day
+     types itself** (one click; each fix can be undone), mark a day as a holiday, and **find missing
+     employee codes** in the registration files you drop on it. The rest it lists by sheet and
+     cell, to fix in Excel and press *Check again*;
+   - then it checks what the automation needs (workers, activity list, medical code, formulas
+     agreeing with Excel, "start day from previous days", backup folder) and says **Ready**.
+     *Start entering data* opens the entry screen at the next day to enter.
+
+Tick **Practice mode** to try everything on a copy in memory: Excel and the file are not changed.
+No config file is needed. The month comes from the file name (or the sheet dates); backups and the
+change log go to `Labour Entry Tool` in your user folder. `config.yaml` (copy of
+`config.example.yaml`) is optional, for other folders or a fixed holiday list.
+*Change workbook* (top right of the entry screen) goes back to the start page.
+
+## Developer setup (Python 3.11+)
 
 ```powershell
-py -3.12 -m venv .venv
+py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e "backend[dev]"
 pre-commit install            # ruff + pytest + "no workbooks in git" on every commit
-copy config.example.yaml config.yaml   # then edit paths; config.yaml is git-ignored
+python -m app.main --open     # from backend/; --demo FILE skips the start page (practice copy)
 ```
 
 ## Tests

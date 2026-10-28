@@ -43,6 +43,7 @@ from app.domain.models import (
     Entry,
     Issue,
     MasterData,
+    WorkbookSnapshot,
     Worker,
     as_number,
     is_blank,
@@ -236,6 +237,18 @@ class EntryService:
         self._workbook = None
         self._master = None
         self._days.clear()
+
+    def set_config(self, config: Config) -> None:
+        """New month / holidays / registration files from the start page (same layout)."""
+        self.config = config
+        self.template = config.template
+
+    def snapshot(self) -> WorkbookSnapshot:
+        """Every sheet read fresh (the health check); the caches are refreshed with it."""
+        snap = self.workbook.snapshot()
+        self._master = snap.master
+        self._days = {d.header.sheet: d for d in snap.days}
+        return snap
 
     # --- cached reads (previews); writes always re-read ---
 

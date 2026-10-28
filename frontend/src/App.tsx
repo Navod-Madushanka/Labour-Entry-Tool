@@ -13,24 +13,8 @@ import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
 import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
 import { topActivities, type Month } from "./history";
+import { store } from "./store";
 import { formatShift, parseClock } from "./time";
-
-const store = {
-  get(key: string): string | null {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  set(key: string, value: string) {
-    try {
-      localStorage.setItem(key, value);
-    } catch {
-      /* private mode: remembered for this page only */
-    }
-  },
-};
 
 const HEADER_RULES = ["H01", "H02"];
 const FIX_FIELD: Record<string, string> = { H01: "date", H02: "day_type", H03: "sheet_no" };
@@ -44,7 +28,7 @@ function defaultSheet(master: Master): string {
   return ym === master.month && master.sheets.includes(today) ? today : master.sheets[0];
 }
 
-export function App() {
+export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
   const [user, setUser] = useState(() => store.get("labour.user") ?? "");
   const [askName, setAskName] = useState(() => !store.get("labour.user"));
   const [status, setStatus] = useState<Status | null>(null);
@@ -292,6 +276,7 @@ export function App() {
         historyTotal={master?.sheets.length ?? 0}
         onSave={save}
         onChangeUser={() => setAskName(true)}
+        onChangeWorkbook={onChangeWorkbook}
       />
       {askName && (
         <NamePrompt

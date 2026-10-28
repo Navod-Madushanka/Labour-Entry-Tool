@@ -1,6 +1,8 @@
 """Loads config.yaml (PLAN.md Appendix C).
 
-Lookup order: explicit path > $LABOUR_TOOL_CONFIG > <repo>/config.yaml > <repo>/config.example.yaml.
+Lookup order: explicit path > $LABOUR_TOOL_CONFIG > <repo>/config.yaml. Without one, the defaults
+are used: the start page asks for the workbook and works out the month, and backups and the audit
+database go to the data folder (``Labour Entry Tool`` in the user's home, or $LABOUR_TOOL_DATA).
 """
 
 from __future__ import annotations
@@ -17,6 +19,11 @@ from app.excel.refs import parse_range
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_VAR = "LABOUR_TOOL_CONFIG"
+DATA_ENV_VAR = "LABOUR_TOOL_DATA"
+
+
+def data_dir() -> Path:
+    return Path(os.environ.get(DATA_ENV_VAR) or Path.home() / "Labour Entry Tool")
 
 
 class ServerConfig(BaseModel):
@@ -152,19 +159,26 @@ class Config(BaseModel):
         return dt.date(year, month, 1)
 
 
-def find_config_path(path: str | Path | None = None) -> Path:
+def find_config_path(path: str | Path | None = None) -> Path | None:
     if path is not None:
         return Path(path)
     if env := os.environ.get(ENV_VAR):
         return Path(env)
-    for candidate in (REPO_ROOT / "config.yaml", REPO_ROOT / "config.example.yaml"):
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError("no config.yaml or config.example.yaml found")
+    candidate = REPO_ROOT / "config.yaml"
+    return candidate if candidate.exists() else None
+
+
+def default_config() -> Config:
+    """No config file: this month until the start page reads the workbook's month."""
+    today, data = dt.date.today(), data_dir()
+    return Config(month=f"{today:%Y-%m}", backups={"dir": data / "backups"},
+                  audit={"db": data / "audit.sqlite"})  # fmt: skip
 
 
 def load_config(path: str | Path | None = None) -> Config:
     cfg_path = find_config_path(path)
+    if cfg_path is None:
+        return default_config()
     with cfg_path.open(encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     return Config.model_validate(data)

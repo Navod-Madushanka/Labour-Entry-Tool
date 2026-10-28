@@ -273,6 +273,48 @@ export interface DayBuild {
   ticked: number;
 }
 
+export interface SetupState {
+  workbook: string | null;
+  path: string | null;
+  mode: "live" | "demo" | null;
+  month: string | null;
+  month_note: string | null;
+  holidays: string[];
+  registration_files: string[];
+  live_available: boolean;
+  browse_available: boolean;
+  open_workbooks: string[];
+  ready: boolean;
+}
+
+export interface HealthReport {
+  source: { source_name: string };
+  month: string;
+  holidays: string[];
+  stats: {
+    workers: number;
+    entries: number;
+    complete_entries: number;
+    sheets_with_entries: number;
+    by_rule: Record<string, number>;
+    by_severity: Record<string, number>;
+  };
+  issues: Issue[];
+}
+
+export interface ReadinessCheck {
+  id: string;
+  status: "ok" | "warn" | "fail";
+  title: string;
+  detail: string;
+}
+
+export interface Readiness {
+  checks: ReadinessCheck[];
+  ready: boolean;
+  next_sheet: string | null;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -280,11 +322,28 @@ export class ApiError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  return parse<T>(
+    await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
+}
+
+/** A file sent as the raw request body (no multipart). */
+async function send<T>(path: string, file: File): Promise<T> {
+  const sep = path.includes("?") ? "&" : "?";
+  return parse<T>(
+    await fetch(`${path}${sep}filename=${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    }),
+  );
+}
+
+async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -327,4 +386,15 @@ export const api = {
   codes: () => call<CodesResponse>("GET", "/api/codes"),
   writeCodes: (items: { row: number; calling_name: string; code: string }[], user: string) =>
     call<CodeWriteResult>("POST", "/api/codes/write", { items, user, approve: true }),
+  setup: () => call<SetupState>("GET", "/api/setup"),
+  setupUpload: (file: File, practice: boolean) =>
+    send<SetupState>(`/api/setup/upload?practice=${practice}`, file),
+  setupBrowse: (practice: boolean) =>
+    call<{ cancelled: boolean; state?: SetupState }>("POST", "/api/setup/browse", { practice }),
+  setupOpen: (name: string) => call<SetupState>("POST", "/api/setup/open", { name }),
+  setupCheck: () => call<HealthReport>("POST", "/api/setup/check"),
+  setupHolidays: (holidays: string[]) => call<SetupState>("POST", "/api/setup/holidays", { holidays }),
+  setupRegistration: (file: File) => send<SetupState>("/api/setup/registration", file),
+  setupReadiness: () => call<Readiness>("GET", "/api/setup/readiness"),
+  setupReady: (ready: boolean) => call<SetupState>("POST", "/api/setup/ready", { ready }),
 };

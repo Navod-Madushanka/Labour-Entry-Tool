@@ -1,7 +1,8 @@
 """Live Excel through xlwings/COM (Windows only, PLAN.md §8). Implements ``LiveWorkbook``.
 
-- Attaches to the one open workbook whose name matches ``workbook_pattern``; never opens, closes
-  or unprotects it.
+- Attaches to the workbook the user picked on the start page (or the one open workbook matching
+  ``workbook_pattern``). Opens it only when the user browsed to its file; never closes or
+  unprotects it.
 - Bulk reads only: one range read per sheet, turned into the same grid the pyxlsb reader builds.
 - One batch per write: calculation set to manual and screen updating off, every range written,
   then both restored and the workbook recalculated.
@@ -170,6 +171,45 @@ def connect(config: Config) -> XlwingsWorkbook:
             "Close the others."
         )
     book = next(b for b in books if b.name == names[0])
+    return XlwingsWorkbook(book, config.template, config.excel.busy_timeout)
+
+
+def open_workbook_names() -> list[str]:
+    """Names of every workbook open in Excel (empty when Excel is not running)."""
+    try:
+        import xlwings as xw
+    except ImportError:
+        return []
+    try:
+        return [book.name for app in xw.apps for book in app.books]
+    except Exception as exc:
+        raise translate_com_error(exc) from exc
+
+
+def connect_named(name: str, path: Path | None, config: Config) -> XlwingsWorkbook:
+    """Attach to the open workbook called ``name`` (the one the user picked on the start page).
+    Not open and ``path`` known: open it in Excel. Not open and no path: ask the user to open it."""
+    try:
+        import xlwings as xw
+    except ImportError as exc:
+        raise NotConnectedError(f"Live Excel is not available on this computer ({exc}).") from exc
+    try:
+        books = [book for app in xw.apps for book in app.books]
+        found = [b for b in books if b.name.casefold() == name.casefold()]
+        if len(found) > 1:
+            raise NotConnectedError(f"{name} is open twice in Excel. Close one of them.")
+        if found:
+            book = found[0]
+        elif path is not None and Path(path).exists():
+            book = xw.Book(str(Path(path).resolve()))
+        else:
+            raise NotConnectedError(
+                f"{name} is not open in Excel. Open it, then press Check again."
+            )
+    except WorkbookError:
+        raise
+    except Exception as exc:
+        raise translate_com_error(exc) from exc
     return XlwingsWorkbook(book, config.template, config.excel.busy_timeout)
 
 

@@ -8,9 +8,10 @@ interface Props {
   historyTotal: number;
   onSave: () => void;
   onChangeUser: () => void;
+  onChangeWorkbook: () => void;
 }
 
-export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser }: Props) {
+export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook }: Props) {
   return (
     <header className="statusbar">
       <strong className="brand">Labour Entry</strong>
@@ -48,9 +49,9 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
       <button onClick={onSave} disabled={!status?.connected || !status.unsaved_changes}>
         Save workbook
       </button>
-      <a href="/health" target="_blank" rel="noreferrer">
-        Health check
-      </a>
+      <button className="link" onClick={onChangeWorkbook} title="Choose another workbook or check this one again">
+        Change workbook
+      </button>
       <button className="link" onClick={onChangeUser} title="Change name">
         {user || "Set name"}
       </button>

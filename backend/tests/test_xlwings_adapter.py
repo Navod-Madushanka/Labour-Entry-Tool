@@ -251,3 +251,40 @@ def test_master_read_is_capped(wb, book, monkeypatch):
     monkeypatch.setattr(Sheet, "used_range", property(lambda self: huge))  # restored afterwards
     wb.read_master()
     assert seen == ["A1:N1002"]  # 502 worker rows + 500 margin, not a million
+
+
+# --- attaching to the workbook chosen on the start page --------------------------------------
+
+
+def _fake_xlwings(monkeypatch, open_names, opened):
+    import sys
+    import types
+
+    def book(name):
+        return types.SimpleNamespace(name=name)
+
+    apps = [types.SimpleNamespace(books=[book(n) for n in open_names])]
+    module = types.SimpleNamespace(apps=apps, Book=lambda p: opened.append(p) or book(p))
+    monkeypatch.setitem(sys.modules, "xlwings", module)
+
+
+def test_connect_named(monkeypatch, tmp_path):
+    cfg = Config(month="2026-10")
+    opened = []
+    _fake_xlwings(monkeypatch, ["Book1", "Labour October 2026.xlsb"], opened)
+    wb = xa.connect_named("labour october 2026.xlsb", None, cfg)  # case-insensitive, like Windows
+    assert wb.book.name == "Labour October 2026.xlsb" and opened == []
+    assert xa.open_workbook_names() == ["Book1", "Labour October 2026.xlsb"]
+
+    with pytest.raises(NotConnectedError, match="not open in Excel"):
+        xa.connect_named("Other.xlsb", None, cfg)
+    with pytest.raises(NotConnectedError, match="not open in Excel"):
+        xa.connect_named("Other.xlsb", tmp_path / "missing.xlsb", cfg)
+    path = tmp_path / "Other.xlsb"
+    path.write_bytes(b"x")
+    xa.connect_named("Other.xlsb", path, cfg)  # browsed to it: Excel opens it
+    assert opened == [str(path.resolve())]
+
+    _fake_xlwings(monkeypatch, ["A.xlsb", "a.xlsb"], opened)
+    with pytest.raises(NotConnectedError, match="open twice"):
+        xa.connect_named("A.xlsb", None, cfg)

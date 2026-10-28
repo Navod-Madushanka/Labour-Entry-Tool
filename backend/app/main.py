@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import entries, health, registration
+from app.api import entries, health, registration, setup
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config, load_config
@@ -22,18 +22,6 @@ from app.service import EntryService
 STATIC = Path(__file__).parent / "static"
 APP = STATIC / "app"
 LOCALHOST = "127.0.0.1"
-
-
-def live_service(config: Config) -> EntryService:
-    """The service for the real workbook: xlwings, the audit database and the backup folder."""
-    from app.excel import xlwings_adapter
-
-    return EntryService(
-        lambda: xlwings_adapter.connect(config),
-        config,
-        AuditStore(config.audit.db),
-        BackupManager(config.backups.dir, config.backups.keep),
-    )
 
 
 def demo_service(config: Config, snapshot: Path) -> EntryService:
@@ -63,14 +51,14 @@ def create_app(
     config: Config | None = None,
     service_factory: Callable[[Config], EntryService] | None = None,
 ) -> FastAPI:
+    """Without ``service_factory`` the workbook is chosen on the start page (``api/setup``)."""
     config = config or load_config()
-    worker: ExcelWorker | None = None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
-        if worker is not None:
-            worker.stop()
+        if app.state.worker is not None:
+            app.state.worker.stop()
 
     app = FastAPI(title="Labour Entry Tool", version=__version__, lifespan=lifespan)
     app.state.config = config
@@ -78,24 +66,41 @@ def create_app(
     app.state.excel_disabled = (
         None if config.excel.enabled else "Live Excel is switched off (excel.enabled in config)."
     )
-    service: EntryService | None = None
+    app.state.service = None
+    app.state.worker = None
+    app.state.session = setup.Session(config)
+
+    def get_worker() -> ExcelWorker:
+        if app.state.worker is None:
+            app.state.worker = excel_worker()
+        return app.state.worker
 
     def get_service() -> EntryService:
         """Created on first use, so the audit database only appears once it is needed."""
-        nonlocal service, worker
         if app.state.excel_disabled is not None:
             raise HTTPException(503, app.state.excel_disabled)
-        if service is None:
-            service = (service_factory or live_service)(config)
-            worker = excel_worker()
-            app.state.worker = worker
-        return service
+        if app.state.service is None:
+            if service_factory is None:
+                raise HTTPException(409, "Choose the workbook on the start page first.")
+            app.state.service = service_factory(app.state.config)
+        get_worker()
+        return app.state.service
 
+    def set_service(service: EntryService, cfg: Config) -> None:
+        """The start page chose a workbook: later calls go to it."""
+        app.state.config = cfg
+        app.state.excel_disabled = None
+        app.state.service = service
+
+    app.state.get_worker = get_worker
     app.state.get_service = get_service
+    app.state.set_service = set_service
+    app.state.has_service = lambda: app.state.service is not None or service_factory is not None
     app.state.registrations = registration.FileCache()
     app.include_router(health.router)
     app.include_router(entries.router)
     app.include_router(registration.router)
+    app.include_router(setup.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")
@@ -118,37 +123,37 @@ def bind_host(config: Config) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     import argparse
+    import threading
+    import webbrowser
 
     import uvicorn
 
     parser = argparse.ArgumentParser(prog="python -m app.main", description="Labour Entry Tool")
-    parser.add_argument("--config", type=Path, help="config.yaml to use")
+    parser.add_argument("--config", type=Path, help="config.yaml to use (optional)")
     parser.add_argument("--demo", type=Path, metavar="FILE",
-                        help="demo mode on a copy of FILE (.xlsb or snapshot .json) in memory; "
+                        help="practice on a copy of FILE (.xlsb or snapshot .json) in memory; "
                              "Excel is not used and nothing is saved")  # fmt: skip
     parser.add_argument("--registration", type=Path, action="append", metavar="FILE",
                         help="registration .xlsx to check (repeat for more); replaces the "
                              "config list")  # fmt: skip
+    parser.add_argument("--open", action="store_true", help="open the start page in the browser")
     args = parser.parse_args(argv)
     config = load_config(args.config)
     if args.registration:
         config = config.model_copy(update={"registration_files": args.registration})
-    factory = None
+    if args.demo and not args.demo.exists():
+        parser.error(f"file not found: {args.demo}")
+    app = create_app(config)
     if args.demo:
-        if not args.demo.exists():
-            parser.error(f"file not found: {args.demo}")
-        config = config.model_copy(
-            update={
-                "excel": config.excel.model_copy(update={"enabled": True}),
-                "workbook_file": args.demo,  # the health report checks the demo workbook too
-            }
-        )
-        factory = lambda cfg: demo_service(cfg, args.demo)  # noqa: E731
-        print(f"DEMO MODE on {args.demo.name}: changes stay in memory, Excel is not touched.")
+        setup.choose(app, args.demo, args.demo.name, practice=True, real_file=False)
+        app.state.session.state.ready = True  # straight to entry; "Change workbook" runs the checks
+        print(f"PRACTICE MODE on {args.demo.name}: changes stay in memory, Excel is not touched.")
     host = bind_host(config)
-    print(f"Labour Entry Tool: http://{'localhost' if host == LOCALHOST else host}:"
-          f"{config.server.port}/")  # fmt: skip
-    uvicorn.run(create_app(config, service_factory=factory), host=host, port=config.server.port)
+    url = f"http://{'localhost' if host == LOCALHOST else host}:{config.server.port}/"
+    print(f"Labour Entry Tool: {url}  (close this window to stop it)")
+    if args.open:
+        threading.Timer(1.5, webbrowser.open, (url,)).start()
+    uvicorn.run(app, host=host, port=config.server.port)
 
 
 if __name__ == "__main__":

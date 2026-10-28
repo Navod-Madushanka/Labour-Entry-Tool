@@ -1,5 +1,27 @@
 # Changelog
 
+## Guided start page (28 Oct 2026)
+
+- **Start page:** the tool now starts empty. Drop the workbook on the page, browse to it, or pick
+  one that is already open in Excel. Then it checks the workbook, offers fixes, runs the readiness
+  checks and says when entry can start:
+  1. *Check and fix*: the full health check of the live workbook. The tool can fix sheet dates and
+     day types (one click per sheet, or all at once, with undo). "It's a holiday" / "Keep as
+     holiday" marks a date as a holiday instead. Missing employee codes can be filled from
+     registration files dropped on the page. Errors it can't fix are listed by sheet, cell and
+     worker, with *Check again*. Warnings and notes are folded away.
+  2. *Ready*: workbook and mode, month, headers, workers, employee codes, activity list, medical
+     code, Excel formulas agreeing with the tool, the day builder for the next day, and the
+     backup folder. *Start entering data* opens entry at the next day to enter.
+- **Practice mode** on the start page: a copy in memory, so nothing reaches Excel or the file. It
+  is always on where Excel can't be driven.
+- **No config needed:** the month comes from the file name ("October 2026"), falling back to the
+  sheet dates. Holidays are set on the start page. Backups and the audit database go to
+  `~/Labour Entry Tool` ($LABOUR_TOOL_DATA). `config.example.yaml` is no longer loaded
+  automatically.
+- **`start.bat`:** double-click to set up on first run and then start; it opens the browser.
+- `--demo FILE` still goes straight to entry; *Change workbook* returns to the start page.
+
 ## Code review fixes (27 Oct 2026)
 
 - **Excel left on manual calculation:** if switching calculation back failed after a batch (Excel

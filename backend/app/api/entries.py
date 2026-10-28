@@ -73,6 +73,8 @@ async def run_service(request: Request, fn: Callable[[EntryService], Any]) -> An
 async def get_status(request: Request) -> Status:
     if (reason := request.app.state.excel_disabled) is not None:
         return Status(connected=False, error=reason)
+    if not request.app.state.has_service():
+        return Status(connected=False, error="No workbook chosen yet.")
     return await run_service(request, lambda s: s.status())
 
 
