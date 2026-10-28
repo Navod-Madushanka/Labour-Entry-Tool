@@ -12,6 +12,8 @@ import { DayBuilder } from "./components/DayBuilder";
 import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
+import { StoryNote, StoryReader } from "./components/StoryCorner";
+import { award as storyAward, dayState, setStoryEnabled, storyEnabled, type Award } from "./story";
 import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
 import { topActivities, type Month } from "./history";
 import { store } from "./store";
@@ -48,6 +50,9 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [page, setPage] = useState<"entry" | "codes">(() => (window.location.hash === "#codes" ? "codes" : "entry"));
+  const [story, setStory] = useState<Award | null>(null); // the corner note after a push
+  const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
+  const [storyOn, setStoryOn] = useState(storyEnabled);
   const nextId = useRef(1);
   const loading = useRef(new Set<string>());
 
@@ -184,6 +189,11 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
       const res = await api.commit(sent.map((q) => withHeaderAck(q.input)), user, dryRun);
       setResult(res);
       const planOf = new Map(sent.map((q, n) => [q.id, res.plans[n]]));
+      if (res.status === "written" && storyOn) {
+        const clean = res.plans.filter((p) => !p.issues.length).length;
+        const won = storyAward(res.readback.length, clean);
+        if (won.chapters.length || won.item) setStory(won);
+      }
       if (res.status === "written" || res.status === "unchanged") {
         setQueue((items) => items.filter((it) => !planOf.has(it.id)));
         await Promise.all([...new Set(sent.map((q) => q.input.sheet))].map(reloadDay));
@@ -278,7 +288,38 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
         onSave={save}
         onChangeUser={() => setAskName(true)}
         onChangeWorkbook={onChangeWorkbook}
+        story={{
+          on: storyOn,
+          unlocked: dayState().chapters,
+          onOpen: () => {
+            if (!storyOn) {
+              setStoryEnabled(true);
+              setStoryOn(true);
+            }
+            setStoryOpen(-1);
+          },
+        }}
       />
+      {story && (
+        <StoryNote
+          award={story}
+          onRead={() => {
+            setStoryOpen(story.chapters[story.chapters.length - 1] ?? -1);
+            setStory(null);
+          }}
+          onClose={() => setStory(null)}
+        />
+      )}
+      {storyOpen !== null && (
+        <StoryReader
+          start={storyOpen >= 0 ? storyOpen : undefined}
+          onClose={() => setStoryOpen(null)}
+          onTurnOff={() => {
+            setStoryOn(false);
+            setStoryOpen(null);
+          }}
+        />
+      )}
       {askName && (
         <NamePrompt
           initial={user}

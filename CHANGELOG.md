@@ -1,5 +1,22 @@
 # Changelog
 
+## Daily story (28 Oct 2026)
+
+- A small reward for entering data, text only (about 4 KB compressed, no images):
+  - **Chapter 1** of the day's story unlocks on the first push once 15 workers have been pushed
+    to Excel that day.
+  - **The other 6 chapters** unlock as hidden points grow: one point per worker pushed, half a
+    point more for each entry without warnings.
+  - **Three funny site stories** rotate, a new one each day: the helmet-stealing crow, the singing
+    concrete mixer, and the case of the empty tea flask.
+  - **Hidden items:** a push now and then "finds" one of 12 funny items for a collection.
+  - **Never in the way:** a small note in the corner that can be ignored, a 📖 button in the top
+    bar to read (it shows chapters unlocked, e.g. 1/7), and "Turn the story off" (click 📖 to turn
+    it back on). Progress is kept in the browser and resets each day.
+- Typing into Time In, Time Out, Additional hours or an activity code now replaces what is there
+  (the box's text is selected on focus), so the times and codes kept from the last worker can be
+  overtyped without deleting them first.
+
 ## Entry screen design pass (28 Oct 2026)
 
 - **Plain words everywhere:** every problem the API returns now carries its plain-language form

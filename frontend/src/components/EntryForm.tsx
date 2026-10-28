@@ -261,6 +261,7 @@ export function EntryForm(props: Props) {
               placeholder="07:00"
               value={form.timeIn}
               onChange={(e) => setForm((f) => ({ ...f, timeIn: e.target.value }))}
+              onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeIn: normaliseClock(f.timeIn) }))}
               onKeyDown={(e) => timeKey(e, "timeIn", "out")}
               aria-invalid={Boolean(problems.timeIn)}
@@ -282,6 +283,7 @@ export function EntryForm(props: Props) {
               placeholder="19:00"
               value={form.timeOut}
               onChange={(e) => setForm((f) => ({ ...f, timeOut: e.target.value }))}
+              onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeOut: normaliseClock(f.timeOut) }))}
               onKeyDown={(e) => timeKey(e, "timeOut", "code0")}
               aria-invalid={Boolean(problems.timeOut)}
@@ -322,6 +324,7 @@ export function EntryForm(props: Props) {
                     aria-label={`Activity ${i + 1}`}
                     value={line.code}
                     onChange={(e) => setLine(i, { code: e.target.value })}
+                    onFocus={(e) => e.target.select()} // typing replaces the kept code
                     placeholder={i === 0 ? "e.g. 03-11-00-00" : "another activity (optional)"}
                     onKeyDown={(e) => {
                       // Enter: a code -> the next activity (hours fill themselves); empty -> add the worker.
@@ -378,6 +381,7 @@ export function EntryForm(props: Props) {
               value={form.additional}
               placeholder="0"
               onChange={(e) => setForm((f) => ({ ...f, additional: e.target.value }))}
+              onFocus={(e) => e.target.select()}
               onKeyDown={(e) => onKey(e, "queue")}
             />
           </div>

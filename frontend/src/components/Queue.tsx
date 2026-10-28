@@ -27,7 +27,7 @@ export function Queue({ items, busy, onAck, onAckAll, onOverwrite, onEdit, onRem
   if (!items.length)
     return (
       <section className="queue empty">
-        <h2>Queue</h2>
+        <h2>Waiting to go to Excel</h2>
         <p className="muted">Workers you add appear here and on the manpower sheet above.</p>
       </section>
     );

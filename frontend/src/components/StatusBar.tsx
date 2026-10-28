@@ -9,9 +9,10 @@ interface Props {
   onSave: () => void;
   onChangeUser: () => void;
   onChangeWorkbook: () => void;
+  story: { on: boolean; unlocked: number; onOpen: () => void };
 }
 
-export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook }: Props) {
+export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story }: Props) {
   return (
     <header className="statusbar">
       <strong className="brand">Labour Entry</strong>
@@ -48,6 +49,13 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
       {status?.unsaved_changes && <span className="badge warn">Not saved in Excel yet</span>}
       <button onClick={onSave} disabled={!status?.connected || !status.unsaved_changes}>
         Save Excel file
+      </button>
+      <button
+        className={`link${story.on ? "" : " muted"}`}
+        onClick={story.onOpen}
+        title={story.on ? "Today's story" : "The story is off: click to turn it back on"}
+      >
+        📖 {!story.on ? "off" : story.unlocked ? `${story.unlocked}/7` : "?"}
       </button>
       <button className="link" onClick={onChangeWorkbook} title="Choose another workbook or check this one again">
         Change workbook

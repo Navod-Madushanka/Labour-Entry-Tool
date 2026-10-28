@@ -349,3 +349,17 @@ table.lines td:last-child input { width: 13ch; }
 .day-date { font-size: 16px; }
 .dayinfo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .quick-fix { margin-top: 8px; } .quick-fix button { width: 100%; font-weight: 600; }
+
+/* Daily story */
+.story-note { position: fixed; right: 16px; bottom: 16px; z-index: 9; width: min(320px, calc(100vw - 32px)); background: var(--panel); border: 2px solid var(--accent); border-radius: 12px; padding: 12px 14px; box-shadow: 0 8px 32px #0004; animation: story-in 0.3s ease-out; }
+.story-note .actions { margin-top: 8px; }
+.story-x { position: absolute; top: 4px; right: 6px; font-size: 18px; }
+.story-kicker { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+.story-item { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.modal.story-modal { width: min(620px, 100%); max-height: 90vh; overflow: auto; }
+.story-text h3 { font-size: 18px; text-transform: none; letter-spacing: 0; color: var(--text); margin: 4px 0 8px; }
+.story-text p { font-size: 16px; line-height: 1.6; margin: 0 0 12px; }
+.story-items ul { list-style: none; padding: 0; margin: 8px 0 0; }
+.story-items li { padding: 3px 0; }
+@keyframes story-in { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .story-note { animation: none; } }
