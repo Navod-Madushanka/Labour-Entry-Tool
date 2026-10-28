@@ -39,7 +39,7 @@ const { chromium } = require('playwright');
   await p.screenshot({ path: `${out}/builder_queue.png` });
   if (!blocked) {
     t = Date.now();
-    await p.getByRole('button', { name: /Write \d+ entries/ }).click();
+    await p.getByRole('button', { name: /Push \d+ entries/ }).click();
     await p.waitForSelector('.result');
     console.log(`write: ${await p.locator('.result-head strong').innerText()} (${Date.now() - t} ms in browser)`);
   }

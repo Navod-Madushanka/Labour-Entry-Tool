@@ -23,7 +23,6 @@ interface Props {
   ready: boolean; // the queue can be written
   busy: boolean;
   onWrite: () => void;
-  onClose: () => void;
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
@@ -76,14 +75,13 @@ const longDate = (iso: string | null | undefined) =>
     : "";
 const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
-/** The queue laid out like the site's "Daily record of manpower" form: workers across (10 per
+/** The queue, live, laid out like the site's "Daily record of manpower" form: workers across (10 per
  * sheet), activity codes down, a tick where a worker did that activity. To compare with the
  * paper before anything is written. */
-export function ManpowerSheet({ items, month, ready, busy, onWrite, onClose }: Props) {
+export function ManpowerSheet({ items, month, ready, busy, onWrite }: Props) {
   const [withExcel, setWithExcel] = useState(false);
-  const [entered] = useState(() =>
-    new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-  );
+  // Re-rendered with every queue change, so this is the time of the latest entry.
+  const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const sheets = useMemo(() => {
     const names = [...new Set(items.map((i) => i.input.sheet))].sort((a, b) => Number(a) - Number(b));
@@ -104,19 +102,17 @@ export function ManpowerSheet({ items, month, ready, busy, onWrite, onClose }: P
   let pageNo = 0;
 
   return (
-    <div className="modal-backdrop" onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      <div className="modal manpower-modal" role="dialog" aria-label="Manpower sheet check">
+    <section className="manpower-live">
         <div className="section-head">
-          <h2>Check against the manpower sheet</h2>
-          <button className="link" onClick={onClose}>
-            Close
-          </button>
+          <h2>
+            Manpower sheet <span className="muted">({items.length} waiting to go to Excel)</span>
+          </h2>
         </div>
         <p className="muted small">
-          This is what will be written, laid out like the paper form. Compare each column with the paper sheet.
-          Nothing is in Excel yet.
+          Every entry you add appears here, laid out like the paper form. Compare it with the paper, then push it to
+          Excel at the bottom.
         </p>
-        <label className="check">
+        <label className="check wrap">
           <input type="checkbox" checked={withExcel} onChange={(e) => setWithExcel(e.target.checked)} /> Also show
           workers already in Excel for these days (grey)
         </label>
@@ -212,17 +208,19 @@ export function ManpowerSheet({ items, month, ready, busy, onWrite, onClose }: P
               );
             }),
           )}
-          {total === 0 && <p className="muted">Nothing to show yet.</p>}
+          {total === 0 && <p className="muted">Add an entry above and it appears here.</p>}
         </div>
-        <div className="actions">
-          <button className="primary" disabled={!ready || busy} onClick={onWrite}>
-            It matches: write {items.length} entr{items.length === 1 ? "y" : "ies"} to Excel
-          </button>
-          <button onClick={onClose}>Back to the queue</button>
-          {!ready && <span className="warn-text small">Fix or confirm the problems in the queue first.</span>}
-        </div>
-      </div>
-    </div>
+        {items.length > 0 && (
+          <div className="actions push-bar">
+            <button className="primary big" disabled={!ready || busy} onClick={onWrite}>
+              {busy ? "Writing…" : `Push ${items.length} ${items.length === 1 ? "entry" : "entries"} to Excel`}
+            </button>
+            {!ready && !busy && (
+              <span className="warn-text small">Fix or confirm the problems in the queue below first.</span>
+            )}
+          </div>
+        )}
+    </section>
   );
 }
 

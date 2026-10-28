@@ -35,7 +35,7 @@ async function keyboardFlow(out) {
   await p.waitForFunction(() => document.querySelectorAll('.queue tbody tr').length === 2);
   await p.waitForFunction(() => [...document.querySelectorAll('.queue .ok-text')].length === 2, null, {timeout: 10000});
   await p.screenshot({ path: `${out}/ui_queue.png`, fullPage: true });
-  await p.getByRole('button', { name: /Write 2 entries/ }).click();
+  await p.getByRole('button', { name: /Push 2 entries/ }).click();
   await p.waitForSelector('.result.ok');
   console.log('result:', (await p.locator('.result-head strong').textContent()));
   await p.waitForFunction(() => document.querySelectorAll('.daylist tbody tr').length === 2);
@@ -83,7 +83,7 @@ async function crewEditHeader(out) {
   const n = await p.locator('.queue tbody tr').count();
   await p.waitForFunction(() => !document.body.innerText.includes('checking…'));
   console.log('crew queued', n, 'ready', await p.locator('.queue .ok-text').count());
-  await p.getByRole('button', { name: new RegExp(`Write ${n} entries`) }).click();
+  await p.getByRole('button', { name: new RegExp(`Push ${n} entries`) }).click();
   await p.waitForSelector('.result.ok');
   console.log('crew result:', await p.locator('.result-head strong').textContent());
   // copy yesterday (sheet 28 <- 27 empty, so use sheet 2 <- 1): suggestion button for a worker

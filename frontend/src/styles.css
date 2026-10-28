@@ -298,3 +298,6 @@ details.card > summary { cursor: pointer; }
 .mp-banner { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border-bottom: 1.5px solid var(--text); }
 .mp-date { font-size: 22px; font-weight: 700; }
 .mp-entered { font-size: 14px; color: var(--muted); }
+.manpower-live .manpower-pages { overflow: visible; flex: none; }
+.push-bar { position: sticky; bottom: 0; background: var(--panel); padding: 10px 0 4px; border-top: 1px solid var(--line); align-items: center; }
+.check.wrap { white-space: normal; }

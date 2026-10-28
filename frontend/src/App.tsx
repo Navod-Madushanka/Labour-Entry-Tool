@@ -47,7 +47,6 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
   const [crewOpen, setCrewOpen] = useState(false);
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
-  const [sheetViewOpen, setSheetViewOpen] = useState(false);
   const [page, setPage] = useState<"entry" | "codes">(() => (window.location.hash === "#codes" ? "codes" : "entry"));
   const nextId = useRef(1);
   const loading = useRef(new Set<string>());
@@ -346,6 +345,13 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
               focusToken={focusToken}
               dialogOpen={askName || crewOpen || medicalOpen || builderOpen}
             />
+            <ManpowerSheet
+              items={queue}
+              month={month}
+              busy={busy}
+              ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
+              onWrite={() => commit(false)}
+            />
             {result && <CommitResultView result={result} onClose={() => setResult(null)} />}
             <Queue
               items={queue}
@@ -384,7 +390,6 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
               onRemove={(id) => setQueue((items) => items.filter((q) => q.id !== id))}
               onCommit={commit}
               onClear={() => setQueue([])}
-              onSheetView={() => setSheetViewOpen(true)}
             />
             <DayList
               day={day}
@@ -396,19 +401,6 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
               onClear={(v) => v.entry.calling_name && addToQueue([clearInput(sheet, v.entry.calling_name)])}
             />
             <Batches batches={batches} busy={busy} onUndo={undo} />
-            {sheetViewOpen && (
-              <ManpowerSheet
-                items={queue}
-                month={month}
-                busy={busy}
-                ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
-                onWrite={() => {
-                  setSheetViewOpen(false);
-                  commit(false);
-                }}
-                onClose={() => setSheetViewOpen(false)}
-              />
-            )}
             {builderOpen && (
               <DayBuilder
                 sheet={sheet}

@@ -2,6 +2,11 @@
 
 ## Check against the manpower sheet (28 Oct 2026)
 
+- The manpower sheet is now part of the entry screen, under the form, and updates live: each entry
+  added shows up as a new worker column straight away. **Push N entries to Excel** sits at its
+  bottom (it replaces the Write button in the queue), so the sheet is always seen before writing.
+  The queue below still lists the problems and the Edit/Remove links.
+
 - Each sheet starts with the day's date in large type ("Monday, October 26, 2026") and the time it
   was entered. Every tick shows that activity's hours in brackets, e.g. ✓ (5.5).
 
