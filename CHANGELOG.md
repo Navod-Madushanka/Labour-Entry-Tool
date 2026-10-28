@@ -1,5 +1,32 @@
 # Changelog
 
+## Lighter and faster (28 Oct 2026)
+
+Measured on the October INDIAN workbook (practice mode, same machine):
+
+| | Before | After |
+|---|---|---|
+| Start-up until ready | 8.8 s | 1.9 s |
+| Reading the .xlsb (31 day sheets) | 9.0 s | 1.4 s |
+| Python imports at start | 1.1 s | 0.45 s |
+| Month of day sheets sent to the browser | 4.6 MB | 1.9 MB |
+| App bundle (gzip) | 78 KB | 39 KB |
+| Installed packages (disk) | 58 MB | 41 MB |
+| Backend test suite | 32 s | 13 s |
+
+- **Day sheets are read with python-calamine** (Rust); Labour Detail is still read with pyxlsb so
+  `#N/A` codes are kept. The two readers give an identical snapshot of the October workbook;
+  pyxlsb is the fallback if calamine is missing.
+- **Day views no longer send Excel's cached formula results** (two thirds of each day; the
+  screen uses the computed values).
+- **openpyxl is loaded only when a registration file is read.**
+- **Plain `uvicorn` instead of `uvicorn[standard]`:** uvloop, httptools, watchfiles, websockets
+  and python-dotenv are not needed for a local single-user server.
+- **The UI runs on Preact (preact/compat)** instead of React: the same components, half the
+  bundle.
+- `ROADMAP.md` keeps the parked plans: daily stories from a file on GitHub, the update prompt in
+  `start.bat`, and the open items.
+
 ## Daily story (28 Oct 2026)
 
 - A small reward for entering data, text only (about 4 KB compressed, no images):

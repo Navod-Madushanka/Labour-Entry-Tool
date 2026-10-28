@@ -27,6 +27,7 @@ from app.excel.grid import (
     day_from_grid,
     day_max_col,
     excel_serial_to_date,
+    grid_from_rows,
     master_from_grid,
     master_max_col,
 )
@@ -71,6 +72,7 @@ class XlsbReader:
         self.path = Path(path)
         self.template = template or TemplateConfig()
         self._wb = open_workbook(str(self.path))
+        self._fast = None  # python-calamine workbook, opened on first day-sheet read
 
     def __enter__(self) -> XlsbReader:
         return self
@@ -80,6 +82,8 @@ class XlsbReader:
 
     def close(self) -> None:
         self._wb.close()
+        if self._fast:
+            self._fast.close()
 
     # --- low level ---
 
@@ -117,9 +121,27 @@ class XlsbReader:
     def day_sheet_names(self) -> list[str]:
         return self.template.day_sheet_names()
 
+    def _fast_grid(self, sheet: str, max_row: int, max_col: int) -> Grid | None:
+        """The same grid through python-calamine; None when it is not installed."""
+        if self._fast is None:
+            try:
+                from python_calamine import CalamineWorkbook
+            except ImportError:
+                self._fast = False
+                return None
+            self._fast = CalamineWorkbook.from_path(str(self.path))
+        if self._fast is False:
+            return None
+        if sheet not in self._wb.sheets:
+            raise KeyError(f"sheet {sheet!r} not in {self.path.name}")
+        rows = self._fast.get_sheet_by_name(sheet).to_python(skip_empty_area=False, nrows=max_row)
+        return grid_from_rows([row[:max_col] for row in rows])
+
     def read_day(self, sheet: str) -> DaySheet:
         t = self.template
-        grid = self._grid(sheet, max_row=t.last_block_row, max_col=day_max_col(t))
+        grid = self._fast_grid(sheet, t.last_block_row, day_max_col(t))
+        if grid is None:
+            grid = self._grid(sheet, max_row=t.last_block_row, max_col=day_max_col(t))
         return day_from_grid(sheet, grid, t)
 
     def snapshot(self) -> WorkbookSnapshot:

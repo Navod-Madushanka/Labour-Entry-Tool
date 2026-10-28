@@ -9,10 +9,11 @@ description = "Search, suggestions and validation for the monthly labour entry w
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
+    "uvicorn>=0.29",  # plain: the extras (uvloop, httptools, watchfiles, ...) are not needed here
     "pydantic>=2.6",
     "pyyaml>=6",
     "pyxlsb>=1.0.10",
+    "python-calamine>=0.3",  # fast .xlsb reading of the day sheets (falls back to pyxlsb)
     "openpyxl>=3.1",
     "xlwings>=0.31; sys_platform == 'win32'",
     "pywin32>=306; sys_platform == 'win32'",

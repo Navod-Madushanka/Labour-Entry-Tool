@@ -84,7 +84,12 @@ async def master(request: Request, fresh: bool = False) -> MasterView:
     return await run_service(request, lambda s: s.master_view(fresh))
 
 
-@router.get("/days/{sheet}", response_model=DayView)
+# Excel's cached formula results stay on the server (they are for verification): about two
+# thirds of a day's size, and the screen shows the computed values instead.
+WITHOUT_CACHED = {"entries": {"__all__": {"entry": {"cached"}}}}
+
+
+@router.get("/days/{sheet}", response_model=DayView, response_model_exclude=WITHOUT_CACHED)
 async def day(sheet: str, request: Request, fresh: bool = False) -> DayView:
     """One day sheet: header with its checks, and every entry with computed values and issues."""
     return await run_service(request, lambda s: s.day_view(sheet, fresh))

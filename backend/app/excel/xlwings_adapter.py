@@ -31,10 +31,11 @@ from app.excel.adapter import (
     WorkbookError,
 )
 from app.excel.grid import (
-    EXCEL_EPOCH,
     Grid,
+    clean_value,
     day_from_grid,
     day_max_col,
+    grid_from_rows,
     master_from_grid,
     master_max_col,
 )
@@ -49,39 +50,10 @@ RPC_E_SERVERCALL_RETRYLATER = -2147417846  # 0x8001010A
 BUSY_HRESULTS = frozenset({RPC_E_CALL_REJECTED, VBA_E_IGNORE, RPC_E_SERVERCALL_RETRYLATER})
 GONE_HRESULTS = frozenset({-2147023174, -2147023170, -2147417848})  # RPC unavailable / disconnected
 
-EXCEL_EPOCH_DT = dt.datetime.combine(EXCEL_EPOCH, dt.time())
 MASTER_MARGIN = 500  # rows read past Labour Detail's last worker row
 
 
 # --- Pure helpers ------------------------------------------------------------------------------
-
-
-def clean_value(value: Any) -> CellValue:
-    """xlwings value -> CellValue: dates back to Excel serials (as pyxlsb returns them), '' -> None,
-    ints -> float. Errors arrive as text ('#N/A') because reads use ``err_to_str=True``."""
-    if value is None or value == "":
-        return None
-    if isinstance(value, bool | str | float):
-        return value
-    if isinstance(value, int):
-        return float(value)
-    if isinstance(value, dt.datetime):
-        delta = value.replace(tzinfo=None) - EXCEL_EPOCH_DT
-        return delta.days + delta.seconds / 86400
-    if isinstance(value, dt.date):
-        return float((value - EXCEL_EPOCH).days)
-    if isinstance(value, dt.timedelta):
-        return value.total_seconds() / 86400
-    return str(value)
-
-
-def grid_from_rows(rows: Sequence[Sequence[Any]], first_row: int = 1, first_col: int = 1) -> Grid:
-    grid: Grid = {}
-    for i, row in enumerate(rows):
-        for j, value in enumerate(row):
-            if (clean := clean_value(value)) is not None:
-                grid[(first_row + i, first_col + j)] = clean
-    return grid
 
 
 def match_books(names: Sequence[str], pattern: str) -> list[str]:

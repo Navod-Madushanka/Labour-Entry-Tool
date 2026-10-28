@@ -12,7 +12,6 @@ import re
 from pathlib import Path
 from typing import Literal
 
-import openpyxl
 from pydantic import BaseModel, Field
 
 from app.domain.codes import cell_text
@@ -106,6 +105,8 @@ def _clean(value: object) -> CellValue:
 
 def read_registration(path: str | Path) -> RegistrationFile:
     path = Path(path)
+    import openpyxl  # here: only needed when a registration file is read (saves start-up time)
+
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     out = RegistrationFile(path=str(path), name=path.name)
     try:

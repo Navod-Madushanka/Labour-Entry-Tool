@@ -7,6 +7,8 @@ reader and the live xlwings adapter each produce grids, so both build identical 
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Sequence
+from typing import Any
 
 from app.config import TemplateConfig
 from app.domain.codes import cell_text
@@ -208,4 +210,39 @@ def grid_from_day(day: DaySheet, t: TemplateConfig) -> Grid:
         for row, col, value in cells:
             if value is not None:
                 grid[(row, c[col])] = value
+    return grid
+
+
+# --- rows of plain values (xlwings, python-calamine) -> Grid ---------------------------------
+
+_EPOCH_DT = dt.datetime.combine(EXCEL_EPOCH, dt.time())
+
+
+def clean_value(value: Any) -> CellValue:
+    """xlwings value -> CellValue: dates back to Excel serials (as pyxlsb returns them), '' -> None,
+    ints -> float. Errors arrive as text ('#N/A') because reads use ``err_to_str=True``."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool | str | float):
+        return value
+    if isinstance(value, int):
+        return float(value)
+    if isinstance(value, dt.datetime):
+        delta = value.replace(tzinfo=None) - _EPOCH_DT
+        return delta.days + delta.seconds / 86400
+    if isinstance(value, dt.date):
+        return float((value - EXCEL_EPOCH).days)
+    if isinstance(value, dt.timedelta):
+        return value.total_seconds() / 86400
+    return str(value)
+
+
+def grid_from_rows(rows: Sequence[Sequence[Any]], first_row: int = 1, first_col: int = 1) -> Grid:
+    grid: Grid = {}
+    for i, row in enumerate(rows):
+        for j, value in enumerate(row):
+            if value is None or value == "":  # most cells: skip them cheaply
+                continue
+            if (clean := clean_value(value)) is not None:
+                grid[(first_row + i, first_col + j)] = clean
     return grid
