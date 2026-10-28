@@ -1,5 +1,13 @@
 # Changelog
 
+## One activity: hours filled in automatically (28 Oct 2026)
+
+- With one activity and its Hours box left empty, the entry gets all the worked hours: Out - In,
+  less 1 h for lunch (Out after 12:00), or 2 h for lunch and dinner (Out after 22:00), plus any
+  additional hours. Examples: 7-19 is 11 h, 7-23 is 14 h, 7-03 next morning is 18 h. The box
+  shows the number as "11 (auto)" and follows the times when they change. Typing a number
+  overrides it, and with several activities the hours are typed as before.
+
 ## Problems in plain words (28 Oct 2026)
 
 - The start page describes every problem the way an Excel user sees it, with no rule codes or

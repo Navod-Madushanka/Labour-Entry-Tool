@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type DayView, type EntryInput, type EntryPlan, type Master, type Worker } from "../api";
 import {
   emptyForm,
+  autoHours,
   formProblems,
   fromEntry,
   hasProblems,
@@ -61,6 +62,7 @@ export function EntryForm(props: Props) {
   const matches = useMemo(() => searchWorkers(master.workers, form.query), [master.workers, form.query]);
   const problems = formProblems(form);
   const input = useMemo(() => toInput(form, sheet, headerAcks), [form, sheet, headerAcks]);
+  const auto = autoHours(form); // one activity, hours blank: all the worked hours
 
   // Live preview from the server (cached sheets, no Excel round trip).
   useEffect(() => {
@@ -296,10 +298,17 @@ export function EntryForm(props: Props) {
                     aria-label={`Hours ${i + 1}`}
                     inputMode="decimal"
                     value={line.hours}
-                    placeholder={line.code && remaining(i) !== null ? fmtHours(remaining(i)) : ""}
+                    placeholder={
+                      auto !== null && line.code.trim()
+                        ? `${fmtHours(auto)} (auto)`
+                        : line.code && remaining(i) !== null
+                          ? fmtHours(remaining(i))
+                          : ""
+                    }
+                    title={auto !== null && line.code.trim() ? "Filled in from the times. Type a number to change it." : undefined}
                     onFocus={() => {
                       const rest = remaining(i);
-                      if (!line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
+                      if (auto === null && !line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
                     }}
                     onChange={(e) => setLine(i, { hours: e.target.value })}
                     onKeyDown={(e) => onKey(e, "queue")}

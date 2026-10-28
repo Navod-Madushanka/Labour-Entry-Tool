@@ -1,6 +1,6 @@
 // The entry form's state and its conversion to the API's EntryInput.
 import type { Entry, EntryInput, Worker } from "./api";
-import { formatClock, parseClock } from "./time";
+import { effectiveHours, formatClock, parseClock } from "./time";
 
 export const LINES = 5;
 
@@ -81,19 +81,35 @@ export function toInput(f: FormState, sheet: string, extraAcks: string[] = []): 
   const tin = parseClock(f.timeIn);
   const tout = parseClock(f.timeOut);
   const add = toNumber(f.additional);
+  const out = tout === null ? null : tout + (isOvernight(f) ? 24 : 0);
+  const auto = autoHours(f);
   return {
     sheet,
     calling_name: f.worker.calling_name,
     time_in: tin,
-    time_out: tout === null ? null : tout + (isOvernight(f) ? 24 : 0),
+    time_out: out,
     activities: f.lines
       .filter((l) => l.code.trim() || l.hours.trim())
-      .map((l) => ({ code: l.code.trim() || null, hours: toNumber(l.hours) })),
+      .map((l) => ({ code: l.code.trim() || null, hours: l.hours.trim() ? toNumber(l.hours) : auto })),
     additional: add === null || Number.isNaN(add) ? null : add,
     remark: f.remark.trim() || null,
     overwrite: f.overwrite,
     acknowledged: [...new Set([...f.acknowledged, ...extraAcks])],
   };
+}
+
+/** One activity with its hours left blank (the usual day): it gets all the worked hours, i.e.
+ * Out - In less 1 h lunch (Out after 12:00) or 2 h lunch and dinner (Out after 22:00), plus any
+ * additional hours. Null when the times are not complete or there are several activities. */
+export function autoHours(f: FormState): number | null {
+  const used = f.lines.filter((l) => l.code.trim() || l.hours.trim());
+  if (used.length !== 1 || used[0].hours.trim() || !used[0].code.trim()) return null;
+  const tin = parseClock(f.timeIn);
+  const tout = parseClock(f.timeOut);
+  if (tin === null || tout === null) return null;
+  const add = toNumber(f.additional);
+  const hours = effectiveHours(tin, tout + (isOvernight(f) ? 24 : 0), add === null || Number.isNaN(add) ? 0 : add);
+  return hours > 0 ? hours : null;
 }
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
