@@ -293,5 +293,8 @@ details.card > summary { cursor: pointer; }
 .mp-tick { text-align: center; }
 .mp-tick .tick { font-size: 17px; font-weight: 700; color: var(--ok); }
 .mp-tick.excel .tick { color: var(--muted); }
-.mp-hours { display: block; font-size: 10px; color: var(--muted); line-height: 1; }
+.mp-hours { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .mp-foot { margin: 4px 8px; }
+.mp-banner { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border-bottom: 1.5px solid var(--text); }
+.mp-date { font-size: 22px; font-weight: 700; }
+.mp-entered { font-size: 14px; color: var(--muted); }

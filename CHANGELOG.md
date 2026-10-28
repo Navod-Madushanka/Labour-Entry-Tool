@@ -2,6 +2,9 @@
 
 ## Check against the manpower sheet (28 Oct 2026)
 
+- Each sheet starts with the day's date in large type ("Monday, October 26, 2026") and the time it
+  was entered. Every tick shows that activity's hours in brackets, e.g. ✓ (5.5).
+
 - **Check as manpower sheet** (in the queue) draws the waiting entries like the paper "Daily
   record of manpower" form, so they can be compared with the paper before anything is written:
   - workers across the top, 10 per sheet (more workers spill onto further pages);

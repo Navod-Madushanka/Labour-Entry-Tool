@@ -70,6 +70,10 @@ function fromExcel(v: DayView["entries"][number]): Column {
 const time = (h: number | null) => (h === null ? "" : `${formatClock(h)}${h >= 24 ? " (+1)" : ""}`);
 const dateText = (iso: string | null | undefined) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+const longDate = (iso: string | null | undefined) =>
+  iso
+    ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
 const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
 /** The queue laid out like the site's "Daily record of manpower" form: workers across (10 per
@@ -77,6 +81,9 @@ const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
  * paper before anything is written. */
 export function ManpowerSheet({ items, month, ready, busy, onWrite, onClose }: Props) {
   const [withExcel, setWithExcel] = useState(false);
+  const [entered] = useState(() =>
+    new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+  );
 
   const sheets = useMemo(() => {
     const names = [...new Set(items.map((i) => i.input.sheet))].sort((a, b) => Number(a) - Number(b));
@@ -122,6 +129,10 @@ export function ManpowerSheet({ items, month, ready, busy, onWrite, onClose }: P
               const padded = [...cols, ...Array.from({ length: PER_PAGE - cols.length }, () => null)];
               return (
                 <section key={`${sheet}-${n}`} className="manpower">
+                  <div className="mp-banner">
+                    <span className="mp-date">{longDate(day?.header.date) || `Sheet ${sheet}`}</span>
+                    <span className="mp-entered">Entered {entered}</span>
+                  </div>
                   <table className="mp-head">
                     <tbody>
                       <tr>
@@ -170,7 +181,7 @@ export function ManpowerSheet({ items, month, ready, busy, onWrite, onClose }: P
                                   {act && (
                                     <>
                                       <span className="tick">✓</span>
-                                      {c!.acts.length > 1 && <span className="mp-hours">{fmtHours(act.hours ?? undefined)} h</span>}
+                                      <span className="mp-hours"> ({fmtHours(act.hours ?? undefined)})</span>
                                     </>
                                   )}
                                 </td>
