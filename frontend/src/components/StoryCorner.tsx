@@ -56,6 +56,7 @@ export function StoryReader({ start, onClose, onTurnOff }: { start?: number; onC
             </div>
             <h3>{chapter.title}</h3>
             <p>{chapter.text}</p>
+            {story.source && <p className="story-source">{story.source}</p>}
           </article>
         ) : (
           <p className="muted">

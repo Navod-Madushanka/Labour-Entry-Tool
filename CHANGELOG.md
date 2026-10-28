@@ -1,5 +1,26 @@
 # Changelog
 
+## Daily stories from GitHub, traditional tales (28 Oct 2026)
+
+- **New stories without updating:** stories now live in `stories/stories.json` at the top of the
+  repository. The file is built into the app, and the app fetches a fresh copy from GitHub
+  (raw.githubusercontent.com) at most once a day. Without internet it keeps the last copy, then
+  the built-in one. Downloaded stories are checked (shape and size, shown as plain text) before
+  use. The day's story stays fixed once its first chapter is open.
+- **Real tales replace the invented ones:** traditional tales, researched and retold with their
+  source credited under each chapter:
+  - *Nasreddin Hodja: Seven Short Tales*: "Do you know what I'm going to say?", "Eat, my coat,
+    eat!", the cauldron that had a baby, the ring under the streetlamp, riding backwards, the
+    smell of the soup, and "Whom do you believe?".
+  - *Andare, the King's Jester*: behave like an ox, the king's sugar, moving the hill, the golden
+    mango, the eggs in the pond, the minister who couldn't sleep, and the last joke.
+  - *Mahadenamutta and His Five Pupils*: the wise man, waiting for the river to sleep, sowing
+    without footprints, the missing pupil, and the goat and the pot.
+- Stories can have 1 to 7 chapters; the top bar shows progress out of the day's total.
+- The hidden items now come from these tales (the dead cauldron, the king's "sand", the golden
+  mango, Pol Bae Muna's torch…).
+- `backend/tests/test_stories.py` checks the stories file.
+
 ## Lighter and faster (28 Oct 2026)
 
 Measured on the October INDIAN workbook (practice mode, same machine):

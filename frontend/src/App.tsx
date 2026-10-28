@@ -13,7 +13,7 @@ import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
 import { StoryNote, StoryReader } from "./components/StoryCorner";
-import { award as storyAward, dayState, setStoryEnabled, storyEnabled, type Award } from "./story";
+import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
 import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
 import { topActivities, type Month } from "./history";
 import { store } from "./store";
@@ -54,6 +54,9 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
   const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
   const [storyOn, setStoryOn] = useState(storyEnabled);
   const nextId = useRef(1);
+  useEffect(() => {
+    if (storyOn) refreshStories(); // new stories from GitHub, at most once a day
+  }, [storyOn]);
   const loading = useRef(new Set<string>());
 
   const fail = (e: unknown) => setMessage(e instanceof Error ? e.message : String(e));
@@ -291,6 +294,7 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
         story={{
           on: storyOn,
           unlocked: dayState().chapters,
+          total: todaysStory().chapters.length,
           onOpen: () => {
             if (!storyOn) {
               setStoryEnabled(true);

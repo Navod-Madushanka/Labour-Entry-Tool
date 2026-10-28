@@ -9,7 +9,7 @@ interface Props {
   onSave: () => void;
   onChangeUser: () => void;
   onChangeWorkbook: () => void;
-  story: { on: boolean; unlocked: number; onOpen: () => void };
+  story: { on: boolean; unlocked: number; total: number; onOpen: () => void };
 }
 
 export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story }: Props) {
@@ -55,7 +55,7 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
         onClick={story.onOpen}
         title={story.on ? "Today's story" : "The story is off: click to turn it back on"}
       >
-        📖 {!story.on ? "off" : story.unlocked ? `${story.unlocked}/7` : "?"}
+        📖 {!story.on ? "off" : story.unlocked ? `${story.unlocked}/${story.total}` : "?"}
       </button>
       <button className="link" onClick={onChangeWorkbook} title="Choose another workbook or check this one again">
         Change workbook

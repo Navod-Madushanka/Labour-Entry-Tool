@@ -3,32 +3,25 @@
 Ideas discussed with the office and parked for later. Nothing here is built. [PLAN.md](PLAN.md)
 is still the spec for what exists.
 
-## 1. New stories every day, without updating the software
+## 1. New stories every day: built (28 Oct 2026)
 
-**Problem.** The daily story (frontend `src/story.ts`) has 3 built-in stories. The office cannot
-pull the software from GitHub every day to get new ones.
+`stories/stories.json` is built into the app and fetched from GitHub at most once a day (see
+CHANGELOG). Still to do:
 
-**Plan (free, no API key).** The repository is public, so GitHub serves its files for free:
-
-1. Add `stories/stories.json` to the repository, using the same shape as `STORIES` in `story.ts`:
-   `[{ "title": "...", "chapters": [{ "title": "...", "text": "..." }, ...] }]`, with 7 chapters
-   each.
-2. Once a day, the tool downloads
-   `https://raw.githubusercontent.com/Navod-Madushanka/Labour-Entry-Tool/main/stories/stories.json`
-   (GitHub sends CORS headers, so the browser can fetch it directly) and keeps it in
-   localStorage.
-3. Today's story is picked from the downloaded list by date. Without internet, or if the download
-   fails, the tool uses the last downloaded copy, then the built-in stories. Entry never waits on
-   it.
-4. Treat the file as plain text: show titles and text only (no HTML), check the shape, and cap
-   the size (e.g. 200 KB).
-5. Seed the file with about 30 stories (a month), so nobody needs to write any at first. New
-   stories are added by editing the file on github.com in the browser; every PC gets them the next
-   day.
-
-**Not chosen: AI-generated stories.** They need an API key. Free tiers are rate-limited or change
-often, and paid ones cost about 1 US cent a day. The text also can't be checked before workers
-read it.
+- **More stories.** Today's file has 3 collections of traditional tales (Nasreddin Hodja, Andare,
+  Mahadenamutta), so the story repeats every 3 days.
+- **Classic funny stories in their original words.** These are public domain: O. Henry's "The
+  Ransom of Red Chief", Jerome K. Jerome's "Three Men in a Boat" (Uncle Podger hangs a picture,
+  the cheese, packing), Mark Twain's "The Celebrated Jumping Frog" and "How I Edited an
+  Agricultural Paper", Stephen Leacock's "My Financial Career", George Borrow's "The Turkish
+  Jester" (Nasreddin, 1884) and H. Parker's "Village Folk-Tales of Ceylon" (1910–14, Gamarala
+  tales). Their texts are on Project Gutenberg, but the cloud session that built this could not
+  reach gutenberg.org, wikisource.org or wikipedia.org. Allow them in the environment's network
+  settings, or add the texts by hand.
+- **How to add a story:** edit `stories/stories.json` on github.com. Each story needs a unique
+  `title`, an optional `source` (credit), and 1 to 7 `chapters` of `{ "title", "text" }`. The
+  test `backend/tests/test_stories.py` checks the format. Every PC gets the new file the next
+  day.
 
 ## 2. Software updates from `start.bat` (optional)
 
