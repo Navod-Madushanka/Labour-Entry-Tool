@@ -270,3 +270,28 @@ details.card > summary { cursor: pointer; }
 .todo { margin: 2px 0 6px; font-weight: 500; }
 .issues.plain .todo { margin: 2px 0 0; }
 .auto-hours::placeholder { color: var(--ok); opacity: 1; font-weight: 600; }
+
+/* Manpower sheet check: the queue laid out like the paper "Daily record of manpower" */
+.modal.manpower-modal { width: min(1280px, 100%); max-height: 94vh; display: flex; flex-direction: column; }
+.manpower-pages { overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 18px; margin: 8px 0; }
+.manpower { border: 1.5px solid var(--text); padding: 0; background: var(--panel); }
+.manpower table { border-collapse: collapse; width: 100%; }
+.manpower td, .manpower th { border: 1px solid var(--text); padding: 3px 6px; }
+.mp-head td, .mp-head th { font-size: 13px; }
+.mp-title { text-align: left; font-size: 15px; letter-spacing: 0.03em; background: var(--row); }
+.mp-label { color: var(--muted); font-style: italic; white-space: nowrap; width: 1%; }
+.mp-grid { table-layout: fixed; min-width: 980px; }
+.mp-grid th { font-weight: 600; }
+.mp-grid .mp-code { width: 150px; text-align: left; font: 12px ui-monospace, monospace; }
+.mp-grid th.mp-code, .mp-grid th.mp-desc { font: 600 13px system-ui, sans-serif; text-align: center; }
+.mp-grid .mp-desc { width: 120px; }
+.mp-grid .mp-label-col { width: 92px; font-style: italic; text-align: center; font-size: 12px; }
+.mp-cell { text-align: center; font-size: 12px; height: 26px; }
+.mp-cell.excel, .mp-tick.excel { color: var(--muted); background: var(--row); }
+.mp-cell.problem { background: var(--warn-bg); }
+.mp-grid tbody td { height: 28px; border-top: 1px dashed var(--line); }
+.mp-tick { text-align: center; }
+.mp-tick .tick { font-size: 17px; font-weight: 700; color: var(--ok); }
+.mp-tick.excel .tick { color: var(--muted); }
+.mp-hours { display: block; font-size: 10px; color: var(--muted); line-height: 1; }
+.mp-foot { margin: 4px 8px; }

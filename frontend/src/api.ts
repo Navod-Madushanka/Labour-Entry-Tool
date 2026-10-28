@@ -51,6 +51,8 @@ export interface DayHeader {
   date_raw: CellValue;
   day_type: CellValue;
   sheet_no: CellValue;
+  prepared_by: CellValue;
+  project: CellValue;
 }
 
 export interface ActivityLine {

@@ -18,12 +18,13 @@ interface Props {
   onRemove: (id: number) => void;
   onCommit: (dryRun: boolean) => void;
   onClear: () => void;
+  onSheetView: () => void;
 }
 
 const isClear = (i: EntryInput) =>
   i.time_in === null && i.time_out === null && !i.activities.length && i.additional === null && !i.remark;
 
-export function Queue({ items, busy, onAck, onAckAll, onOverwrite, onEdit, onRemove, onCommit, onClear }: Props) {
+export function Queue({ items, busy, onAck, onAckAll, onOverwrite, onEdit, onRemove, onCommit, onClear, onSheetView }: Props) {
   if (!items.length)
     return (
       <section className="queue empty">
@@ -128,6 +129,9 @@ export function Queue({ items, busy, onAck, onAckAll, onOverwrite, onEdit, onRem
         </table>
       </div>
       <div className="actions">
+        <button onClick={onSheetView} title="See the queue laid out like the paper manpower sheet">
+          Check as manpower sheet
+        </button>
         <button className="primary" disabled={!ready} onClick={() => onCommit(false)}>
           Write {items.length} {items.length === 1 ? "entry" : "entries"} to Excel
         </button>

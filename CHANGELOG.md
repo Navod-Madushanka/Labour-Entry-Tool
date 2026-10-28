@@ -1,5 +1,19 @@
 # Changelog
 
+## Check against the manpower sheet (28 Oct 2026)
+
+- **Check as manpower sheet** (in the queue) draws the waiting entries like the paper "Daily
+  record of manpower" form, so they can be compared with the paper before anything is written:
+  - workers across the top, 10 per sheet (more workers spill onto further pages);
+  - the Emp.No (calling name), In, Out, Normal Hrs and OT rows, with Normal and OT split the
+    way Excel does (8 h on a Normal Day, 5.5 on Saturday, 0 on a Sunday or holiday);
+  - activity codes down the side, with a tick where a worker did that activity (with each line's
+    hours when a worker has more than one);
+  - the date, sheet number, prepared by, project and day type from the day sheet.
+  Workers already in Excel for that day can be shown too, in grey. *It matches: write to Excel*
+  writes the queue. The Description column stays blank because the workbook has no activity
+  descriptions.
+
 ## Two or three activities: hours shared out automatically (28 Oct 2026)
 
 - Activities whose Hours box is left empty share the worked hours equally, in quarter hours:
