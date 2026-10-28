@@ -1,5 +1,12 @@
 # Changelog
 
+## Two or three activities: hours shared out automatically (28 Oct 2026)
+
+- Activities whose Hours box is left empty share the worked hours equally, in quarter hours:
+  7-19 (11 h) over 2 activities gives 5.5 + 5.5, and over 3 gives 3.75 + 3.75 + 3.5. Hours
+  typed on one line are taken off first; the rest is shared by the empty ones. The shared hours
+  show in green as "(auto)" and follow the times when they change.
+
 ## One activity: hours filled in automatically (28 Oct 2026)
 
 - With one activity and its Hours box left empty, the entry gets all the worked hours: Out - In,

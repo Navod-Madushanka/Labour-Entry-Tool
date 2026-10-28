@@ -62,7 +62,7 @@ export function EntryForm(props: Props) {
   const matches = useMemo(() => searchWorkers(master.workers, form.query), [master.workers, form.query]);
   const problems = formProblems(form);
   const input = useMemo(() => toInput(form, sheet, headerAcks), [form, sheet, headerAcks]);
-  const auto = autoHours(form); // one activity, hours blank: all the worked hours
+  const auto = autoHours(form); // blank Hours boxes share the worked hours
 
   // Live preview from the server (cached sheets, no Excel round trip).
   useEffect(() => {
@@ -296,19 +296,20 @@ export function EntryForm(props: Props) {
                   <input
                     ref={reg(`hours${i}`)}
                     aria-label={`Hours ${i + 1}`}
+                    className={auto[i] !== null ? "auto-hours" : undefined}
                     inputMode="decimal"
                     value={line.hours}
                     placeholder={
-                      auto !== null && line.code.trim()
-                        ? `${fmtHours(auto)} (auto)`
+                      auto[i] !== null
+                        ? `${fmtHours(auto[i]!)} (auto)`
                         : line.code && remaining(i) !== null
                           ? fmtHours(remaining(i))
                           : ""
                     }
-                    title={auto !== null && line.code.trim() ? "Filled in from the times. Type a number to change it." : undefined}
+                    title={auto[i] !== null ? "Worked out from the times. Type a number to change it." : undefined}
                     onFocus={() => {
                       const rest = remaining(i);
-                      if (auto === null && !line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
+                      if (auto[i] === null && !line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
                     }}
                     onChange={(e) => setLine(i, { hours: e.target.value })}
                     onKeyDown={(e) => onKey(e, "queue")}

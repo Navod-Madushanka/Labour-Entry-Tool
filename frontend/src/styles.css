@@ -269,3 +269,4 @@ details.card > summary { cursor: pointer; }
 .issues.plain .where { font-weight: 600; }
 .todo { margin: 2px 0 6px; font-weight: 500; }
 .issues.plain .todo { margin: 2px 0 0; }
+.auto-hours::placeholder { color: var(--ok); opacity: 1; font-weight: 600; }

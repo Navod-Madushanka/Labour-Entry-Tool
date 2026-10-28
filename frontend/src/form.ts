@@ -89,8 +89,8 @@ export function toInput(f: FormState, sheet: string, extraAcks: string[] = []): 
     time_in: tin,
     time_out: out,
     activities: f.lines
-      .filter((l) => l.code.trim() || l.hours.trim())
-      .map((l) => ({ code: l.code.trim() || null, hours: l.hours.trim() ? toNumber(l.hours) : auto })),
+      .map((l, i) => ({ code: l.code.trim() || null, hours: l.hours.trim() ? toNumber(l.hours) : auto[i] }))
+      .filter((a, i) => a.code || f.lines[i].hours.trim()),
     additional: add === null || Number.isNaN(add) ? null : add,
     remark: f.remark.trim() || null,
     overwrite: f.overwrite,
@@ -98,18 +98,26 @@ export function toInput(f: FormState, sheet: string, extraAcks: string[] = []): 
   };
 }
 
-/** One activity with its hours left blank (the usual day): it gets all the worked hours, i.e.
- * Out - In less 1 h lunch (Out after 12:00) or 2 h lunch and dinner (Out after 22:00), plus any
- * additional hours. Null when the times are not complete or there are several activities. */
-export function autoHours(f: FormState): number | null {
-  const used = f.lines.filter((l) => l.code.trim() || l.hours.trim());
-  if (used.length !== 1 || used[0].hours.trim() || !used[0].code.trim()) return null;
+/** Hours for activity lines whose Hours box is left blank (index = line). The worked hours (Out - In,
+ * less 1 h lunch when Out is after 12:00 or 2 h lunch and dinner after 22:00, plus additional
+ * hours) minus any hours typed on other lines are shared equally between the blank lines, in
+ * quarter hours (11 h over 3 lines: 3.75, 3.75, 3.5). Null for lines that get nothing. */
+export function autoHours(f: FormState): (number | null)[] {
+  const none = f.lines.map(() => null);
+  const blank = f.lines.map((l, i) => (l.code.trim() && !l.hours.trim() ? i : -1)).filter((i) => i >= 0);
   const tin = parseClock(f.timeIn);
   const tout = parseClock(f.timeOut);
-  if (tin === null || tout === null) return null;
+  if (!blank.length || tin === null || tout === null) return none;
   const add = toNumber(f.additional);
-  const hours = effectiveHours(tin, tout + (isOvernight(f) ? 24 : 0), add === null || Number.isNaN(add) ? 0 : add);
-  return hours > 0 ? hours : null;
+  const worked = effectiveHours(tin, tout + (isOvernight(f) ? 24 : 0), add === null || Number.isNaN(add) ? 0 : add);
+  const typed = f.lines.reduce((sum, l) => sum + (l.hours.trim() ? Number(toNumber(l.hours)) || 0 : 0), 0);
+  const quarters = Math.round((worked - typed) * 4);
+  if (quarters < blank.length) return none; // not even a quarter hour each
+  const each = Math.floor(quarters / blank.length);
+  const extra = quarters - each * blank.length; // the first lines get one more quarter
+  const out: (number | null)[] = [...none];
+  blank.forEach((line, n) => (out[line] = (each + (n < extra ? 1 : 0)) / 4));
+  return out;
 }
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
