@@ -11,6 +11,7 @@ export interface Line {
 
 export interface FormState {
   worker: Worker | null;
+  also: Worker[]; // more workers who get exactly the same entry
   query: string;
   timeIn: string;
   timeOut: string;
@@ -26,6 +27,7 @@ export const emptyLines = (): Line[] => Array.from({ length: LINES }, () => ({ c
 
 export const emptyForm = (): FormState => ({
   worker: null,
+  also: [],
   query: "",
   timeIn: "",
   timeOut: "",
@@ -146,7 +148,7 @@ export function fromEntry(e: Entry, worker: Worker, overwrite: boolean): FormSta
 
 /** Same times and activities for another worker (crew entry, "keep" after queueing). */
 export function forWorker(f: FormState, worker: Worker | null): FormState {
-  return { ...f, worker, query: worker?.calling_name ?? "", overwrite: false, acknowledged: [] };
+  return { ...f, worker, also: [], query: worker?.calling_name ?? "", overwrite: false, acknowledged: [] };
 }
 
 /** Back from a queued EntryInput to the form (Edit in the queue). */
@@ -166,6 +168,7 @@ export function fromInput(i: EntryInput, worker: Worker): FormState {
     additional: i.additional === null ? "" : String(i.additional),
     remark: i.remark ?? "",
     overwrite: i.overwrite,
+    also: [],
     acknowledged: i.acknowledged.filter((r) => r !== "H01" && r !== "H02"),
   };
 }
@@ -181,3 +184,25 @@ export const clearInput = (sheet: string, callingName: string): EntryInput => ({
   overwrite: true,
   acknowledged: [],
 });
+
+/** Several workers typed at once ("INB-01, INB-02; INC-05"): each name exactly, or the only
+ * calling name that starts with it. Names that match nothing (or several) are returned as missing. */
+export function resolveNames(workers: Worker[], text: string): { found: Worker[]; missing: string[] } {
+  const norm = (v: unknown) => String(v ?? "").toUpperCase().replace(/[\s-]/g, "");
+  const found: Worker[] = [];
+  const missing: string[] = [];
+  for (const token of text.split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean)) {
+    const q = norm(token);
+    const exact = workers.find((w) => norm(w.calling_name) === q);
+    const starts = workers.filter((w) => norm(w.calling_name).startsWith(q));
+    const w = exact ?? (starts.length === 1 ? starts[0] : undefined);
+    if (!w) missing.push(token);
+    else if (!found.includes(w)) found.push(w);
+  }
+  return { found, missing };
+}
+
+/** The entry for the main worker plus the same entry for each extra worker. */
+export function inputsFor(f: FormState, input: EntryInput): EntryInput[] {
+  return [input, ...f.also.map((w) => ({ ...input, calling_name: w.calling_name, overwrite: false }))];
+}

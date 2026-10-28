@@ -177,8 +177,8 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
 
   const workerByName = useMemo(() => new Map(master?.workers.map((w) => [w.calling_name, w])), [master]);
 
-  const onQueue = (input: EntryInput) => {
-    addToQueue([input]);
+  const onQueue = (inputs: EntryInput[]) => {
+    addToQueue(inputs);
     setForm((f) => forWorker(f, null)); // keep times and activities for the next worker
     setFocusToken((t) => t + 1);
   };

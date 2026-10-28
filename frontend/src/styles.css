@@ -364,3 +364,9 @@ table.lines td:last-child input { width: 13ch; }
 @keyframes story-in { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .story-note { animation: none; } }
 .story-source { font-size: 12px !important; color: var(--muted); font-style: italic; margin-top: 8px; }
+.also { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.also-label { font-size: 13px; font-weight: 600; }
+.also .chip.warn { background: var(--warn-bg); color: var(--warn); }
+.also-input { position: relative; }
+.also-input input { width: 170px; font-size: 14px; padding: 6px 8px; }
+.also-input .dropdown { min-width: 260px; }

@@ -4,6 +4,8 @@ import {
   emptyForm,
   autoHours,
   formProblems,
+  inputsFor,
+  resolveNames,
   fromEntry,
   hasProblems,
   isOvernight,
@@ -14,6 +16,7 @@ import {
 import { crewToday, entriesOf, recentActivities, usualTimes, workerStats, type Month } from "../history";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
+import { loadCrews } from "./CrewDialog";
 import { IssueList } from "./IssueList";
 
 interface Props {
@@ -25,7 +28,7 @@ interface Props {
   setForm: (f: FormState | ((f: FormState) => FormState)) => void;
   headerAcks: string[];
   activityOrder: string[];
-  onQueue: (input: EntryInput) => void;
+  onQueue: (inputs: EntryInput[]) => void; // the main worker first, then the "also for" workers
   onCrew: () => void;
   onMedical: () => void;
   onBuild: () => void;
@@ -47,6 +50,7 @@ export function EntryForm(props: Props) {
   const [highlight, setHighlight] = useState(0);
   const [plan, setPlan] = useState<EntryPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const refs = useRef<Record<string, HTMLInputElement | null>>({});
   const reg = (key: string) => (el: HTMLInputElement | null) => {
     refs.current[key] = el;
@@ -97,6 +101,7 @@ export function EntryForm(props: Props) {
   const crew = worker ? crewToday(day, master.workers, worker.trade_group) : null;
 
   const pick = (w: Worker) => {
+    setNameError(null);
     setForm((f) => ({ ...f, worker: w, query: w.calling_name, overwrite: false, acknowledged: [] }));
     setOpen(false);
     focus("in");
@@ -105,7 +110,19 @@ export function EntryForm(props: Props) {
   // Queue what the form holds now (not the last preview, which may predate the last keystroke);
   // the queue re-checks it on the server.
   const queue = () => {
-    if (input && !hasProblems(problems)) onQueue(input);
+    if (input && !hasProblems(problems)) onQueue(inputsFor(form, input));
+  };
+
+  /** "INB-01, INB-02, INC-05": the first becomes the worker, the rest get the same entry. */
+  const pickMany = (text: string): boolean => {
+    const { found, missing } = resolveNames(master.workers, text);
+    setNameError(missing.length ? `Not found: ${missing.join(", ")}` : null);
+    if (!found.length) return false;
+    const [first, ...rest] = found;
+    setForm((f) => ({ ...f, worker: first, also: rest, query: first.calling_name, overwrite: false, acknowledged: [] }));
+    setOpen(false);
+    focus("in");
+    return true;
   };
 
   /** Effective hours not yet given to the other lines: the default for this line's hours. */
@@ -165,7 +182,7 @@ export function EntryForm(props: Props) {
             id="worker"
             ref={reg("worker")}
             autoComplete="off"
-            placeholder="Type a calling name, e.g. INB-01"
+            placeholder="Type a calling name, e.g. INB-01 (several: INB-01, INB-02, INB-05)"
             value={form.query}
             role="combobox"
             aria-expanded={open}
@@ -176,6 +193,14 @@ export function EntryForm(props: Props) {
               setHighlight(0);
             }}
             onFocus={() => setOpen(true)}
+            onPaste={(e) => {
+              // A pasted column of names becomes "INB-01, INB-02, …" (Enter picks them all).
+              const text = e.clipboardData.getData("text");
+              if (/\n/.test(text.trim())) {
+                e.preventDefault();
+                setForm((f) => ({ ...f, query: text.trim().split(/\s*\n\s*/).join(", "), worker: null }));
+              }
+            }}
             onBlur={() =>
               // Late close (lets a click on the list land), but not if focus came back meanwhile.
               setTimeout(() => document.activeElement !== refs.current.worker && setOpen(false), 150)
@@ -187,6 +212,9 @@ export function EntryForm(props: Props) {
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
                 setHighlight((h) => Math.max(h - 1, 0));
+              } else if (e.key === "Enter" && /[,;]/.test(form.query)) {
+                e.preventDefault();
+                pickMany(form.query);
               } else if ((e.key === "Enter" || e.key === "Tab") && !form.worker && form.query.trim() && matches.length) {
                 // Typed but not picked yet: take the highlighted (or best) match, list shown or not.
                 e.preventDefault();
@@ -235,6 +263,21 @@ export function EntryForm(props: Props) {
               </span>
             )}
           </div>
+        )}
+        {nameError && (
+          <small className="error-text" role="alert">
+            {nameError}
+          </small>
+        )}
+        {worker && (
+          <AlsoFor
+            workers={master.workers}
+            main={worker}
+            also={form.also}
+            entered={(name) => Boolean(day?.entries.some((v) => v.entry.calling_name === name))}
+            setAlso={(also) => setForm((f) => ({ ...f, also }))}
+            onDone={() => focus("in")}
+          />
         )}
         {existing && !form.overwrite && (
           <div className="notice">
@@ -399,7 +442,7 @@ export function EntryForm(props: Props) {
 
         <div className="actions">
           <button className="primary" onClick={queue} disabled={!input || hasProblems(problems)}>
-            Add worker <kbd>Enter</kbd>
+            {form.also.length ? `Add ${form.also.length + 1} workers` : "Add worker"} <kbd>Enter</kbd>
           </button>
           <button
             onClick={() => {
@@ -480,6 +523,99 @@ export function EntryForm(props: Props) {
         )}
       </aside>
     </section>
+  );
+}
+
+/** "Also for": more workers who get exactly the same entry (same times, same activities). */
+function AlsoFor({
+  workers,
+  main,
+  also,
+  entered,
+  setAlso,
+  onDone,
+}: {
+  workers: Worker[];
+  main: Worker;
+  also: Worker[];
+  entered: (name: string) => boolean;
+  setAlso: (also: Worker[]) => void;
+  onDone: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [hi, setHi] = useState(0);
+  const taken = new Set([main.calling_name, ...also.map((w) => w.calling_name)]);
+  const options = q.trim() ? searchWorkers(workers, q, 30).filter((w) => !taken.has(w.calling_name)).slice(0, 8) : [];
+  const crews = Object.entries(loadCrews()).filter(([, names]) => names.length);
+  const add = (list: Worker[]) => {
+    setAlso([...also, ...list.filter((w) => !taken.has(w.calling_name))]);
+    setQ("");
+    setHi(0);
+  };
+  return (
+    <div className="also">
+      <span className="also-label">Same entry also for:</span>
+      {also.map((w) => (
+        <span key={w.calling_name} className={`chip static${entered(w.calling_name) ? " warn" : ""}`} title={entered(w.calling_name) ? "Already entered for this day" : String(w.name ?? "")}>
+          {w.calling_name}
+          {entered(w.calling_name) && " (entered)"}{" "}
+          <button className="link" aria-label={`Remove ${w.calling_name}`} onClick={() => setAlso(also.filter((x) => x !== w))}>
+            ×
+          </button>
+        </span>
+      ))}
+      <span className="also-input">
+        <input
+          aria-label="Add another worker with the same entry"
+          placeholder="+ add a worker"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setHi(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHi((h) => Math.min(h + 1, options.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHi((h) => Math.max(h - 1, 0));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              if (/[,;]/.test(q)) add(resolveNames(workers, q).found);
+              else if (options.length) add([options[hi] ?? options[0]]);
+              else if (!q.trim()) onDone();
+            } else if (e.key === "Backspace" && !q && also.length) {
+              setAlso(also.slice(0, -1));
+            }
+          }}
+        />
+        {options.length > 0 && (
+          <ul className="dropdown" role="listbox">
+            {options.map((w, i) => (
+              <li
+                key={w.row}
+                role="option"
+                aria-selected={i === hi}
+                className={i === hi ? "active" : ""}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  add([w]);
+                }}
+              >
+                <b>{w.calling_name}</b> <span className="muted">{String(w.name ?? "")}</span>
+                {entered(w.calling_name) && <span className="badge small">entered</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </span>
+      {crews.map(([name, names]) => (
+        <button key={name} className="small" title={names.join(", ")} onClick={() => add(workers.filter((w) => names.includes(w.calling_name)))}>
+          + crew {name} ({names.length})
+        </button>
+      ))}
+    </div>
   );
 }
 

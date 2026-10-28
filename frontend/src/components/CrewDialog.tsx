@@ -6,7 +6,7 @@ import { formatShift } from "../time";
 
 const CREWS_KEY = "labour.crews";
 
-function loadCrews(): Record<string, string[]> {
+export function loadCrews(): Record<string, string[]> {
   try {
     return JSON.parse(localStorage.getItem(CREWS_KEY) ?? "{}");
   } catch {

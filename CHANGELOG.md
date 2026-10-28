@@ -1,5 +1,20 @@
 # Changelog
 
+## Same entry for several workers (28 Oct 2026)
+
+- **Several names at once:** type them in the Worker box, separated by commas, e.g.
+  `INB-01, INB-02, INB-05 ⏎ 7 ⏎ 19 ⏎ code ⏎ ⏎`. The first becomes the worker and the others get
+  exactly the same entry: times, activities, hours, additional hours and remark. A pasted
+  column of names becomes a comma list.
+- **"Same entry also for" row** under the worker card: add more names (search with ↑/↓ and
+  Enter; a comma list works too), add a saved crew with one click, remove one with ×. Backspace
+  on the empty box removes the last name; Enter on it moves on to Time In. Workers already
+  entered for the day are marked.
+- The Add button shows how many will be added ("Add 3 workers"). Names that match nothing are
+  reported ("Not found: XYZ-99") while the others are kept. Each worker is checked separately in
+  the waiting list and on the manpower sheet.
+- New browser test `frontend/e2e/same-for-many.cjs`.
+
 ## Daily stories from GitHub, traditional tales (28 Oct 2026)
 
 - **New stories without updating:** stories now live in `stories/stories.json` at the top of the
