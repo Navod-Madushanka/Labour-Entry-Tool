@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
   await p.addInitScript(() => localStorage.setItem('labour.user', 'Navod'));
   await p.goto((process.env.BASE_URL || 'http://127.0.0.1:8000') + '/');
   await p.getByRole('tab', { name: '26', exact: true }).click();
-  await p.getByRole('button', { name: 'Medical leave…' }).click();
+  await p.getByRole('button', { name: /Medical leave/ }).click();
   await p.locator('#med-worker').fill('INC-08');
   await p.waitForSelector('.medical-plan tbody tr');
   const rows = await p.locator('.medical-plan tbody tr').count();

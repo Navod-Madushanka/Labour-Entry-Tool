@@ -61,3 +61,16 @@ def test_every_rule_has_words():
     for rule in RULES:
         p = explain(Issue(rule=rule, severity=RULES[rule].severity, message="Something odd."))
         assert p.title and p.what and p.fix
+
+
+def test_entry_screen_problems_and_issue_field():
+    e08 = issue("E08", "Block already has input (G9=7.0). Confirm overwrite to replace it.",
+                sheet="3", cell="G9", calling_name="INB-01")  # fmt: skip
+    assert e08.plain["title"] == "Already entered for this day"
+    assert "Replace" in e08.plain["fix"]
+    w02 = explain(issue("W02", "Only 4 h rest after day 2 (out 03:00).", sheet="3"))
+    assert w02.what == "Only 4 hours of rest after leaving at 03:00 on day 2."
+    e07 = explain(issue("E07", "INB-01 is entered twice in this batch for sheet 3.",
+                        calling_name="INB-01"))  # fmt: skip
+    assert e07.title == "Worker added twice"
+    assert "plain" in e08.model_dump()  # sent with every issue the API returns

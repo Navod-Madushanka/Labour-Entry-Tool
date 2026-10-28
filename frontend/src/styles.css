@@ -299,5 +299,53 @@ details.card > summary { cursor: pointer; }
 .mp-date { font-size: 22px; font-weight: 700; }
 .mp-entered { font-size: 14px; color: var(--muted); }
 .manpower-live .manpower-pages { overflow: visible; flex: none; }
-.push-bar { position: sticky; bottom: 0; background: var(--panel); padding: 10px 0 4px; border-top: 1px solid var(--line); align-items: center; }
+.push-bar { padding: 12px 0 4px; border-top: 1px solid var(--line); align-items: center; margin-top: 4px; }
 .check.wrap { white-space: normal; }
+
+/* --- Entry screen design pass: bigger targets, numbered steps, plain status ------------------- */
+.entry input { font-size: 16px; padding: 9px 10px; border-radius: 8px; }
+.entry .field label { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.step { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 11px; font-weight: 700; flex: none; }
+.entry-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.entry-head h2 { margin: 0; font-size: 18px; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.tools button { background: var(--info-bg); border-color: transparent; color: var(--info); font-weight: 500; }
+.tools button:hover { border-color: var(--info); }
+.hint { color: var(--muted); font-size: 12px; }
+.entry .error-text { font-size: 12px; font-weight: 600; }
+.times { gap: 16px; margin-top: 16px; }
+.times .field input { width: 130px; }
+table.lines { margin-top: 16px; }
+table.lines th { font-size: 13px; font-weight: 600; color: var(--text); padding-bottom: 4px; }
+table.lines th .step { margin-right: 6px; }
+table.lines td:first-child input { width: 26ch; }
+table.lines td:last-child input { width: 13ch; }
+.entry .actions { margin-top: 16px; }
+.entry .actions button.primary { font-size: 16px; padding: 10px 22px; }
+.keys { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.keys kbd { opacity: 0.85; }
+.worker-card { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--row); border: 1px solid var(--line); }
+.notice { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
+
+.preview { border-width: 2px; }
+.preview.good { border-color: var(--ok); }
+.preview.warn { border-color: var(--warn); }
+.preview.bad { border-color: var(--block); }
+.big-number { font-size: 34px; font-weight: 700; line-height: 1.1; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
+.big-number span { font-size: 14px; font-weight: 500; color: var(--muted); }
+
+.issue { display: flex; gap: 8px; padding: 7px 10px; border-radius: 8px; align-items: flex-start; }
+.issue-icon { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--panel); margin-top: 1px; }
+.issue.BLOCK .issue-icon { background: var(--block); }
+.issue.WARN .issue-icon { background: var(--warn); }
+.issue.INFO .issue-icon { background: var(--info); }
+.issue-body { min-width: 0; }
+.issue .fix { margin-top: 2px; font-weight: 500; opacity: 1; }
+.issue .confirm { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-weight: 600; white-space: nowrap; }
+.issue.confirmed { opacity: 0.6; }
+.issues.compact .issue { padding: 4px 8px; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.day-date { font-size: 16px; }
+.dayinfo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.quick-fix { margin-top: 8px; } .quick-fix button { width: 100%; font-weight: 600; }

@@ -1,5 +1,31 @@
 # Changelog
 
+## Entry screen design pass (28 Oct 2026)
+
+- **Plain words everywhere:** every problem the API returns now carries its plain-language form
+  (`Issue.plain`: title, where, what, what to do). The entry form, queue, day list, header banner
+  and dialogs show that instead of rule codes and messages. A warning is confirmed with an
+  "It's correct" tick.
+- **Entry form:**
+  - numbered steps (1 Worker, 2 Time In, 3 Time Out, 4 Activity code) and larger 16 px inputs;
+  - example hints under the time boxes, and form errors in plain words;
+  - only the filled activity lines plus one empty line are shown;
+  - Quick fill tools (Start day from previous days, Crew entry, Medical leave) are grouped at the
+    top as their own buttons; "Add worker" is the main button;
+  - a keyboard help line.
+- **Faster keyboard flow:** Enter on an activity code moves to the next activity line, because the
+  hours fill themselves; Enter on an empty activity line adds the worker. A one-activity worker is
+  `name ⏎ 7 ⏎ 19 ⏎ code ⏎ ⏎`.
+- **"This worker's day" panel** (was "Excel will show"): worked hours in large type, then Normal,
+  Overtime, Time at work, hours with no activity (only when there are some) and how the day
+  counts. The border is green, yellow or red by status. On the 22:00 warning, a one-click
+  "Yes, they had dinner" fills -1 additional hours and the remark.
+- **Day bar:** the full date ("Monday, October 26, 2026"), day type and workers entered.
+- **Queue and day list:** plain column names (Worked, Overtime, Status) with no ZIDLE; a
+  "✓ Ready" pill; "Replace what's in Excel" instead of "Overwrite existing"; "Remove all" and
+  "Clear" ask before acting; success messages say what happened and remind you to save.
+- The push bar is no longer sticky (it was covering the sheet).
+
 ## Check against the manpower sheet (28 Oct 2026)
 
 - The manpower sheet is now part of the entry screen, under the form, and updates live: each entry

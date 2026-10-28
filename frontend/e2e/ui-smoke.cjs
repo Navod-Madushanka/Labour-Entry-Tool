@@ -24,16 +24,16 @@ async function keyboardFlow(out) {
   await p.keyboard.type('7'); await p.keyboard.press('Enter');
   await p.keyboard.type('19'); await p.keyboard.press('Enter');
   await p.keyboard.type(code); await p.keyboard.press('Enter');
-  await p.waitForFunction(() => document.querySelector('.preview dd b')?.textContent === '11');
+  await p.waitForFunction(() => document.querySelector('.big-number')?.textContent?.startsWith('11 '));
   await p.keyboard.press('Enter'); // hours prefilled with remaining 11 on focus; Enter queues
   await p.waitForSelector('.queue tbody tr');
   // next worker keeps times and activity
   await p.keyboard.type('INB-02'); await p.keyboard.press('Enter');
   await p.locator('#worker').focus();
-  await p.waitForFunction(() => document.querySelector('.preview dd b')?.textContent === '11');
+  await p.waitForFunction(() => document.querySelector('.big-number')?.textContent?.startsWith('11 '));
   await p.locator('[aria-label="Hours 1"]').press('Enter');
   await p.waitForFunction(() => document.querySelectorAll('.queue tbody tr').length === 2);
-  await p.waitForFunction(() => [...document.querySelectorAll('.queue .ok-text')].length === 2, null, {timeout: 10000});
+  await p.waitForFunction(() => [...document.querySelectorAll('.queue .pill.ok')].length === 2, null, {timeout: 10000});
   await p.screenshot({ path: `${out}/ui_queue.png`, fullPage: true });
   await p.getByRole('button', { name: /Push 2 entries/ }).click();
   await p.waitForSelector('.result.ok');
@@ -75,14 +75,14 @@ async function crewEditHeader(out) {
   const code = await p.evaluate(async () => (await (await fetch('/api/master')).json()).activities[0]);
   await p.locator('#in').fill('07:00'); await p.locator('#out').fill('17:00');
   await p.locator('[aria-label="Activity 1"]').fill(code); await p.locator('[aria-label="Hours 1"]').fill('9');
-  await p.getByRole('button', { name: 'Crew entry…' }).click();
+  await p.getByRole('button', { name: /Crew entry/ }).click();
   await p.getByLabel('Trade group').selectOption('Rigger');
   await p.getByRole('button', { name: /Select all shown/ }).click();
   await p.getByRole('button', { name: /^Queue \d+ with/ }).click();
   await p.waitForFunction(() => document.querySelectorAll('.queue tbody tr').length >= 6);
   const n = await p.locator('.queue tbody tr').count();
   await p.waitForFunction(() => !document.body.innerText.includes('checking…'));
-  console.log('crew queued', n, 'ready', await p.locator('.queue .ok-text').count());
+  console.log('crew queued', n, 'ready', await p.locator('.queue .pill.ok').count());
   await p.getByRole('button', { name: new RegExp(`Push ${n} entries`) }).click();
   await p.waitForSelector('.result.ok');
   console.log('crew result:', await p.locator('.result-head strong').textContent());
@@ -99,10 +99,10 @@ async function crewEditHeader(out) {
   await p.waitForSelector('text=Editing the existing entry');
   await p.locator('#out').fill('18:00'); await p.locator('#out').press('Enter');
   await p.locator('[aria-label="Hours 1"]').fill('10'); await p.locator('[aria-label="Hours 1"]').press('Enter');
-  await p.waitForFunction(() => document.querySelector('.queue .ok-text'));
+  await p.waitForFunction(() => document.querySelector('.queue .pill.ok'));
   console.log('edit queued:', (await p.locator('.queue tbody tr').first().innerText()).replace(/\s+/g, ' '));
   // header fix on sheet 31
-  await p.getByRole('button', { name: 'Empty queue' }).click();
+  await p.getByRole('button', { name: 'Remove all' }).click();
   await p.getByRole('tab', { name: '31', exact: true }).click();
   await p.waitForSelector('.banner');
   await p.getByRole('button', { name: /^Fix / }).click();

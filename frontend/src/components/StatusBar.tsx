@@ -45,9 +45,9 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
         </span>
       )}
       <span className="spacer" />
-      {status?.unsaved_changes && <span className="badge warn">Unsaved changes in Excel</span>}
+      {status?.unsaved_changes && <span className="badge warn">Not saved in Excel yet</span>}
       <button onClick={onSave} disabled={!status?.connected || !status.unsaved_changes}>
-        Save workbook
+        Save Excel file
       </button>
       <button className="link" onClick={onChangeWorkbook} title="Choose another workbook or check this one again">
         Change workbook

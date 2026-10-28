@@ -11,6 +11,7 @@ export interface Issue {
   cell: string | null;
   calling_name: string | null;
   suggestion: string | null;
+  plain: { title: string; where: string; what: string; fix: string };
 }
 
 export interface Status {
@@ -289,9 +290,7 @@ export interface SetupState {
   ready: boolean;
 }
 
-export interface PlainIssue extends Issue {
-  plain: { title: string; where: string; what: string; fix: string };
-}
+export type PlainIssue = Issue;
 
 export interface HealthReport {
   source: { source_name: string };

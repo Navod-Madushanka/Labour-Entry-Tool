@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
   await p.goto(process.env.BASE_URL || 'http://127.0.0.1:8000/');
   await p.getByRole('tab', { name: '26', exact: true }).click();
   let t = Date.now();
-  await p.getByRole('button', { name: 'Start day from previous days…' }).click();
+  await p.getByRole('button', { name: /Start day from previous days/ }).click();
   await p.waitForSelector('.crew');
   const crews = await p.locator('.crew').count(), members = await p.locator('.member').count(), ticked = await p.locator('.member input:checked').count();
   console.log(`built in ${Date.now() - t} ms: ${crews} crews, ${members} workers, ${ticked} ticked`);

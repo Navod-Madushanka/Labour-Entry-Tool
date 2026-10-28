@@ -12,6 +12,11 @@ interface Props {
   onReload: () => void;
 }
 
+const longDate = (iso: string | null | undefined) =>
+  iso
+    ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
+
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
 export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAcknowledge, onFix, onReload }: Props) {
@@ -35,13 +40,16 @@ export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAck
         ))}
       </div>
       <div className="dayinfo">
-        <strong>Sheet {sheet}</strong>
-        {h && (
+        {h ? (
           <>
-            <span>{h.date ?? "no date"}</span>
+            <strong className="day-date">{longDate(h.date) || `Sheet ${sheet} (no date)`}</strong>
             <span className="badge">{String(h.day_type ?? "no day type")}</span>
-            <span className="muted">{day?.entries.length ?? 0} entries</span>
+            <span className="muted">
+              Sheet {sheet} · {day?.entries.length ?? 0} worker{day?.entries.length === 1 ? "" : "s"} entered
+            </span>
           </>
+        ) : (
+          <strong className="day-date">Sheet {sheet}</strong>
         )}
         <button className="link small" onClick={onReload} title="Read this sheet and Labour Detail again (after editing Excel directly)">
           Reload from Excel
@@ -50,24 +58,24 @@ export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAck
       {issues.length > 0 && (
         <div className={`banner ${blocking ? "BLOCK" : "WARN"}`} role="alert">
           <div>
-            <strong>This sheet's header looks wrong.</strong>
+            <strong>The top of this day sheet looks wrong</strong>
             <ul>
               {issues.map((i) => (
                 <li key={i.rule}>
-                  {i.rule}: {i.message} {i.suggestion && <em>({i.suggestion})</em>}
+                  <b>{i.plain.title}.</b> {i.plain.what}
                 </li>
               ))}
             </ul>
             {blocking && !acknowledged && (
-              <p>Writing to this sheet is blocked until you fix the header or confirm it is right.</p>
+              <p>Fix it before writing to this day, or confirm that it is right.</p>
             )}
-            {acknowledged && <p>You confirmed the header for this session; entries can be written.</p>}
+            {acknowledged && <p>You confirmed it is right; entries can be written.</p>}
           </div>
           <div className="actions">
             <button className="primary" onClick={() => onFix(issues)}>
               Fix {issues.map((i) => FIELD[i.rule]).filter(Boolean).join(", ")}…
             </button>
-            {blocking && !acknowledged && <button onClick={onAcknowledge}>Header is right, write anyway</button>}
+            {blocking && !acknowledged && <button onClick={onAcknowledge}>It's right, write anyway</button>}
           </div>
         </div>
       )}

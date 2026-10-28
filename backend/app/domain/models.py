@@ -11,7 +11,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 CellValue = bool | int | float | str | None
 Severity = Literal["BLOCK", "WARN", "INFO"]
@@ -171,6 +171,14 @@ class Issue(BaseModel):
     cell: str | None = None
     calling_name: str | None = None
     suggestion: str | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def plain(self) -> dict[str, str]:
+        """The same problem in words for Excel users: title, where, what, fix (domain/plain.py)."""
+        from app.domain.plain import explain  # plain imports this module
+
+        return explain(self).model_dump()
 
 
 # --- Snapshot (whole workbook, used by readers and fixtures) -----------------------------------

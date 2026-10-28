@@ -21,9 +21,9 @@ export function DayList({ day, onEdit, onClear }: Props) {
     <section className="daylist">
       <div className="section-head">
         <h2>
-          On sheet {day.header.sheet} <span className="muted">({day.entries.length})</span>
+          Already in Excel for this day <span className="muted">({day.entries.length})</span>
         </h2>
-        <input type="search" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter entries" />
+        <input type="search" placeholder="Find a worker" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter entries" />
       </div>
       {rows.length ? (
         <div className="table-wrap">
@@ -33,10 +33,9 @@ export function DayList({ day, onEdit, onClear }: Props) {
                 <th>Worker</th>
                 <th>In–Out</th>
                 <th>Activities</th>
-                <th>Eff.</th>
-                <th>OT</th>
-                <th>ZIDLE</th>
-                <th>Checks</th>
+                <th>Worked</th>
+                <th>Overtime</th>
+                <th>Check</th>
                 <th />
               </tr>
             </thead>
@@ -60,15 +59,14 @@ export function DayList({ day, onEdit, onClear }: Props) {
                     </td>
                     <td>{fmtHours(c?.effective)}</td>
                     <td>{c && c.ot_raw !== null && c.ot_raw > 0 ? fmtHours(c.ot_raw) : "—"}</td>
-                    <td>{c ? (c.zidle ? fmtHours(c.zidle) : "—") : ""}</td>
                     <td>
-                      <IssueList issues={v.issues} compact />
+                      {v.issues.length ? <IssueList issues={v.issues} compact /> : <span className="pill ok">✓</span>}
                     </td>
                     <td className="row-actions">
                       <button className="link" onClick={() => onEdit(v)}>
                         Edit
                       </button>
-                      <button className="link" onClick={() => onClear(v)}>
+                      <button className="link" onClick={() => window.confirm(`Clear ${v.entry.calling_name}'s times and hours for this day? It goes to the list above first; nothing changes until you push.`) && onClear(v)}>
                         Clear
                       </button>
                     </td>
@@ -79,7 +77,7 @@ export function DayList({ day, onEdit, onClear }: Props) {
           </table>
         </div>
       ) : (
-        <p className="muted">{day.entries.length ? "No entries match." : "Nothing entered on this sheet yet."}</p>
+        <p className="muted">{day.entries.length ? "No worker matches." : "Nobody is entered for this day yet."}</p>
       )}
     </section>
   );

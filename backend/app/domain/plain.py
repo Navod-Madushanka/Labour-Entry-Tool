@@ -204,6 +204,43 @@ def _words(issue: Issue) -> tuple[str, str, str]:
             "One worker has room for 5 activity lines on a day.",
             "Combine activities so there are 5 lines or fewer.",
         )
+    if rule == "E07":
+        if "twice in this batch" in msg:
+            return (
+                "Worker added twice",
+                f"{issue.calling_name} is in the list twice for the same day.",
+                "Remove one of the two from the list below.",
+            )
+        if g := m(r"is in (\d+) blocks of"):
+            return (
+                "Worker appears more than once on the sheet",
+                f"{issue.calling_name} appears {g.group(1)} times on this day sheet in Excel, so "
+                "the tool can't tell which rows to use.",
+                "Check the calling names in column A of Labour Detail for a duplicate.",
+            )
+        return (
+            "Worker not on this day sheet",
+            f"{issue.calling_name} is not on this day sheet in Excel.",
+            "Check the calling name, or press Reload from Excel if they were added just now.",
+        )
+    if rule == "E08":
+        return (
+            "Already entered for this day",
+            f"{issue.calling_name} already has times or hours on this day in Excel.",
+            "Press Replace to write over them, or Remove to keep what is in Excel.",
+        )
+    if rule == "E09":
+        return (
+            "Cell can't be written",
+            "The tool refused to write into a locked or formula cell.",
+            "Nothing was changed. Tell the person who looks after the tool.",
+        )
+    if rule == "W09":
+        return (
+            "Overtime on a medical day",
+            _jargon(msg).replace("Excel books", "Excel gives").replace(" OT ", " overtime "),
+            "Check whether medical leave should get overtime on this day.",
+        )
     if rule == "H01":
         if g := m(r"^Dated (\S+), expected (\S+)\."):
             return (
@@ -316,6 +353,15 @@ def _words(issue: Issue) -> tuple[str, str, str]:
                 f"Left at {nice_time(g.group(1))} on day {g.group(2)} and came in again at "
                 f"{g.group(3)} on day {g.group(4)}: only {_hours(g.group(5))} of rest.",
                 "Check the times on both days. If they are right, nothing needs to change.",
+            )
+    if rule == "W02":
+        if g := m(r"^Only (\S+) h rest (after|before) day (\d+) \((?:out|in) (\S+)\)"):
+            other = (f"leaving at {g.group(4)} on day {g.group(3)}" if g.group(2) == "after"
+                     else f"coming in at {g.group(4)} on day {g.group(3)}")  # fmt: skip
+            return (
+                "Short rest between two days",
+                f"Only {_hours(g.group(1))} of rest {g.group(2)} {other}.",
+                "Check the times. If they are right, tick “It's correct”.",
             )
     if rule == "W03":
         time = r"(\d\d:\d\d(?: \(\+1 day\))?)"

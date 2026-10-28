@@ -62,13 +62,13 @@ export interface FormProblems {
 /** Problems the browser can see before asking the server (format only). */
 export function formProblems(f: FormState): FormProblems {
   const p: FormProblems = { lines: [] };
-  if (f.timeIn.trim() && parseClock(f.timeIn) === null) p.timeIn = "Use HH:MM, e.g. 07:00";
-  if (f.timeOut.trim() && parseClock(f.timeOut) === null) p.timeOut = "Use HH:MM, e.g. 19:00";
+  if (f.timeIn.trim() && parseClock(f.timeIn) === null) p.timeIn = "Type a time like 7, 7.30 or 07:30";
+  if (f.timeOut.trim() && parseClock(f.timeOut) === null) p.timeOut = "Type a time like 19, 19.30 or 19:30";
   f.lines.forEach((l, i) => {
     const h = toNumber(l.hours);
-    if (h !== null && (Number.isNaN(h) || h <= 0)) p.lines[i] = "Hours must be a number > 0";
+    if (h !== null && (Number.isNaN(h) || h <= 0)) p.lines[i] = "Type a number of hours, like 8 or 2.5";
   });
-  if (Number.isNaN(toNumber(f.additional) as number)) p.additional = "Must be a number";
+  if (Number.isNaN(toNumber(f.additional) as number)) p.additional = "Type a number, like -1 or 1.5";
   return p;
 }
 
