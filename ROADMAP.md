@@ -1,7 +1,7 @@
-# Roadmap: ideas agreed but not built yet
+# Roadmap
 
-Ideas discussed with the office and parked for later. Nothing here is built. [PLAN.md](PLAN.md)
-is still the spec for what exists.
+Ideas discussed with the office: what is parked, and what is left of what was built.
+[PLAN.md](PLAN.md) is still the spec for what exists.
 
 ## 1. New stories every day: built (28 Oct 2026)
 
