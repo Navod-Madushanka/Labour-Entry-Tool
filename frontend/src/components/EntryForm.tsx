@@ -13,7 +13,7 @@ import {
   toInput,
   type FormState,
 } from "../form";
-import { crewToday, entriesOf, recentActivities, usualTimes, workerStats, type Month } from "../history";
+import { companions, crewToday, entriesOf, recentActivities, usualTimes, workerStats, type Month } from "../history";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
 import { loadCrews } from "./CrewDialog";
@@ -29,6 +29,7 @@ interface Props {
   headerAcks: string[];
   activityOrder: string[];
   onQueue: (inputs: EntryInput[]) => void; // the main worker first, then the "also for" workers
+  queued: Set<string>; // workers waiting to go to Excel for this sheet
   onCrew: () => void;
   onMedical: () => void;
   onBuild: () => void;
@@ -271,6 +272,9 @@ export function EntryForm(props: Props) {
         )}
         {worker && (
           <AlsoFor
+            month={month}
+            sheet={sheet}
+            queued={props.queued}
             workers={master.workers}
             main={worker}
             also={form.also}
@@ -528,6 +532,9 @@ export function EntryForm(props: Props) {
 
 /** "Also for": more workers who get exactly the same entry (same times, same activities). */
 function AlsoFor({
+  month,
+  sheet,
+  queued,
   workers,
   main,
   also,
@@ -535,6 +542,9 @@ function AlsoFor({
   setAlso,
   onDone,
 }: {
+  month: Month;
+  sheet: string;
+  queued: Set<string>;
   workers: Worker[];
   main: Worker;
   also: Worker[];
@@ -547,6 +557,14 @@ function AlsoFor({
   const taken = new Set([main.calling_name, ...also.map((w) => w.calling_name)]);
   const options = q.trim() ? searchWorkers(workers, q, 30).filter((w) => !taken.has(w.calling_name)).slice(0, 8) : [];
   const crews = Object.entries(loadCrews()).filter(([, names]) => names.length);
+  // Workers who usually share this record: not yet entered or waiting for this day.
+  const byName = new Map(workers.map((w) => [w.calling_name, w]));
+  const suggested = companions(
+    month,
+    [...taken],
+    Number(sheet),
+    new Set(workers.filter((w) => entered(w.calling_name) || queued.has(w.calling_name)).map((w) => w.calling_name)),
+  ).filter((c) => byName.has(c.name));
   const add = (list: Worker[]) => {
     setAlso([...also, ...list.filter((w) => !taken.has(w.calling_name))]);
     setQ("");
@@ -610,6 +628,21 @@ function AlsoFor({
           </ul>
         )}
       </span>
+      {suggested.length > 0 && (
+        <div className="usual-mates">
+          <span className="also-label">Usually on the same record (last 10 days):</span>
+          {suggested.map((c) => (
+            <button key={c.name} className="mate" title={`${String(byName.get(c.name)?.name ?? "")} · same entry on ${c.days} of the last 10 days`} onClick={() => add([byName.get(c.name)!])}>
+              + {c.name} <span className="muted small">{c.days}/10</span>
+            </button>
+          ))}
+          {suggested.length > 1 && (
+            <button className="link small" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
+              add all {suggested.length}
+            </button>
+          )}
+        </div>
+      )}
       {crews.map(([name, names]) => (
         <button key={name} className="small" title={names.join(", ")} onClick={() => add(workers.filter((w) => names.includes(w.calling_name)))}>
           + crew {name} ({names.length})

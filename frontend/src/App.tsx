@@ -384,6 +384,7 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
               headerAcks={headerAcks}
               activityOrder={activityOrder}
               onQueue={onQueue}
+              queued={new Set(queue.filter((q) => q.input.sheet === sheet).map((q) => q.input.calling_name))}
               onCrew={() => setCrewOpen(true)}
               onMedical={() => setMedicalOpen(true)}
               onBuild={() => setBuilderOpen(true)}

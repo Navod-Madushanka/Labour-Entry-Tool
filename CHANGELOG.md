@@ -1,5 +1,18 @@
 # Changelog
 
+## "Usually on the same record" suggestions (28 Oct 2026)
+
+- **The pattern in the October file:** 96% of worker-days have at least one other worker with
+  exactly the same entry that day (same In, Out, activities and hours), and 23% are in groups of
+  20 or more.
+- **Suggestion buttons:** when a worker is picked, the form shows up to 12 workers who most
+  often shared that exact entry on the same day in the last 10 days, more recent days weighing
+  more. Workers already entered or waiting for the day are left out. "9/10" = together on 9 of
+  the last 10 days. A click adds the worker to "Same entry also for" and the list re-ranks around
+  everyone chosen so far; "add all" adds the whole list.
+- **Measured:** replaying October in entry order and clicking only correct suggestions, 65% of
+  worker names would be one click instead of typing (2,264 of 3,504).
+
 ## Same entry for several workers (28 Oct 2026)
 
 - **Several names at once:** type them in the Worker box, separated by commas, e.g.

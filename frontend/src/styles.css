@@ -370,3 +370,6 @@ table.lines td:last-child input { width: 13ch; }
 .also-input { position: relative; }
 .also-input input { width: 170px; font-size: 14px; padding: 6px 8px; }
 .also-input .dropdown { min-width: 260px; }
+.usual-mates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; background: var(--info-bg); }
+.usual-mates .mate { padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+.usual-mates .mate .small { font-weight: 400; }

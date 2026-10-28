@@ -101,3 +101,48 @@ export function crewToday(day: DayView | undefined, workers: Worker[], trade: un
   const times = usualTimes(peers);
   return { activity, time_in: times?.time_in ?? null, time_out: times?.time_out ?? null, count: peers.length };
 }
+
+export interface Companion {
+  name: string;
+  days: number; // days in the window with exactly the same entry
+}
+
+/** Same times and the same activities (codes and hours): workers on one record of the paper sheet. */
+function recordKey(e: Entry): string | null {
+  if (typeof e.time_in !== "number" || typeof e.time_out !== "number") return null;
+  const acts = e.activities
+    .filter((a) => typeof a.code === "string" && a.code.trim())
+    .map((a) => `${String(a.code).trim()}:${a.hours ?? ""}`)
+    .sort();
+  return acts.length ? `${e.time_in}|${e.time_out}|${acts.join(",")}` : null;
+}
+
+/** Workers who usually share these workers' record: over the `window` days before `sheet`, how
+ * often (more recent days weigh more) each other worker had exactly the same entry on the same day.
+ * On the October file about half of the top suggestions turn out right for the day. */
+export function companions(month: Month, names: string[], sheet: number, exclude: Set<string>, window = 10, limit = 12): Companion[] {
+  const score = new Map<string, number>();
+  const days = new Map<string, number>();
+  const mine = new Set(names);
+  for (let n = sheet - 1; n >= Math.max(1, sheet - window); n--) {
+    const day = month[String(n)];
+    if (!day) continue;
+    const groups = new Map<string, string[]>();
+    for (const v of day.entries) {
+      const key = recordKey(v.entry);
+      if (key && v.entry.calling_name) groups.set(key, [...(groups.get(key) ?? []), v.entry.calling_name]);
+    }
+    for (const group of groups.values()) {
+      if (!group.some((g) => mine.has(g))) continue;
+      for (const g of group) {
+        if (mine.has(g) || exclude.has(g)) continue;
+        score.set(g, (score.get(g) ?? 0) + 1 / (sheet - n));
+        days.set(g, (days.get(g) ?? 0) + 1);
+      }
+    }
+  }
+  return [...score]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([name]) => ({ name, days: days.get(name) ?? 0 }));
+}
