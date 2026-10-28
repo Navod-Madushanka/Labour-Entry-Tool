@@ -17,6 +17,19 @@ if not exist ".venv\Scripts\python.exe" (
     pause
     exit /b 1
   )
+  copy /y "backend\pyproject.toml" ".venv\installed-pyproject.toml" >nul
+)
+rem The package list changed since the last install (after an update): install again.
+fc /b "backend\pyproject.toml" ".venv\installed-pyproject.toml" >nul 2>&1
+if errorlevel 1 (
+  echo Updating the tool's packages...
+  ".venv\Scripts\python.exe" -m pip install -q -e backend
+  if errorlevel 1 (
+    echo Update failed. Check the internet connection and run this again.
+    pause
+    exit /b 1
+  )
+  copy /y "backend\pyproject.toml" ".venv\installed-pyproject.toml" >nul
 )
 echo Starting the Labour Entry Tool. Keep this window open while you work; close it to stop.
 ".venv\Scripts\python.exe" -m app.main --open
