@@ -288,3 +288,46 @@ def test_connect_named(monkeypatch, tmp_path):
     _fake_xlwings(monkeypatch, ["A.xlsb", "a.xlsb"], opened)
     with pytest.raises(NotConnectedError, match="open twice"):
         xa.connect_named("A.xlsb", None, cfg)
+
+
+# --- time cards -----------------------------------------------------------------------------------
+
+
+def test_print_card_writes_recalculates_then_prints():
+    import types
+
+    calls = []
+
+    class CardRange:
+        def __init__(self, address):
+            self.address = address
+
+        def options(self, **kw):
+            return self
+
+        @property
+        def value(self):
+            if self.address == "A1:L60":
+                rows = [[None] * 12 for _ in range(60)]
+                rows[7][1], rows[7][4] = "Calling Name", "INS-01"
+                return rows
+            return "INS-01"
+
+        @value.setter
+        def value(self, v):
+            calls.append(("write", self.address, v))
+
+        @property
+        def formula(self):
+            rows = [[""] * 12 for _ in range(60)]
+            rows[4][4] = "=VLOOKUP($E$8,'Labour Detail'!A:H,2,0)"
+            return rows
+
+    printer = types.SimpleNamespace(PrintOut=lambda **kw: calls.append(("print", kw)))
+    sheet = types.SimpleNamespace(range=CardRange, name="Time Card (Internal)", api=printer)
+    app = types.SimpleNamespace(calculate=lambda: calls.append(("calculate",)))
+    book = types.SimpleNamespace(name="wb.xlsb", sheets={"Time Card (Internal)": sheet}, app=app)
+    wb = xa.XlwingsWorkbook(book, Config(month="2026-10").template)
+    assert wb.calling_name_cell("Time Card (Internal)") == ("E8", "INS-01")
+    wb.print_card("Time Card (Internal)", "E8", "INB-05", copies=2)
+    assert calls == [("write", "E8", "INB-05"), ("calculate",), ("print", {"Copies": 2})]

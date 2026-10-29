@@ -9,6 +9,7 @@ write, then a read-back that compares Excel's results with the preview.
 from __future__ import annotations
 
 import datetime as dt
+import re
 import time
 from collections.abc import Callable
 from typing import Literal
@@ -71,6 +72,7 @@ from app.domain.writes import (
 from app.excel.adapter import LiveWorkbook, WorkbookError
 from app.excel.grid import date_to_excel_serial
 from app.excel.refs import col_to_index, index_to_col, parse_cell
+from app.timecards import time_card_sheets
 
 
 class ReadBack(BaseModel):
@@ -159,6 +161,13 @@ class MedicalResult(BaseModel):
     row: CodeWriteResult | None = None  # the Labour Detail row batch, when one was added
     entries: CommitResult | None = None
     error: str | None = None
+
+
+class TimeCardSheet(BaseModel):
+    sheet: str
+    cell: str | None  # where the calling name is typed (found next to the "Calling Name" label)
+    current: CellValue = None
+    practice: bool = False
 
 
 class Status(BaseModel):
@@ -909,6 +918,44 @@ class EntryService:
         self.unsaved = True
         self.audit.finish(batch_id, "done", "new worker")
         return CodeWriteResult(status="written", batch_id=batch_id, written=written)
+
+    # --- time cards: print one card per calling name (app/timecards.py) ---
+
+    def timecard_sheets(self) -> list[TimeCardSheet]:
+        """The workbook's time card sheets and the cell their calling name goes in."""
+        if self.mode == "demo":  # practice: nothing is printed, the run is only shown
+            return [TimeCardSheet(sheet=n, cell="E8", practice=True)
+                    for n in ("Time Card (Internal)", "Time Card (External)")]  # fmt: skip
+        wb = self.workbook
+        out = []
+        for name in time_card_sheets(wb.all_sheet_names()):
+            cell, current = wb.calling_name_cell(name)
+            out.append(TimeCardSheet(sheet=name, cell=cell, current=current))
+        return out
+
+    def _check_card_target(self, sheet: str, cell: str) -> None:
+        # Only a time card sheet's single input cell: never a day sheet or Labour Detail.
+        if "time card" not in sheet.casefold():
+            raise ValueError(f"{sheet!r} is not a time card sheet.")
+        if not re.fullmatch(r"[A-Z]{1,3}[1-9]\d{0,4}", cell):
+            raise ValueError(f"{cell!r} is not a single cell like E8.")
+
+    def print_timecard(self, sheet: str, cell: str, calling_name: str, copies: int = 1) -> None:
+        self._check_card_target(sheet, cell)
+        if calling_name not in {w.calling_name for w in self.master().workers}:
+            raise KeyError(f"{calling_name} is not in Labour Detail.")
+        self.workbook.print_card(sheet, cell, calling_name, copies)
+
+    def timecard_cell(self, sheet: str, cell: str) -> CellValue:
+        self._check_card_target(sheet, cell)
+        if self.mode == "demo":
+            return None
+        return self.workbook.read_range(sheet, f"{cell}:{cell}")[0][0]
+
+    def restore_timecard_cell(self, sheet: str, cell: str, value: CellValue) -> None:
+        self._check_card_target(sheet, cell)
+        if self.mode != "demo":
+            self.workbook.set_cell(sheet, cell, value)
 
     # --- save / history ---
 

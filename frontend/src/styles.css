@@ -465,3 +465,26 @@ section.batches { border-top-color: #8b8577; }
 .drop { border-color: #d6cfc2; background: var(--row); }
 .drop.over { border-color: var(--accent); background: #fff1e8; }
 @media (prefers-color-scheme: dark) { .drop { border-color: var(--line); } .drop.over { background: #2c2017; } }
+
+/* Time cards */
+section.timecards { border-top-color: var(--brand); }
+.timecards textarea { width: 100%; font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; }
+.tc-grid { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+.tc-grid select, .tc-grid input { font-size: 15px; padding: 7px 9px; }
+.tc-grid #tc-cell { width: 90px; }
+.tc-grid #tc-copies { width: 70px; }
+.tc-quick { margin-top: 6px; gap: 6px; }
+.tc-list { margin: 10px 0; padding: 8px 10px; background: var(--row); border-radius: 8px; border-left: 4px solid var(--accent); }
+.tc-progress { margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: var(--info-bg); }
+.tc-progress.done { background: var(--ok-bg); }
+.tc-progress.bad { background: var(--block-bg); color: var(--block); }
+.tc-bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; margin-bottom: 6px; }
+.tc-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
+.tc-progress.done .tc-bar span { background: var(--ok); }
+/* Keep the top bar on one line on a laptop: the workbook name gives way first. */
+@media (min-width: 1000px) {
+  .statusbar { flex-wrap: nowrap; }
+  .statusbar .workbook { flex: 0 1 auto; min-width: 0; max-width: 34ch; }
+  .statusbar > * { flex-shrink: 0; }
+  .statusbar .workbook, .statusbar .spacer { flex-shrink: 1; }
+}

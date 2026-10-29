@@ -283,6 +283,35 @@ class XlwingsWorkbook:
                 f"Formulas > Calculation Options > {calculation.title()} and press F9."
             )
 
+    # --- time cards ---
+
+    def all_sheet_names(self) -> list[str]:
+        return self._com(lambda: [s.name for s in self.book.sheets])
+
+    def calling_name_cell(self, sheet: str) -> tuple[str | None, CellValue]:
+        """Where the time card's calling name is typed, and what it holds now."""
+        from app.timecards import find_input_cell
+
+        sht = self._sheet(sheet)
+        values = self._com(lambda: sht.range("A1:L60").options(ndim=2).value)
+        formulas = self._com(lambda: sht.range("A1:L60").formula)
+        cell = find_input_cell(values, formulas)
+        current = clean_value(self._com(lambda: sht.range(cell).value)) if cell else None
+        return cell, current
+
+    def set_cell(self, sheet: str, cell: str, value: CellValue) -> None:
+        sht = self._sheet(sheet)
+        self._com(lambda: setattr(sht.range(cell), "value", value))
+
+    def print_card(self, sheet: str, cell: str, calling_name: str, copies: int = 1) -> None:
+        """Calling name in, Excel recalculates the card, the sheet prints with its own page setup
+        on Excel's current printer (no print dialog)."""
+        sht = self._sheet(sheet)
+        self._com(lambda: setattr(sht.range(cell), "value", calling_name))
+        app = self._com(lambda: self.book.app)
+        self._com(app.calculate)
+        self._com(lambda: sht.api.PrintOut(Copies=copies))
+
     def save(self) -> None:
         self._com(self.book.save)
 

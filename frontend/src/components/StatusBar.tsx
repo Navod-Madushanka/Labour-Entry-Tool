@@ -1,7 +1,7 @@
 import type { Status } from "../api";
 
 interface Props {
-  page: "entry" | "codes";
+  page: "entry" | "codes" | "cards";
   status: Status | null;
   user: string;
   historyLoaded: number;
@@ -22,6 +22,9 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
         </a>
         <a href="#codes" className={page === "codes" ? "active" : ""}>
           Codes &amp; registration
+        </a>
+        <a href="#cards" className={page === "cards" ? "active" : ""}>
+          Time cards
         </a>
       </nav>
       {status?.mode === "demo" && (

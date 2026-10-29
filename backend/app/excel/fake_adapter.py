@@ -76,6 +76,7 @@ class FakeWorkbook:
         self.master_grid = grid_from_master(snapshot.master, self.template)
         self.grids = {d.header.sheet: grid_from_day(d, self.template) for d in snapshot.days}
         self.busy_failures = 0  # the next N write_ranges calls raise WorkbookBusyError
+        self.printed: list[tuple[str, str, int]] = []
         self.batches: list[list[RangeWrite]] = []
         self.saves = 0
         self.copies: list[Path] = []
@@ -134,6 +135,20 @@ class FakeWorkbook:
             written = set(self.grids)
         for sheet in written:
             self._recalculate(sheet)
+
+    # --- time cards (practice mode: nothing is printed) ---
+
+    def all_sheet_names(self) -> list[str]:
+        return [self.template.master_sheet, *self.grids]
+
+    def calling_name_cell(self, sheet: str) -> tuple[str | None, CellValue]:
+        return None, None
+
+    def set_cell(self, sheet: str, cell: str, value: CellValue) -> None:
+        pass
+
+    def print_card(self, sheet: str, cell: str, calling_name: str, copies: int = 1) -> None:
+        self.printed.append((sheet, calling_name, copies))
 
     def save(self) -> None:
         self.saves += 1

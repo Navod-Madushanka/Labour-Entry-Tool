@@ -1,5 +1,23 @@
 # Changelog
 
+## Print time cards in one go (29 Oct 2026)
+
+- New **Time cards** tab. Give it a list of workers (`INB-01 to INB-20`, a comma list, "everyone
+  who worked this month" or "everyone in Labour Detail"); it shows the exact cards and flags names
+  it can't find. For each worker it writes the calling name into the time card sheet's Calling
+  Name cell, lets Excel recalculate the card, and prints the sheet through Excel (`PrintOut`) with
+  the print area, page setup and printer set in Excel, without the print dialog.
+- The time card sheets ("Time Card" in the name) and their input cell are found automatically:
+  the cell right of the "Calling Name" label that the card's formulas refer to (E8 on Time Card
+  (Internal)). The cell can be changed on the page.
+- Runs card by card on the Excel thread, with a progress bar ("Printing 5 of 20: INB-05"), 1
+  second between cards for the print queue, 1 to 5 copies each, and "Stop after this card".
+  Afterwards the cell gets its original value back; nothing is saved. Only a time card sheet's
+  single cell can be written this way, never a day sheet or Labour Detail.
+- Practice mode goes through the list without printing.
+- Tests: `backend/tests/test_timecards.py` (cell detection, the job, refusals, stop), an xlwings
+  stand-in test (write, recalculate, print in that order), `frontend/e2e/timecards.cjs`.
+
 ## A look with more colour (29 Oct 2026)
 
 - Site palette: a dark slate top bar with an orange brand mark and orange rule, safety orange for

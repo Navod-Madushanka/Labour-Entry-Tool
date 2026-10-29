@@ -6,6 +6,7 @@ import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
 import { MasterTools } from "./components/MasterTools";
+import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
 import { MedicalDialog } from "./components/MedicalDialog";
 import { DayBuilder } from "./components/DayBuilder";
@@ -49,7 +50,8 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
   const [crewOpen, setCrewOpen] = useState(false);
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
-  const [page, setPage] = useState<"entry" | "codes">(() => (window.location.hash === "#codes" ? "codes" : "entry"));
+  const pageOf = (hash: string) => (hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : "entry");
+  const [page, setPage] = useState<"entry" | "codes" | "cards">(() => pageOf(window.location.hash));
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
   const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
   const [storyOn, setStoryOn] = useState(storyEnabled);
@@ -134,7 +136,7 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
   };
 
   useEffect(() => {
-    const onHash = () => setPage(window.location.hash === "#codes" ? "codes" : "entry");
+    const onHash = () => setPage(pageOf(window.location.hash));
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -364,6 +366,8 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
         )}
         {!master ? (
           <p className="muted">{status && !status.connected ? "Open the workbook in Excel; this page retries every 10 seconds." : "Loading…"}</p>
+        ) : page === "cards" ? (
+          <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (
           <>
             <MasterTools

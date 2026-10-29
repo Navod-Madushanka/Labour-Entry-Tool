@@ -320,6 +320,25 @@ export interface Readiness {
   next_sheet: string | null;
 }
 
+export interface TimeCardSheet {
+  sheet: string;
+  cell: string | null;
+  current: CellValue;
+  practice: boolean;
+}
+
+export interface PrintJob {
+  running: boolean;
+  practice: boolean;
+  sheet: string | null;
+  total: number;
+  done: number;
+  current: string | null;
+  printed: string[];
+  stopped: boolean;
+  error: string | null;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -402,4 +421,9 @@ export const api = {
   setupRegistration: (file: File) => send<SetupState>("/api/setup/registration", file),
   setupReadiness: () => call<Readiness>("GET", "/api/setup/readiness"),
   setupReady: (ready: boolean) => call<SetupState>("POST", "/api/setup/ready", { ready }),
+  timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),
+  printCards: (sheet: string, cell: string, names: string[], copies: number, user: string) =>
+    call<PrintJob>("POST", "/api/timecards/print", { sheet, cell, names, copies, user }),
+  printJob: () => call<PrintJob>("GET", "/api/timecards/job"),
+  stopPrinting: () => call<PrintJob>("POST", "/api/timecards/stop"),
 };
