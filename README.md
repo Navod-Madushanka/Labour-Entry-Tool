@@ -4,7 +4,21 @@ A local web tool that adds search, suggestions and validation to the monthly lab
 and writes entries into the open Excel workbook. The workbook remains the system of record.
 **[PLAN.md](PLAN.md) is the spec. Read it first.** Progress is tracked in [CHANGELOG.md](CHANGELOG.md).
 
-## Start (Windows)
+## Start on a PC without Python (Windows package)
+
+Download **LabourEntryTool-windows.zip**: on GitHub, *Actions* → *Windows package* → the latest
+green run → *Artifacts* (or the *Releases* page once a version is tagged). Unzip the whole folder
+somewhere it can stay and double-click **LabourEntryTool.exe**: Python and every package are
+inside. Windows may say "Windows protected your PC" the first time (the file is not signed):
+*More info* → *Run anyway*. To update, replace the folder with a newer zip; backups, the change
+log and settings live in `Labour Entry Tool` in the user folder, so nothing is lost.
+`packaging/README.txt` (inside the zip as README.txt) says the same for the office.
+
+The package is built by `.github/workflows/windows-package.yml` on every push to main: it runs the
+tests, builds with PyInstaller (`packaging/labour_entry_tool.spec`), checks that the .exe starts,
+answers and can load Excel's COM parts, and zips it. Tag `v1.0.0` (etc.) to publish a release.
+
+## Start (Windows, with Python)
 
 1. Get the code once: `git clone https://github.com/Navod-Madushanka/Labour-Entry-Tool.git`
    (later, `git pull` in that folder gets updates).

@@ -1,5 +1,20 @@
 # Changelog
 
+## Windows package: no Python needed (29 Oct 2026)
+
+Asked for: run the tool on a PC where Python is not installed.
+
+- `LabourEntryTool.exe` in a folder with Python and every package inside (PyInstaller, one
+  folder, about 60 MB unzipped). Double-click starts the tool and opens the browser, like
+  `start.bat`; double-clicked again while it runs, it just opens the browser. An error stays on
+  screen instead of the window vanishing. An optional `config.yaml` goes next to the .exe.
+- Built on GitHub's Windows machines on every push to main
+  (`.github/workflows/windows-package.yml`): tests, build, a self-test of the parts that load
+  late (Excel COM, the Browse dialog, the .xlsb readers), a start-up check against the start
+  page, then `LabourEntryTool-windows.zip` under the run's Artifacts. A `v*` tag also publishes
+  it as a release.
+- `start.bat` (with Python and `git pull`) still works as before.
+
 ## Place names and better activity code suggestions (29 Oct 2026)
 
 Research on the INDIAN October workbook (read only): the activity list is the project's WBS

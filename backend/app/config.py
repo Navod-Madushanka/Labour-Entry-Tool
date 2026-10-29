@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import os
 import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -17,7 +18,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.excel.refs import parse_range
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# The repository, or the folder of LabourEntryTool.exe when run from the Windows package
+# (packaging/): an optional config.yaml is looked for there.
+REPO_ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parents[2]
+)
 ENV_VAR = "LABOUR_TOOL_CONFIG"
 DATA_ENV_VAR = "LABOUR_TOOL_DATA"
 

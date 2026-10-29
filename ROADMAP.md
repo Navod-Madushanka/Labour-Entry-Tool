@@ -32,7 +32,8 @@ update doesn't land in the middle of a month's data entry. It would run `git pul
 
 ## 3. Still open from earlier
 
-- The Windows `.exe` (PLAN.md Phase 5): on hold until the office has checked the software.
+- The Windows `.exe` (PLAN.md Phase 5): built by GitHub Actions since 29 Oct 2026 (README). Still
+  to do: try it on a PC without Python, with Excel; an update check like §2 for the package.
 - Live-Excel smoke test on the office PC: `scripts/excel_smoke.py` on a copy of the workbook.
 - Office questions: 2026 holiday list, overtime on Saturday medical days, the `INC-46 M` line.
 - A list of activity descriptions for the manpower sheet's Description column (the workbook

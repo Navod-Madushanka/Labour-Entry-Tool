@@ -1,0 +1,83 @@
+# The Windows package: LabourEntryTool.exe with Python and every package inside, for PCs without
+# Python. Built on every push to main (download it from the run's "Artifacts"); a tag like v1.2.0
+# also puts the zip on the repository's Releases page.
+name: Windows package
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # only used by the release step, on tags
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the entry UI
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "backend[dev]" "pyinstaller>=6.10,<7"
+
+      - name: Tests
+        working-directory: backend
+        run: python -m pytest -q
+
+      - name: Build LabourEntryTool.exe
+        run: python -m PyInstaller packaging/labour_entry_tool.spec --noconfirm
+
+      - name: Check the package
+        shell: pwsh
+        run: |
+          Copy-Item packaging/README.txt dist/LabourEntryTool/README.txt
+          & dist/LabourEntryTool/LabourEntryTool.exe --selftest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # Start it as a user would and ask the start page for its state.
+          $env:LABOUR_TOOL_DATA = "$env:RUNNER_TEMP\labour-data"
+          $p = Start-Process dist/LabourEntryTool/LabourEntryTool.exe -PassThru -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          $ok = $false
+          foreach ($i in 1..30) {
+            Start-Sleep 1
+            try { $s = Invoke-RestMethod http://127.0.0.1:8000/api/setup; $ok = $true; break } catch {}
+          }
+          Stop-Process $p -Force
+          Get-Content out.txt, err.txt
+          if (-not $ok) { throw "the packaged tool did not answer" }
+          "live Excel available: $($s.live_available), file dialog: $($s.browse_available)"
+          if (-not $s.live_available) { throw "xlwings did not load in the package" }
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/LabourEntryTool -DestinationPath LabourEntryTool-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LabourEntryTool-windows
+          path: LabourEntryTool-windows.zip
+          retention-days: 30
+
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: LabourEntryTool-windows.zip
