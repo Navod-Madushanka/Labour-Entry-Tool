@@ -1,5 +1,16 @@
 # Changelog
 
+## Search inside the suggestions box (29 Oct 2026)
+
+- The blue box under the worker now starts with a search field ("Search for another worker…").
+  While something is typed, the buttons show matching workers from the whole Labour Detail (up
+  to 12; "entered" marks workers who already have the day). With the box empty, the "usually on
+  the same record" suggestions come back. It shows even when there are no suggestions.
+- A click on a result adds it and keeps the results, to click several. Enter adds the top (or
+  highlighted, ←/→) result and clears the box for the next name. A comma list still works; Esc
+  clears the search; Backspace on an empty box removes the last added worker.
+- This replaces the separate "+ add a worker" box in the "Same entry also for" row.
+
 ## Day list scrolls in its own box (29 Oct 2026)
 
 - "Already in Excel for this day" (200+ rows on a full day) now scrolls inside a box of at most

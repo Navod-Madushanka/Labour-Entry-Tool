@@ -635,7 +635,7 @@ function AlsoFor({
   const [editing, setEditing] = useState<string | null>(null); // whose own times are open
   const [hi, setHi] = useState(0);
   const taken = new Set([main.calling_name, ...also.map((w) => w.calling_name)]);
-  const options = q.trim() ? searchWorkers(workers, q, 30).filter((w) => !taken.has(w.calling_name)).slice(0, 8) : [];
+  const options = q.trim() ? searchWorkers(workers, q, 40).filter((w) => !taken.has(w.calling_name)).slice(0, 12) : [];
   const crews = Object.entries(loadCrews()).filter(([, names]) => names.length);
   // Workers who usually share this record: not yet entered or waiting for this day.
   const byName = new Map(workers.map((w) => [w.calling_name, w]));
@@ -645,9 +645,10 @@ function AlsoFor({
     Number(sheet),
     new Set(workers.filter((w) => entered(w.calling_name) || queued.has(w.calling_name)).map((w) => w.calling_name)),
   ).filter((c) => byName.has(c.name));
-  const add = (list: Worker[]) => {
+  // Enter clears the search for the next name; a click keeps the results to click more of them.
+  const add = (list: Worker[], keepSearch = false) => {
     setAlso([...also, ...list.filter((w) => !taken.has(w.calling_name))]);
-    setQ("");
+    if (!keepSearch) setQ("");
     setHi(0);
   };
   return (
@@ -698,20 +699,23 @@ function AlsoFor({
           onClose={() => setEditing(null)}
         />
       )}
-      <span className="also-input">
+      <div className="usual-mates">
         <input
+          className="mate-search"
           aria-label="Add another worker with the same entry"
-          placeholder="+ add a worker"
+          placeholder="Search for another worker…"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
             setHi(0);
           }}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
+            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+              if (!options.length) return;
               e.preventDefault();
               setHi((h) => Math.min(h + 1, options.length - 1));
-            } else if (e.key === "ArrowUp") {
+            } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+              if (!options.length) return;
               e.preventDefault();
               setHi((h) => Math.max(h - 1, 0));
             } else if (e.key === "Enter") {
@@ -719,46 +723,48 @@ function AlsoFor({
               if (/[,;]/.test(q)) add(resolveNames(workers, q).found);
               else if (options.length) add([options[hi] ?? options[0]]);
               else if (!q.trim()) onDone();
+            } else if (e.key === "Escape" && q) {
+              e.stopPropagation();
+              setQ("");
             } else if (e.key === "Backspace" && !q && also.length) {
               setAlso(also.slice(0, -1));
             }
           }}
         />
-        {options.length > 0 && (
-          <ul className="dropdown" role="listbox">
+        {q.trim() ? (
+          <>
+            <span className="also-label">{options.length ? "Found:" : "No other worker matches."}</span>
             {options.map((w, i) => (
-              <li
+              <button
                 key={w.row}
-                role="option"
-                aria-selected={i === hi}
-                className={i === hi ? "active" : ""}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  add([w]);
-                }}
+                className={`mate${i === hi ? " active" : ""}`}
+                title={`${String(w.name ?? "")}${entered(w.calling_name) ? " · already entered for this day" : ""}`}
+                onMouseDown={(e) => e.preventDefault()} // keep typing in the search box
+                onClick={() => add([w], true)}
               >
-                <b>{w.calling_name}</b> <span className="muted">{String(w.name ?? "")}</span>
+                + {w.calling_name} <span className="muted small">{String(w.name ?? "")}</span>
                 {entered(w.calling_name) && <span className="badge small">entered</span>}
-              </li>
+              </button>
             ))}
-          </ul>
+          </>
+        ) : suggested.length > 0 ? (
+          <>
+            <span className="also-label">Usually on the same record (last 10 days):</span>
+            {suggested.map((c) => (
+              <button key={c.name} className="mate" title={`${String(byName.get(c.name)?.name ?? "")} · same entry on ${c.days} of the last 10 days`} onClick={() => add([byName.get(c.name)!])}>
+                + {c.name} <span className="muted small">{c.days}/10</span>
+              </button>
+            ))}
+            {suggested.length > 1 && (
+              <button className="link small" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
+                add all {suggested.length}
+              </button>
+            )}
+          </>
+        ) : (
+          <span className="muted small">Type a calling name or a name to add another worker with the same entry.</span>
         )}
-      </span>
-      {suggested.length > 0 && (
-        <div className="usual-mates">
-          <span className="also-label">Usually on the same record (last 10 days):</span>
-          {suggested.map((c) => (
-            <button key={c.name} className="mate" title={`${String(byName.get(c.name)?.name ?? "")} · same entry on ${c.days} of the last 10 days`} onClick={() => add([byName.get(c.name)!])}>
-              + {c.name} <span className="muted small">{c.days}/10</span>
-            </button>
-          ))}
-          {suggested.length > 1 && (
-            <button className="link small" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
-              add all {suggested.length}
-            </button>
-          )}
-        </div>
-      )}
+      </div>
       {crews.map(([name, names]) => (
         <button key={name} className="small" title={names.join(", ")} onClick={() => add(workers.filter((w) => names.includes(w.calling_name)))}>
           + crew {name} ({names.length})
