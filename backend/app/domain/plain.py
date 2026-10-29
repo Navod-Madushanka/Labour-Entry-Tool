@@ -344,7 +344,7 @@ def _words(issue: Issue) -> tuple[str, str, str]:
             return (
                 "Very long day",
                 f"Worked {g.group(1)} hours ({nice_time(g.group(2))}). That is more than 16 hours.",
-                "Check Time In and Time Out. If they are right, nothing needs to change.",
+                "Nothing to do if the times are right: long shifts are allowed.",
             )
     if rule == "W02":
         if g := m(r"^Out (.+) on day (\d+), in again (.+) on day (\d+): (\S+) h rest"):

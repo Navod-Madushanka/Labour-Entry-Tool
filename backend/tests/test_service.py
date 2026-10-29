@@ -317,3 +317,13 @@ def test_unknown_code_rereads_at_most_every_few_seconds(service, fake, monkeypat
     for _ in range(5):  # a code typed letter by letter
         service.preview([bad])
     assert len(reads) == 2  # the first read, then one re-read
+
+
+def test_very_long_day_is_written_without_confirmation(service, fake):
+    """7:00 to 06:00 next morning happens on site: shown as a note, never holds up the push."""
+    long_day = entry(time_out=30.0, activities=acts(21.0))
+    [plan] = service.preview([long_day])
+    w01 = [i for i in plan.issues if i.rule == "W01"]
+    assert w01 and w01[0].severity == "INFO" and plan.ok
+    res = service.commit([long_day], USER)
+    assert res.status == "written" and res.readback[0].effective == 21.0

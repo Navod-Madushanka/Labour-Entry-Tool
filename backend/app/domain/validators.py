@@ -51,7 +51,7 @@ RULES: dict[str, Rule] = {
         Rule("E07", "BLOCK", "Calling name not found in one block of the sheet"),
         Rule("E08", "BLOCK", "Block already has input (overwrite not confirmed)"),
         Rule("E09", "BLOCK", "Write outside the input cells"),
-        Rule("W01", "WARN", "Effective hours over 16"),
+        Rule("W01", "INFO", "Effective hours over 16 (allowed; shown as a note)"),
         Rule("W02", "WARN", "Less than 8 h rest before the next day's shift"),
         Rule("W03", "WARN", "Same person booked twice with overlapping times"),
         Rule("W04", "WARN", "Additional hours without a remark"),

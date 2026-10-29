@@ -1,5 +1,12 @@
 # Changelog
 
+## Very long days are allowed (29 Oct 2026)
+
+- A day over 16 worked hours (e.g. 07:00 to 06:00 next morning = 21 h) is now a note, not a
+  warning: still shown ("Very long day … Nothing to do if the times are right"), but it no longer
+  needs "It's correct" ticked and never holds up the push. Rule W01 is INFO.
+- "✓ Looks right" also shows when the only messages are notes.
+
 ## Changes made in Excel show up without reloading (29 Oct 2026)
 
 Found in testing: an activity code added to Labour Detail in Excel was rejected as unknown,

@@ -687,7 +687,7 @@ function Preview({ plan, error, onDinner }: { plan: EntryPlan | null; error: str
             <dt>Counts as</dt>
             <dd>{plan?.day_count === 1 ? "1 day" : plan?.day_count === 0.5 ? "half a day" : plan?.day_count === 0 ? "no day" : "—"}</dd>
           </dl>
-          {!plan?.issues.length && <p className="ok-text small">✓ Looks right. Press Enter to add.</p>}
+          {!plan?.issues.some((i) => i.severity !== "INFO") && <p className="ok-text small">✓ Looks right. Press Enter to add.</p>}
         </>
       ) : (
         <p className="muted small">Pick a worker and type Time In and Time Out to see the hours here.</p>
