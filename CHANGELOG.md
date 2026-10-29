@@ -1,5 +1,16 @@
 # Changelog
 
+## Hours follow each worker's own times (29 Oct 2026)
+
+- A worker given their own times in a group gets hours that fit their own day, typed hours
+  included: 7–19 typed as 11 h becomes 13 h for a worker at 7–21, and 11 h for one at 7–19.
+  - One activity: always that worker's own worked hours.
+  - Several activities whose typed hours fill the main worker's day: shared again in the same
+    proportions over the other worker's day, in quarter hours (5.5 + 5.5 at 7–19 → 6.5 + 6.5 at
+    7–21).
+  - Typed hours that don't fill the day stay as typed; blank ones share the rest.
+- `frontend/e2e/own-times.cjs` checks the typed case: 11 typed at 7–19 → 13 written at 7–21.
+
 ## Own times for one worker in a group (29 Oct 2026)
 
 - Right-click a name in "Same entry also for" (or click it) to give that worker their own Time In

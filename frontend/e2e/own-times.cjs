@@ -46,6 +46,28 @@ const out = process.argv[2] || ".";
       .map((v) => `${v.entry.calling_name} ${v.entry.time_in}-${v.entry.time_out} hours ${v.entry.activities.filter((a) => a.code).map((a) => a.hours).join("+")}`),
   );
   console.log(day.join("\n"));
+
+  // Typed hours follow the own times too: 7-19 with 11 typed, INB-03 at 7-21 gets 13.
+  await p.getByRole("tab", { name: "29", exact: true }).click();
+  await p.locator("#worker").fill("INB-01, INB-03");
+  await p.locator("#worker").press("Enter");
+  await p.locator("#in").fill("7");
+  await p.locator("#out").fill("19");
+  await p.locator('[aria-label="Activity 1"]').fill(code);
+  await p.locator('[aria-label="Hours 1"]').fill("11");
+  await p.locator(".also .chip", { hasText: "INB-03" }).click({ button: "right" });
+  await p.getByLabel("Time Out for INB-03").fill("21");
+  await p.getByLabel("Time Out for INB-03").press("Enter");
+  await p.locator(".entry .actions button.primary").click();
+  await p.waitForFunction(() => document.querySelectorAll(".queue .pill.ok").length === 2, null, { timeout: 10000 });
+  await p.getByRole("button", { name: /Push 2 entries/ }).click();
+  await p.waitForSelector(".result.ok");
+  const day29 = await p.evaluate(async () =>
+    (await (await fetch("/api/days/29")).json()).entries
+      .filter((v) => ["INB-01", "INB-03"].includes(v.entry.calling_name))
+      .map((v) => `${v.entry.calling_name} ${v.entry.time_in}-${v.entry.time_out} hours ${v.entry.activities.filter((a) => a.code).map((a) => a.hours).join("+")}`),
+  );
+  console.log(day29.join("\n"));
   console.log("errors:", errs);
   await b.close();
 })().catch((e) => {

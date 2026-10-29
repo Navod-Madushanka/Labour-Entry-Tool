@@ -115,14 +115,20 @@ export function toInput(f: FormState, sheet: string, extraAcks: string[] = []): 
  * less 1 h lunch when Out is after 12:00 or 2 h lunch and dinner after 22:00, plus additional
  * hours) minus any hours typed on other lines are shared equally between the blank lines, in
  * quarter hours (11 h over 3 lines: 3.75, 3.75, 3.5). Null for lines that get nothing. */
+/** Worked hours from the form's times (lunch and dinner taken off, additional hours added). */
+export function workedHours(f: FormState): number | null {
+  const tin = parseClock(f.timeIn);
+  const tout = parseClock(f.timeOut);
+  if (tin === null || tout === null) return null;
+  const add = toNumber(f.additional);
+  return effectiveHours(tin, tout + (isOvernight(f) ? 24 : 0), add === null || Number.isNaN(add) ? 0 : add);
+}
+
 export function autoHours(f: FormState): (number | null)[] {
   const none = f.lines.map(() => null);
   const blank = f.lines.map((l, i) => (l.code.trim() && !l.hours.trim() ? i : -1)).filter((i) => i >= 0);
-  const tin = parseClock(f.timeIn);
-  const tout = parseClock(f.timeOut);
-  if (!blank.length || tin === null || tout === null) return none;
-  const add = toNumber(f.additional);
-  const worked = effectiveHours(tin, tout + (isOvernight(f) ? 24 : 0), add === null || Number.isNaN(add) ? 0 : add);
+  const worked = workedHours(f);
+  if (!blank.length || worked === null) return none;
   const typed = f.lines.reduce((sum, l) => sum + (l.hours.trim() ? Number(toNumber(l.hours)) || 0 : 0), 0);
   const quarters = Math.round((worked - typed) * 4);
   if (quarters < blank.length) return none; // not even a quarter hour each
@@ -220,10 +226,33 @@ export function inputsFor(f: FormState, input: EntryInput, sheet: string, extraA
     input,
     ...f.also.map((w) => {
       const own = f.alsoTimes[w.calling_name];
-      // Own times: the entry is built again from them, so hours left to fill themselves follow
-      // this worker's own times; typed hours and the activities stay the same.
-      const base = own ? toInput({ ...f, timeIn: own.timeIn, timeOut: own.timeOut, overnight: null }, sheet, extraAcks) ?? input : input;
+      // Own times: the entry is built again from them, with the hours following this worker's
+      // own day (ownTimesForm).
+      const base = own ? toInput(ownTimesForm(f, own), sheet, extraAcks) ?? input : input;
       return { ...base, calling_name: w.calling_name, overwrite: false };
     }),
   ];
+}
+
+/** The form for an "also for" worker with own times: same activities, hours fitted to their day.
+ * Blank hours already follow the times. Typed hours that fill the main worker's whole day are
+ * shared out again in the same proportions over the other worker's day, in quarter hours (one
+ * activity: 7-19 = 11 h becomes 7-21 = 13 h). Typed hours that don't fill the day stay as typed. */
+export function ownTimesForm(f: FormState, own: OwnTimes): FormState {
+  const g: FormState = { ...f, timeIn: own.timeIn, timeOut: own.timeOut, overnight: null };
+  const mainDay = workedHours(f);
+  const ownDay = workedHours(g);
+  const coded = f.lines.map((l, i) => (l.code.trim() ? i : -1)).filter((i) => i >= 0);
+  const typed = coded.map((i) => toNumber(f.lines[i].hours));
+  if (mainDay === null || ownDay === null || ownDay <= 0 || !coded.length) return g;
+  if (typed.some((h) => h === null || Number.isNaN(h))) return g; // some blank: they follow the times
+  const sum = (typed as number[]).reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - mainDay) > 1e-6) return g; // not the whole day: keep as typed
+  const quarters = Math.round(ownDay * 4);
+  const share = (typed as number[]).map((h) => Math.round(((h / sum) * quarters)));
+  share[share.length - 1] += quarters - share.reduce((a, b) => a + b, 0); // rounding to the last line
+  if (share.some((q) => q <= 0)) return g;
+  const lines = f.lines.map((l) => ({ ...l }));
+  coded.forEach((i, n) => (lines[i].hours = String(share[n] / 4)));
+  return { ...g, lines };
 }
