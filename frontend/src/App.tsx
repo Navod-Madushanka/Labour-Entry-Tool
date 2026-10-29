@@ -382,6 +382,7 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
               sheets={master.sheets}
               sheet={sheet}
               counts={Object.fromEntries(master.sheets.map((s) => [s, month[s]?.entries.length]))}
+              types={Object.fromEntries(master.sheets.map((s) => [s, month[s]?.header.day_type]))}
               day={day}
               acknowledged={Boolean(headerAck[sheet])}
               onPick={setSheet}

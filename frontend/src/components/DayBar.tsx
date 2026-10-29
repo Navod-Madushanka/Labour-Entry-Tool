@@ -4,6 +4,7 @@ interface Props {
   sheets: string[];
   sheet: string;
   counts: Record<string, number | undefined>;
+  types: Record<string, unknown>; // day type (H3) per sheet, for the weekend colours
   day: DayView | undefined;
   acknowledged: boolean;
   onPick: (sheet: string) => void;
@@ -17,9 +18,14 @@ const longDate = (iso: string | null | undefined) =>
     ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : "";
 
+const kind = (type: unknown) => {
+  const t = String(type ?? "").toLowerCase();
+  return t.startsWith("sat") ? " sat" : t.startsWith("sun") || t.startsWith("holi") ? " sun" : "";
+};
+
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
-export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAcknowledge, onFix, onReload }: Props) {
+export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick, onAcknowledge, onFix, onReload }: Props) {
   const h = day?.header;
   const issues = day?.header_issues ?? [];
   const blocking = issues.some((i) => i.severity === "BLOCK");
@@ -31,13 +37,18 @@ export function DayBar({ sheets, sheet, counts, day, acknowledged, onPick, onAck
             key={s}
             role="tab"
             aria-selected={s === sheet}
-            className={`day${s === sheet ? " active" : ""}${counts[s] ? " has" : ""}`}
+            className={`day${s === sheet ? " active" : ""}${counts[s] ? " has" : ""}${kind(types[s])}`}
             onClick={() => onPick(s)}
             title={counts[s] !== undefined ? `${counts[s]} entries` : "not loaded yet"}
           >
             {s}
           </button>
         ))}
+      </div>
+      <div className="day-legend" aria-hidden>
+        <span><i style={{ background: "var(--sat-bg)", border: "1px solid var(--sat)" }} />Saturday</span>
+        <span><i style={{ background: "var(--sun-bg)", border: "1px solid var(--sun)" }} />Sunday / holiday</span>
+        <span><i style={{ background: "var(--ok)", borderRadius: "50%", width: 6, height: 6 }} />has entries</span>
       </div>
       <div className="dayinfo">
         {h ? (

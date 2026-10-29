@@ -1,42 +1,63 @@
+/* Site palette: slate top bar, safety orange for actions, warm paper background. */
 :root {
-  --bg: #f4f5f7;
+  --bg: #f2efe9;
   --panel: #ffffff;
-  --text: #1c2230;
-  --muted: #5e6778;
-  --line: #d9dde4;
-  --accent: #1f5fbf;
+  --text: #1d2330;
+  --muted: #636a77;
+  --line: #e3ded4;
+  --accent: #e8590c;
+  --accent-hover: #c94c08;
   --accent-text: #ffffff;
-  --block: #b42318;
-  --block-bg: #fdecea;
-  --warn: #8a5a00;
-  --warn-bg: #fff4d6;
-  --info: #1f5fbf;
-  --info-bg: #e8f0fd;
-  --ok: #1a7f37;
-  --ok-bg: #e6f4ea;
-  --row: #fafbfc;
-  --focus: #1f5fbf55;
+  --brand: #1f2937;
+  --brand-2: #2b3747;
+  --brand-text: #f5f7fa;
+  --brand-accent: #fb923c;
+  --block: #b91c1c;
+  --block-bg: #fde8e8;
+  --warn: #92400e;
+  --warn-bg: #fef3c7;
+  --info: #1d4ed8;
+  --info-bg: #e7eefc;
+  --ok: #15803d;
+  --ok-bg: #e2f4e7;
+  --sat: #b45309;
+  --sat-bg: #fdf0dc;
+  --sun: #b91c1c;
+  --sun-bg: #fde4e4;
+  --row: #faf8f4;
+  --shadow: 0 1px 2px #1d233014, 0 2px 8px #1d23300d;
+  --focus: #e8590c40;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #12151b;
-    --panel: #1b2029;
-    --text: #e6e9ef;
-    --muted: #9aa3b2;
-    --line: #2f3643;
-    --accent: #7fb0ff;
-    --accent-text: #0d1320;
+    --bg: #13161b;
+    --panel: #1b2028;
+    --text: #e8eaee;
+    --muted: #9aa1ad;
+    --line: #2e3440;
+    --accent: #fb8c3c;
+    --accent-hover: #fda466;
+    --accent-text: #1a1206;
+    --brand: #0c1016;
+    --brand-2: #1a222d;
+    --brand-text: #eef1f5;
+    --brand-accent: #fb923c;
     --block: #ff8a80;
     --block-bg: #3a1d1d;
     --warn: #f2c14e;
     --warn-bg: #3a3017;
-    --info: #8ab4ff;
+    --info: #93b4ff;
     --info-bg: #1b2a44;
     --ok: #6fd08c;
     --ok-bg: #173323;
-    --row: #1f2530;
-    --focus: #7fb0ff55;
+    --sat: #f5b65c;
+    --sat-bg: #3a2c16;
+    --sun: #ff9a8f;
+    --sun-bg: #3d1f1f;
+    --row: #1f252e;
+    --shadow: 0 1px 2px #0006;
+    --focus: #fb8c3c55;
     color-scheme: dark;
   }
 }
@@ -382,3 +403,65 @@ table.lines td:last-child input { width: 13ch; }
 .daylist-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
 .usual-mates .mate-search { flex: 0 1 260px; font-size: 14px; padding: 6px 10px; border-radius: 999px; }
 .usual-mates .mate.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus); }
+
+/* --- Colour and character pass ------------------------------------------------------------- */
+h2 { font-weight: 700; letter-spacing: -0.01em; }
+button { transition: background-color 0.12s, border-color 0.12s, color 0.12s; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+button.link:hover:not(:disabled) { text-decoration: underline; }
+
+/* Top bar: dark slate, orange brand mark. */
+.statusbar { background: var(--brand); color: var(--brand-text); border-bottom: 3px solid var(--accent); }
+.statusbar .brand { color: var(--brand-text); font-weight: 800; letter-spacing: 0.01em; }
+.statusbar .brand::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 2px; background: var(--brand-accent); box-shadow: 4px 4px 0 var(--accent); vertical-align: 1px; }
+.statusbar .muted, .statusbar .workbook { color: #c5ccd6; }
+.statusbar button.link, .statusbar a { color: var(--brand-accent); }
+.statusbar button:not(.link) { background: var(--brand-2); border-color: #3c4a5c; color: var(--brand-text); }
+.statusbar button:not(.link):disabled { opacity: 0.45; }
+nav.tabs a { color: #c5ccd6; }
+nav.tabs a.active { background: var(--brand-2); color: var(--brand-text); box-shadow: inset 0 -2px 0 var(--brand-accent); }
+.statusbar .badge.warn { background: #f59e0b; color: #1f1300; }
+.statusbar .badge.demo { background: #3b82f6; color: #fff; }
+
+/* Sections: white cards with a coloured top edge per part of the screen. */
+section { border: 1px solid var(--line); border-top: 4px solid var(--line); box-shadow: var(--shadow); }
+section.daybar { border-top-color: var(--brand); }
+section.entry { border-top-color: var(--accent); }
+section.manpower-live { border-top-color: var(--info); }
+section.queue { border-top-color: var(--ok); }
+section.daylist { border-top-color: #8b8577; }
+section.batches { border-top-color: #8b8577; }
+.manpower { border-top-width: 1.5px; box-shadow: none; }
+
+/* Day row: weekends and holidays coloured, a dot under days that have entries. */
+.day { position: relative; font-weight: 600; }
+.day.sat { background: var(--sat-bg); color: var(--sat); border-color: transparent; }
+.day.sun { background: var(--sun-bg); color: var(--sun); border-color: transparent; }
+.day.has::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--ok); }
+.day.has { border-color: var(--line); }
+.day.active, .day.active.sat, .day.active.sun { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.day.active::after { background: var(--accent-text); }
+.day-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.day-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+
+/* Entry form accents. */
+.entry-head h2 { display: flex; align-items: center; gap: 8px; }
+.entry-head h2::before { content: ""; width: 4px; height: 18px; border-radius: 2px; background: var(--accent); }
+.tools button { background: var(--brand); color: var(--brand-text); border-color: var(--brand); }
+.tools button:hover:not(:disabled) { background: var(--brand-2); border-color: var(--accent); }
+.worker-card { background: var(--row); border-left: 4px solid var(--accent); }
+.big-number { color: var(--accent); }
+.preview.good .big-number { color: var(--ok); }
+.preview h3, .suggestions h3 { color: var(--text); }
+.usual-mates { background: var(--info-bg); border: 1px solid #c9d8f7; }
+@media (prefers-color-scheme: dark) { .usual-mates { border-color: #2a3c5e; } }
+.usual-mates .mate { background: var(--panel); border-color: #c9d8f7; }
+.usual-mates .mate:hover { border-color: var(--info); color: var(--info); }
+.push-bar button.primary.big { box-shadow: 0 2px 0 var(--accent-hover); }
+.card { border-top: 4px solid var(--accent); box-shadow: var(--shadow); }
+.start-head h1 { color: var(--text); }
+.start-head h1::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 10px; border-radius: 3px; background: var(--brand-accent); box-shadow: 5px 5px 0 var(--accent); vertical-align: 1px; }
+.drop { border-color: #d6cfc2; background: var(--row); }
+.drop.over { border-color: var(--accent); background: #fff1e8; }
+@media (prefers-color-scheme: dark) { .drop { border-color: var(--line); } .drop.over { background: #2c2017; } }

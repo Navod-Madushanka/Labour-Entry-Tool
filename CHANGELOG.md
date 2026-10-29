@@ -1,5 +1,18 @@
 # Changelog
 
+## A look with more colour (29 Oct 2026)
+
+- Site palette: a dark slate top bar with an orange brand mark and orange rule, safety orange for
+  the main actions and step numbers, a warm paper background and white cards with a soft shadow.
+  Dark mode follows the same scheme.
+- Each part of the screen has its own coloured top edge: day row (slate), entry form (orange),
+  manpower sheet (blue), waiting list (green), day list and batches (grey). The start page cards
+  use orange.
+- Day row: Saturdays amber, Sundays and holidays red (from each sheet's day type), a green dot
+  under days that have entries, the open day solid orange, and a small legend.
+- The quick-fill tools are dark slate buttons, apart from the orange main flow; worked hours in
+  large orange type (green when all is well).
+
 ## Search inside the suggestions box (29 Oct 2026)
 
 - The blue box under the worker now starts with a search field ("Search for another worker…").
