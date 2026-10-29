@@ -78,8 +78,9 @@ def test_upload_rejects_other_files(app):
         assert c.get("/api/setup").json()["workbook"] is None  # nothing chosen
 
 
-def test_live_only_routes_off_this_platform(app, monkeypatch):
-    monkeypatch.setattr(setup_api.sys, "platform", "linux")
+def test_live_only_routes_off_this_platform(monkeypatch, tmp_path):
+    monkeypatch.setattr(setup_api.sys, "platform", "linux")  # before the app looks for Excel
+    app = create_app(Config(month="2000-01", backups={"dir": tmp_path / "b"}))
     with TestClient(app) as c:
         assert c.post("/api/setup/open", json={"name": "a.xlsb"}).status_code == 501
         assert c.post("/api/setup/browse", json={}).status_code == 501
