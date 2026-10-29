@@ -1,5 +1,5 @@
-Labour Entry Tool - Windows package
-===================================
+Pattern-Based Labour Entry Assistant - Windows package
+======================================================
 
 No Python needed: everything the tool uses is in this folder.
 

@@ -1,5 +1,5 @@
 @echo off
-rem Labour Entry Tool: double-click to start. The first run sets everything up (a few minutes).
+rem Pattern-Based Labour Entry Assistant: double-click to start. The first run sets everything up (a few minutes).
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
   echo First run: setting up the tool. This needs the internet once...
@@ -31,6 +31,6 @@ if errorlevel 1 (
   )
   copy /y "backend\pyproject.toml" ".venv\installed-pyproject.toml" >nul
 )
-echo Starting the Labour Entry Tool. Keep this window open while you work; close it to stop.
+echo Starting the Pattern-Based Labour Entry Assistant. Keep this window open while you work; close it to stop.
 ".venv\Scripts\python.exe" -m app.main --open
 pause

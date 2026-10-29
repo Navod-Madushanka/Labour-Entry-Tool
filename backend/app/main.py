@@ -60,7 +60,7 @@ def create_app(
         if app.state.worker is not None:
             app.state.worker.stop()
 
-    app = FastAPI(title="Labour Entry Tool", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="Pattern-Based Labour Entry Assistant", version=__version__, lifespan=lifespan)
     app.state.config = config
     app.state.snapshots = health.SnapshotCache()
     app.state.excel_disabled = (
@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> None:
 
     import uvicorn
 
-    parser = argparse.ArgumentParser(prog="python -m app.main", description="Labour Entry Tool")
+    parser = argparse.ArgumentParser(prog="python -m app.main", description="Pattern-Based Labour Entry Assistant")
     parser.add_argument("--config", type=Path, help="config.yaml to use (optional)")
     parser.add_argument("--demo", type=Path, metavar="FILE",
                         help="practice on a copy of FILE (.xlsb or snapshot .json) in memory; "
@@ -151,7 +151,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"PRACTICE MODE on {args.demo.name}: changes stay in memory, Excel is not touched.")
     host = bind_host(config)
     url = f"http://{'localhost' if host == LOCALHOST else host}:{config.server.port}/"
-    print(f"Labour Entry Tool: {url}  (close this window to stop it)")
+    print(f"Pattern-Based Labour Entry Assistant: {url}  (close this window to stop it)")
     if args.open:
         threading.Timer(1.5, webbrowser.open, (url,)).start()
     uvicorn.run(app, host=host, port=config.server.port)

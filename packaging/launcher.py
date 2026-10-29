@@ -1,4 +1,4 @@
-"""LabourEntryTool.exe: start the tool and open it in the browser (the Windows package).
+"""LabourEntryTool.exe (Pattern-Based Labour Entry Assistant): start the tool and open it in the browser (the Windows package).
 
 Double-clicked a second time while it runs, it only opens the browser. Any error stays on screen
 until Enter is pressed, so the window does not just vanish.
@@ -41,10 +41,10 @@ def run() -> None:
 
     port = load_config().server.port
     if already_running(port):
-        print("The Labour Entry Tool is already running: opening it in the browser.")
+        print("The Pattern-Based Labour Entry Assistant is already running: opening it in the browser.")
         webbrowser.open(f"http://localhost:{port}/")
         return
-    print("Starting the Labour Entry Tool. Keep this window open while you work; close it to stop.")
+    print("Starting the Pattern-Based Labour Entry Assistant. Keep this window open while you work; close it to stop.")
     main(["--open", *sys.argv[1:]])
 
 

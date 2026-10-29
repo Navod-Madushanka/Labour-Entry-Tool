@@ -21,7 +21,7 @@ export function StatusBar(props: Props) {
   const active = books.find((b) => b.active)?.name ?? status?.workbook ?? "";
   return (
     <header className="statusbar">
-      <strong className="brand">Labour Entry</strong>
+      <strong className="brand" title="Pattern-Based Labour Entry Assistant">Labour Entry Assistant</strong>
       <nav className="tabs">
         <a href="#" className={page === "entry" ? "active" : ""}>
           Entry

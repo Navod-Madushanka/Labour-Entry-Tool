@@ -1,7 +1,10 @@
-# Labour Entry Tool
+# Pattern-Based Labour Entry Assistant
 
-A local web tool that adds search, suggestions and validation to the monthly labour entry workbook
-and writes entries into the open Excel workbook. The workbook remains the system of record.
+Checked labour entry for the monthly workbook, with suggestions from the month's own patterns. No
+AI, no internet: it recognises the patterns in the workbook's entries (who works together, each
+worker's usual times, which activity codes a trade and its crews use) by counting them, in
+milliseconds, checks every entry against the workbook's rules, and writes into the open Excel
+workbook with a backup and undo. The workbook remains the system of record.
 **[PLAN.md](PLAN.md) is the spec. Read it first.** Progress is tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ## Start on a PC without Python (Windows package)

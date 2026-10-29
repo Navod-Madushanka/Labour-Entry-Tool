@@ -1,5 +1,12 @@
 # Changelog
 
+## Name: Pattern-Based Labour Entry Assistant (29 Oct 2026)
+
+The tool is now called the **Pattern-Based Labour Entry Assistant** ("Labour Entry Assistant" in
+the top bar and the browser tab): pattern recognition on the workbook's own entries, by counting,
+with no AI and no internet. The data folder (`Labour Entry Tool`), `LabourEntryTool.exe` and the
+repository keep their names, so nothing moves.
+
 ## v1.0.0 (29 Oct 2026)
 
 First release: the Windows package (`LabourEntryTool-windows.zip` on the Releases page) and

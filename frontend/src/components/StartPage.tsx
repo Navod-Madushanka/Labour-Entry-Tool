@@ -173,7 +173,7 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
   return (
     <main className="start">
       <header className="start-head">
-        <h1>Labour Entry</h1>
+        <h1>Pattern-Based Labour Entry Assistant</h1>
         <ol className="steps">
           {(["choose", "check", "ready"] as Step[]).map((s, n) => (
             <li key={s} className={s === step ? "active" : ""}>
