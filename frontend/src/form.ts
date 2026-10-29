@@ -10,9 +10,16 @@ export interface Line {
   hours: string;
 }
 
+/** Time In / Time Out of one "also for" worker whose times differ from the others. */
+export interface OwnTimes {
+  timeIn: string;
+  timeOut: string;
+}
+
 export interface FormState {
   worker: Worker | null;
-  also: Worker[]; // more workers who get exactly the same entry
+  also: Worker[]; // more workers who get the same entry
+  alsoTimes: Record<string, OwnTimes>; // calling name -> own In/Out for one of `also`
   query: string;
   timeIn: string;
   timeOut: string;
@@ -29,6 +36,7 @@ export const emptyLines = (): Line[] => Array.from({ length: LINES }, () => ({ c
 export const emptyForm = (): FormState => ({
   worker: null,
   also: [],
+  alsoTimes: {},
   query: "",
   timeIn: "",
   timeOut: "",
@@ -151,7 +159,7 @@ export function fromEntry(e: Entry, worker: Worker, overwrite: boolean): FormSta
 
 /** Same times and activities for another worker (crew entry, "keep" after queueing). */
 export function forWorker(f: FormState, worker: Worker | null): FormState {
-  return { ...f, worker, also: [], query: worker?.calling_name ?? "", overwrite: false, acknowledged: [] };
+  return { ...f, worker, also: [], alsoTimes: {}, query: worker?.calling_name ?? "", overwrite: false, acknowledged: [] };
 }
 
 /** Back from a queued EntryInput to the form (Edit in the queue). */
@@ -172,6 +180,7 @@ export function fromInput(i: EntryInput, worker: Worker): FormState {
     remark: i.remark ?? "",
     overwrite: i.overwrite,
     also: [],
+    alsoTimes: {},
     acknowledged: i.acknowledged.filter((r) => r !== "H01" && r !== "H02"),
   };
 }
@@ -206,6 +215,15 @@ export function resolveNames(workers: Worker[], text: string): { found: Worker[]
 }
 
 /** The entry for the main worker plus the same entry for each extra worker. */
-export function inputsFor(f: FormState, input: EntryInput): EntryInput[] {
-  return [input, ...f.also.map((w) => ({ ...input, calling_name: w.calling_name, overwrite: false }))];
+export function inputsFor(f: FormState, input: EntryInput, sheet: string, extraAcks: string[] = []): EntryInput[] {
+  return [
+    input,
+    ...f.also.map((w) => {
+      const own = f.alsoTimes[w.calling_name];
+      // Own times: the entry is built again from them, so hours left to fill themselves follow
+      // this worker's own times; typed hours and the activities stay the same.
+      const base = own ? toInput({ ...f, timeIn: own.timeIn, timeOut: own.timeOut, overnight: null }, sheet, extraAcks) ?? input : input;
+      return { ...base, calling_name: w.calling_name, overwrite: false };
+    }),
+  ];
 }

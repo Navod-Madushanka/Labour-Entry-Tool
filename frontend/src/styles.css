@@ -373,3 +373,7 @@ table.lines td:last-child input { width: 13ch; }
 .usual-mates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; background: var(--info-bg); }
 .usual-mates .mate { padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
 .usual-mates .mate .small { font-weight: 400; }
+.chip .chip-name { padding: 0; color: inherit; font: inherit; }
+.chip.own-times { background: var(--info-bg); color: var(--info); font-weight: 600; }
+.own-times-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 2px solid var(--accent); border-radius: 8px; background: var(--panel); }
+.own-times-editor input { width: 90px; font-size: 15px; padding: 6px 8px; }

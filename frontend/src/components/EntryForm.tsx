@@ -12,6 +12,7 @@ import {
   LINES,
   toInput,
   type FormState,
+  type OwnTimes,
 } from "../form";
 import { companions, crewToday, entriesOf, recentActivities, usualTimes, workerStats, type Month } from "../history";
 import { searchWorkers } from "../search";
@@ -112,7 +113,7 @@ export function EntryForm(props: Props) {
   // Queue what the form holds now (not the last preview, which may predate the last keystroke);
   // the queue re-checks it on the server.
   const queue = () => {
-    if (input && !hasProblems(problems)) onQueue(inputsFor(form, input));
+    if (input && !hasProblems(problems)) onQueue(inputsFor(form, input, sheet, headerAcks));
   };
 
   /** "INB-01, INB-02, INC-05": the first becomes the worker, the rest get the same entry. */
@@ -281,6 +282,9 @@ export function EntryForm(props: Props) {
             also={form.also}
             entered={(name) => Boolean(day?.entries.some((v) => v.entry.calling_name === name))}
             setAlso={(also) => setForm((f) => ({ ...f, also }))}
+            times={form.alsoTimes}
+            sharedTimes={{ timeIn: form.timeIn, timeOut: form.timeOut }}
+            setTimes={(alsoTimes) => setForm((f) => ({ ...f, alsoTimes }))}
             onDone={() => focus("in")}
           />
         )}
@@ -542,6 +546,63 @@ export function EntryForm(props: Props) {
   );
 }
 
+const clockText = (text: string) => {
+  const v = parseClock(text);
+  return v === null ? text : `${formatClock(v)}`;
+};
+
+/** Own Time In / Time Out for one "also for" worker (opened by right-click or click on the chip). */
+function OwnTimesEditor({
+  name,
+  start,
+  hasOwn,
+  onSave,
+  onClear,
+  onClose,
+}: {
+  name: string;
+  start: OwnTimes;
+  hasOwn: boolean;
+  onSave: (t: OwnTimes) => void;
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const [t, setT] = useState(start);
+  const bad = parseClock(t.timeIn) === null || parseClock(t.timeOut) === null;
+  const key = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") onClose();
+    else if (e.key === "Enter" && !bad) {
+      e.preventDefault();
+      onSave({ timeIn: clockText(t.timeIn), timeOut: clockText(t.timeOut) });
+    }
+  };
+  return (
+    <div className="own-times-editor" role="dialog" aria-label={`Own times for ${name}`} onKeyDown={key}>
+      <b>Own times for {name}</b>
+      <label>
+        In{" "}
+        <input autoFocus value={t.timeIn} onFocus={(e) => e.target.select()} onChange={(e) => setT({ ...t, timeIn: e.target.value })} aria-label={`Time In for ${name}`} />
+      </label>
+      <label>
+        Out{" "}
+        <input value={t.timeOut} onFocus={(e) => e.target.select()} onChange={(e) => setT({ ...t, timeOut: e.target.value })} aria-label={`Time Out for ${name}`} />
+      </label>
+      <button className="primary small" disabled={bad} onClick={() => onSave({ timeIn: clockText(t.timeIn), timeOut: clockText(t.timeOut) })}>
+        Save <kbd>Enter</kbd>
+      </button>
+      {hasOwn && (
+        <button className="small" onClick={onClear}>
+          Same as the others
+        </button>
+      )}
+      <button className="link small" onClick={onClose}>
+        Cancel
+      </button>
+      {bad && <small className="warn-text">Type a time like 8, 8.30 or 17:00</small>}
+    </div>
+  );
+}
+
 /** "Also for": more workers who get exactly the same entry (same times, same activities). */
 function AlsoFor({
   month,
@@ -552,6 +613,9 @@ function AlsoFor({
   also,
   entered,
   setAlso,
+  times,
+  sharedTimes,
+  setTimes,
   onDone,
 }: {
   month: Month;
@@ -562,9 +626,13 @@ function AlsoFor({
   also: Worker[];
   entered: (name: string) => boolean;
   setAlso: (also: Worker[]) => void;
+  times: Record<string, OwnTimes>;
+  sharedTimes: OwnTimes;
+  setTimes: (times: Record<string, OwnTimes>) => void;
   onDone: () => void;
 }) {
   const [q, setQ] = useState("");
+  const [editing, setEditing] = useState<string | null>(null); // whose own times are open
   const [hi, setHi] = useState(0);
   const taken = new Set([main.calling_name, ...also.map((w) => w.calling_name)]);
   const options = q.trim() ? searchWorkers(workers, q, 30).filter((w) => !taken.has(w.calling_name)).slice(0, 8) : [];
@@ -585,15 +653,51 @@ function AlsoFor({
   return (
     <div className="also">
       <span className="also-label">Same entry also for:</span>
-      {also.map((w) => (
-        <span key={w.calling_name} className={`chip static${entered(w.calling_name) ? " warn" : ""}`} title={entered(w.calling_name) ? "Already entered for this day" : String(w.name ?? "")}>
-          {w.calling_name}
-          {entered(w.calling_name) && " (entered)"}{" "}
-          <button className="link" aria-label={`Remove ${w.calling_name}`} onClick={() => setAlso(also.filter((x) => x !== w))}>
-            ×
-          </button>
-        </span>
-      ))}
+      {also.map((w) => {
+        const own = times[w.calling_name];
+        const remove = () => {
+          setAlso(also.filter((x) => x !== w));
+          const { [w.calling_name]: _gone, ...rest } = times;
+          setTimes(rest);
+        };
+        return (
+          <span
+            key={w.calling_name}
+            className={`chip static${entered(w.calling_name) ? " warn" : ""}${own ? " own-times" : ""}`}
+            title={`${String(w.name ?? "")}${entered(w.calling_name) ? " · already entered for this day" : ""} · right-click or click for own times`}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setEditing(w.calling_name);
+            }}
+          >
+            <button className="link chip-name" onClick={() => setEditing(w.calling_name)}>
+              {w.calling_name}
+              {own && ` · ${clockText(own.timeIn)}–${clockText(own.timeOut)}`}
+            </button>
+            {entered(w.calling_name) && " (entered)"}{" "}
+            <button className="link" aria-label={`Remove ${w.calling_name}`} onClick={remove}>
+              ×
+            </button>
+          </span>
+        );
+      })}
+      {editing && also.some((w) => w.calling_name === editing) && (
+        <OwnTimesEditor
+          name={editing}
+          start={times[editing] ?? sharedTimes}
+          hasOwn={Boolean(times[editing])}
+          onSave={(t) => {
+            setTimes({ ...times, [editing]: t });
+            setEditing(null);
+          }}
+          onClear={() => {
+            const { [editing]: _gone, ...rest } = times;
+            setTimes(rest);
+            setEditing(null);
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
       <span className="also-input">
         <input
           aria-label="Add another worker with the same entry"

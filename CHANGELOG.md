@@ -1,5 +1,15 @@
 # Changelog
 
+## Own times for one worker in a group (29 Oct 2026)
+
+- Right-click a name in "Same entry also for" (or click it) to give that worker their own Time In
+  and Time Out (Enter saves, Esc cancels). The chip then shows them, e.g. "INB-05 · 08:00–17:00".
+  Activities stay shared. Hours left blank are worked out from that worker's own times; typed
+  hours stay as typed. "Same as the others" removes the own times, and removing the chip removes
+  them too.
+- New browser test `frontend/e2e/own-times.cjs`: three workers, one with 08:00–17:00, are written
+  as 7–19 (11 h), 7–19 (11 h) and 8–17 (8 h).
+
 ## Excel-style sums in the number boxes (29 Oct 2026)
 
 - Hours, Additional hours, Time In and Time Out accept a sum starting with "=", as in an Excel
