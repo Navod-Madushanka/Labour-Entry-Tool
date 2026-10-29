@@ -139,7 +139,7 @@ export function TimeCards({ master, month, user }: Props) {
             <label htmlFor="tc-cell">Calling name cell</label>
             <input id="tc-cell" value={cell} disabled={running} onChange={(e) => setCell(e.target.value.toUpperCase().trim())} placeholder="e.g. E8" />
             <small className="hint">
-              {chosen?.cell ? `Found next to "Calling Name"${chosen.current ? ` (now ${String(chosen.current)})` : ""}` : "Type the cell where the calling name goes"}
+              {chosen?.note ?? (chosen?.cell ? `Found next to "Calling Name"${chosen.current ? ` (now ${String(chosen.current)})` : ""}` : "Type the cell where the calling name goes")}
             </small>
           </div>
           <div className="field">

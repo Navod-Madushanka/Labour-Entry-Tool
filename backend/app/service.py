@@ -168,6 +168,7 @@ class TimeCardSheet(BaseModel):
     cell: str | None  # where the calling name is typed (found next to the "Calling Name" label)
     current: CellValue = None
     practice: bool = False
+    note: str | None = None  # why the cell could not be found, for the page
 
 
 class Status(BaseModel):
@@ -929,8 +930,19 @@ class EntryService:
         wb = self.workbook
         out = []
         for name in time_card_sheets(wb.all_sheet_names()):
-            cell, current = wb.calling_name_cell(name)
-            out.append(TimeCardSheet(sheet=name, cell=cell, current=current))
+            try:
+                cell, current = wb.calling_name_cell(name)
+            except WorkbookError as exc:  # one sheet Excel won't read must not hide the others
+                out.append(
+                    TimeCardSheet(
+                        sheet=name,
+                        cell=None,
+                        note=f"Could not look at this sheet: {exc} Type the cell yourself.",
+                    )
+                )
+                continue
+            note = None if cell else 'No "Calling Name" label found: type the cell yourself.'
+            out.append(TimeCardSheet(sheet=name, cell=cell, current=current, note=note))
         return out
 
     def _check_card_target(self, sheet: str, cell: str) -> None:

@@ -63,7 +63,7 @@ def test_print_job_in_practice_mode(small_snapshot, tmp_path, monkeypatch):
     with TestClient(app) as c:
         sheets = c.get("/api/timecards").json()
         assert sheets[0] == {"sheet": "Time Card (Internal)", "cell": "E8", "current": None,
-                             "practice": True}  # fmt: skip
+                             "practice": True, "note": None}  # fmt: skip
         body = {"sheet": "Time Card (Internal)", "cell": "E8", "names": ["INB-01", "INC-02"],
                 "user": "Navod"}  # fmt: skip
         job = c.post("/api/timecards/print", json=body).json()

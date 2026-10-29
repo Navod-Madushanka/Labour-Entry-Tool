@@ -1,5 +1,22 @@
 # Changelog
 
+## Time cards on protected sheets (29 Oct 2026)
+
+Found in testing: opening the Time cards tab showed "Excel error: '-2147352567 Exception
+occurred. (0, None, None, None, 0, -2146827284)'". That is Excel's 0x800A03EC ("can't do that
+here"), raised while reading a time card sheet's formulas to find the Calling Name cell. Excel
+refuses that read on a protected sheet whose formula cells are hidden.
+
+- The Calling Name cell is then found from the labels and values alone (E8 on Time Card
+  (Internal)). A sheet Excel won't read no longer breaks the tab: it shows a note, and the cell
+  can be typed by hand.
+- Excel's error inside a COM exception is now decoded: 0x800A03EC reads "Excel refused the
+  request. The sheet may be protected, or a cell locked." (or Excel's own description), never
+  the raw numbers.
+- If the calling name can't be written (a locked cell on a protected sheet), the message says
+  how to fix it: unlock the cell (Format Cells > Protection > untick Locked) or unprotect the
+  sheet. Printing itself works on protected sheets.
+
 ## Print time cards in one go (29 Oct 2026)
 
 - New **Time cards** tab. Give it a list of workers (`INB-01 to INB-20`, a comma list, "everyone

@@ -325,6 +325,7 @@ export interface TimeCardSheet {
   cell: string | null;
   current: CellValue;
   practice: boolean;
+  note: string | null;
 }
 
 export interface PrintJob {

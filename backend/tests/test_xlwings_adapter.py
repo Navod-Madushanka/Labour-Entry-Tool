@@ -331,3 +331,58 @@ def test_print_card_writes_recalculates_then_prints():
     assert wb.calling_name_cell("Time Card (Internal)") == ("E8", "INS-01")
     wb.print_card("Time Card (Internal)", "E8", "INB-05", copies=2)
     assert calls == [("write", "E8", "INB-05"), ("calculate",), ("print", {"Copies": 2})]
+
+
+def test_excel_refused_is_explained():
+    # The error from the time cards tab: DISP_E_EXCEPTION carrying Excel's 0x800A03EC.
+    refused = ComError(-2147352567, "Exception occurred.")
+    refused.args = (-2147352567, "Exception occurred.", (0, None, None, None, 0, -2146827284), None)
+    err = xa.translate_com_error(refused)
+    assert type(err) is WorkbookError and "protected" in str(err) and "2146827284" not in str(err)
+    locked = ComError(-2147352567, "Exception occurred.")
+    message = "The cell you're trying to change is on a protected sheet."
+    info = (0, "Microsoft Excel", message, None, 0, -2146827284)
+    locked.args = (-2147352567, "Exception occurred.", info, None)
+    assert isinstance(xa.translate_com_error(locked), ProtectionError)
+
+
+def test_time_card_on_a_protected_sheet():
+    """Excel refuses to show hidden formulas on a protected sheet: the cell is found by labels,
+    and a locked input cell gives instructions instead of a code."""
+    import types
+
+    def refused():
+        e = ComError(-2147352567, "Exception occurred.")
+        e.args = (-2147352567, "Exception occurred.", (0, None, None, None, 0, -2146827284), None)
+        return e
+
+    class CardRange:
+        def __init__(self, address):
+            self.address = address
+
+        def options(self, **kw):
+            return self
+
+        @property
+        def value(self):
+            if self.address == "A1:L60":
+                rows = [[None] * 12 for _ in range(60)]
+                rows[7][1], rows[7][2], rows[7][4], rows[7][6] = (
+                    "Calling Name", "Calling Name", "INS-01", "Employee Code")  # fmt: skip
+                return rows
+            return "INS-01"
+
+        @value.setter
+        def value(self, v):
+            raise refused()  # E8 locked on a protected sheet
+
+        @property
+        def formula(self):
+            raise refused()  # hidden formulas on a protected sheet
+
+    sheet = types.SimpleNamespace(range=CardRange, name="Time Card (Internal)", api=None)
+    book = types.SimpleNamespace(name="wb.xlsb", sheets={"Time Card (Internal)": sheet}, app=None)
+    wb = xa.XlwingsWorkbook(book, Config(month="2026-10").template, busy_timeout=0)
+    assert wb.calling_name_cell("Time Card (Internal)") == ("E8", "INS-01")
+    with pytest.raises(WorkbookError, match="unlock E8"):
+        wb.print_card("Time Card (Internal)", "E8", "INB-05")

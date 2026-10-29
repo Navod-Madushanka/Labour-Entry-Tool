@@ -72,9 +72,27 @@ def is_busy_error(exc: BaseException) -> bool:
     return hresult(exc) in BUSY_HRESULTS
 
 
+XL_REFUSED = -2146827284  # 0x800A03EC: Excel's "can't do that here" (protected sheet, bad range…)
+
+
+def excel_scode(exc: BaseException) -> int | None:
+    """The Excel error inside a DISP_E_EXCEPTION: args = (hresult, text, excepinfo, argerr) and
+    excepinfo = (wcode, source, description, helpfile, helpcontext, scode)."""
+    args = getattr(exc, "args", ())
+    info = args[2] if len(args) > 2 else None
+    return info[5] if isinstance(info, tuple) and len(info) > 5 else None
+
+
+def excel_description(exc: BaseException) -> str | None:
+    args = getattr(exc, "args", ())
+    info = args[2] if len(args) > 2 else None
+    return info[2] if isinstance(info, tuple) and len(info) > 2 and info[2] else None
+
+
 def translate_com_error(exc: BaseException) -> WorkbookError:
     """A COM error as something the user can act on."""
     text = " ".join(str(a) for a in getattr(exc, "args", ()) if a)
+    described = excel_description(exc)
     if is_busy_error(exc):
         return WorkbookBusyError(
             "Excel is busy. Finish editing the cell in Excel (press Enter or Esc), then try again."
@@ -82,8 +100,13 @@ def translate_com_error(exc: BaseException) -> WorkbookError:
     if hresult(exc) in GONE_HRESULTS:
         return NotConnectedError("Lost the connection to Excel. Is the workbook still open?")
     if "protect" in text.casefold():
-        return ProtectionError(f"Excel refused to change a protected cell: {text}")
-    return WorkbookError(f"Excel error: {text or exc!r}")
+        return ProtectionError(f"Excel refused to change a protected cell: {described or text}")
+    if excel_scode(exc) == XL_REFUSED:
+        return WorkbookError(
+            "Excel refused the request"
+            + (f": {described}" if described else ". The sheet may be protected, or a cell locked.")
+        )
+    return WorkbookError(f"Excel error: {described or text or exc!r}")
 
 
 def retry_busy(
@@ -294,7 +317,10 @@ class XlwingsWorkbook:
 
         sht = self._sheet(sheet)
         values = self._com(lambda: sht.range("A1:L60").options(ndim=2).value)
-        formulas = self._com(lambda: sht.range("A1:L60").formula)
+        try:
+            formulas = self._com(lambda: sht.range("A1:L60").formula)
+        except WorkbookError:  # a protected sheet with hidden formulas: find it by labels only
+            formulas = ()
         cell = find_input_cell(values, formulas)
         current = clean_value(self._com(lambda: sht.range(cell).value)) if cell else None
         return cell, current
@@ -307,7 +333,14 @@ class XlwingsWorkbook:
         """Calling name in, Excel recalculates the card, the sheet prints with its own page setup
         on Excel's current printer (no print dialog)."""
         sht = self._sheet(sheet)
-        self._com(lambda: setattr(sht.range(cell), "value", calling_name))
+        try:
+            self._com(lambda: setattr(sht.range(cell), "value", calling_name))
+        except WorkbookError as exc:
+            raise WorkbookError(
+                f"Excel did not accept the calling name in {sheet}!{cell} ({exc}). If the sheet is "
+                f"protected, unlock {cell} (Format Cells > Protection > untick Locked) or "
+                "unprotect the sheet, then try again."
+            ) from exc
         app = self._com(lambda: self.book.app)
         self._com(app.calculate)
         self._com(lambda: sht.api.PrintOut(Copies=copies))
