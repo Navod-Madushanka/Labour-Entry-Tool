@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.0 (29 Oct 2026)
+
+First release: the Windows package (`LabourEntryTool-windows.zip` on the Releases page) and
+everything below.
+
 ## Windows package: no Python needed (29 Oct 2026)
 
 Asked for: run the tool on a PC where Python is not installed.
