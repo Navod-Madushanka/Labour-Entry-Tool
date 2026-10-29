@@ -26,7 +26,7 @@ export function DayList({ day, onEdit, onClear }: Props) {
         <input type="search" placeholder="Find a worker" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter entries" />
       </div>
       {rows.length ? (
-        <div className="table-wrap">
+        <div className="table-wrap daylist-scroll">
           <table>
             <thead>
               <tr>

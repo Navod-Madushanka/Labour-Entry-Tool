@@ -1,5 +1,11 @@
 # Changelog
 
+## Day list scrolls in its own box (29 Oct 2026)
+
+- "Already in Excel for this day" (200+ rows on a full day) now scrolls inside a box of at most
+  520 px (60% of the window on small screens), with its column headings fixed at the top. The
+  rest of the page no longer stretches.
+
 ## Hours follow each worker's own times (29 Oct 2026)
 
 - A worker given their own times in a group gets hours that fit their own day, typed hours
