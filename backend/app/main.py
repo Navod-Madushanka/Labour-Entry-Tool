@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> None:
     app = create_app(config)
     if args.demo:
         setup.choose(app, args.demo, args.demo.name, practice=True, real_file=False)
-        app.state.session.state.ready = True  # straight to entry; "Change workbook" runs the checks
+        app.state.session.book.ready = True  # straight to entry; "Change workbook" runs the checks
         print(f"PRACTICE MODE on {args.demo.name}: changes stay in memory, Excel is not touched.")
     host = bind_host(config)
     url = f"http://{'localhost' if host == LOCALHOST else host}:{config.server.port}/"

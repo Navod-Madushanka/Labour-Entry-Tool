@@ -18,7 +18,9 @@ const ICON = { ok: "✓", warn: "!", fail: "✗" };
 
 interface Props {
   initial: SetupState;
+  adding?: boolean; // opening one more workbook: start at step 1, keep the others open
   onDone: (state: SetupState) => void;
+  onCancel?: () => void; // back to the entry screen without adding one
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -41,9 +43,9 @@ const iso = (d: Date) =>
 
 
 /** Choose the workbook -> check it and fix what can be fixed -> readiness -> entry. */
-export function StartPage({ initial, onDone }: Props) {
+export function StartPage({ initial, adding = false, onDone, onCancel }: Props) {
   const [setup, setSetup] = useState(initial);
-  const [step, setStep] = useState<Step>(initial.workbook ? "check" : "choose");
+  const [step, setStep] = useState<Step>(initial.workbook && !adding ? "check" : "choose");
   const [practice, setPractice] = useState(!initial.live_available || initial.mode === "demo");
   const [user, setUser] = useState(() => store.get("labour.user") ?? "");
   const [busy, setBusy] = useState<string | null>(null);
@@ -91,11 +93,32 @@ export function StartPage({ initial, onDone }: Props) {
 
   // Back on the start page with a workbook already chosen: check it straight away.
   useEffect(() => {
-    if (initial.workbook && !started.current) {
+    if (initial.workbook && !adding && !started.current) {
       started.current = true;
       check();
     }
-  }, [initial.workbook, check]);
+  }, [initial.workbook, adding, check]);
+
+  // Back to a workbook already open in this session: straight in when it was checked before.
+  const switchTo = async (name: string) => {
+    const s = await run(`Switching to ${name}…`, () => api.setupSwitch(name));
+    if (!s) return;
+    if (s.ready) onDone(s);
+    else chosen(s);
+  };
+
+  const closeBook = async (name: string) => {
+    const s = await run(`Closing ${name}…`, () => api.setupClose(name));
+    if (s) setSetup(s);
+  };
+
+  const setActivities = async (on: boolean) => {
+    const s = await run("Saving…", () => api.setupOptions(on));
+    if (!s) return;
+    setSetup(s);
+    if (step === "ready") toReadiness();
+    else if (step === "check") check();
+  };
 
   const chosen = (s: SetupState | undefined) => {
     if (!s) return;
@@ -143,6 +166,20 @@ export function StartPage({ initial, onDone }: Props) {
             Change
           </button>
           {setup.month_note && <span className="warn-text block">{setup.month_note}</span>}
+          <label className="check block activity-toggle">
+            <input
+              type="checkbox"
+              checked={setup.check_activities}
+              disabled={!!busy}
+              onChange={(e) => setActivities(e.target.checked)}
+            />{" "}
+            Check activity codes and hours{" "}
+            <span className="muted small">
+              {setup.check_activities
+                ? "(untick for a workbook kept without activity codes: all hours then go to ZIDLE)"
+                : "(off for this workbook: no activity boxes, each worker's hours go to ZIDLE)"}
+            </span>
+          </label>
         </p>
       )}
 
@@ -169,6 +206,9 @@ export function StartPage({ initial, onDone }: Props) {
       {step === "choose" && (
         <ChooseStep
           setup={setup}
+          onSwitch={switchTo}
+          onClose={closeBook}
+          onCancel={onCancel}
           practice={practice}
           setPractice={setPractice}
           user={user}
@@ -245,9 +285,13 @@ interface ChooseProps {
   onFile: (f: File) => void;
   onBrowse: () => void;
   onOpen: (name: string) => void;
+  onSwitch: (name: string) => void;
+  onClose: (name: string) => void;
+  onCancel?: () => void;
 }
 
-function ChooseStep({ setup, practice, setPractice, user, setUser, busy, onFile, onBrowse, onOpen }: ChooseProps) {
+function ChooseStep(props: ChooseProps) {
+  const { setup, practice, setPractice, user, setUser, busy, onFile, onBrowse, onOpen, onSwitch, onClose, onCancel } = props;
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const live = setup.live_available && !practice;
@@ -260,6 +304,39 @@ function ChooseStep({ setup, practice, setPractice, user, setUser, busy, onFile,
 
   return (
     <section className="card">
+      {setup.books.length > 0 && (
+        <div className="open-books">
+          <h3>Open in this tool</h3>
+          <ul>
+            {setup.books.map((b) => (
+              <li key={b.name}>
+                <button className="link" disabled={busy} onClick={() => onSwitch(b.name)}>
+                  {b.name}
+                </button>{" "}
+                <span className="muted small">
+                  {monthLabel(b.month)} · {b.mode === "live" ? "Excel" : "practice copy"}
+                  {!b.check_activities && " · no activity codes"}
+                  {b.ready ? "" : " · not checked yet"}
+                </span>{" "}
+                <button className="link muted small" disabled={busy} onClick={() => onClose(b.name)} title="Take it off this list (the file is not changed)">
+                  Close
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="muted small">
+            Click one to work on it, or choose another workbook below to open it as well.
+            {onCancel && (
+              <>
+                {" "}
+                <button className="link" onClick={onCancel}>
+                  Back to the entry screen
+                </button>
+              </>
+            )}
+          </p>
+        </div>
+      )}
       <div className="field name-field">
         <label htmlFor="start-user">Your name (kept with every change)</label>
         <input

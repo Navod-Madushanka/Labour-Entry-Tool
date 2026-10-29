@@ -44,6 +44,7 @@ export interface Master {
   workers: Worker[];
   activities: string[];
   day_types: string[];
+  check_activities: boolean; // false: this workbook is kept without activity codes
 }
 
 export interface DayHeader {
@@ -276,8 +277,19 @@ export interface DayBuild {
   ticked: number;
 }
 
+export interface BookInfo {
+  name: string;
+  mode: "live" | "demo";
+  month: string | null;
+  ready: boolean;
+  check_activities: boolean;
+  active: boolean;
+}
+
 export interface SetupState {
-  workbook: string | null;
+  workbook: string | null; // the active workbook
+  check_activities: boolean; // its activity codes and hours are checked
+  books: BookInfo[]; // every workbook open in this session
   path: string | null;
   mode: "live" | "demo" | null;
   month: string | null;
@@ -423,6 +435,9 @@ export const api = {
   setupRegistration: (file: File) => send<SetupState>("/api/setup/registration", file),
   setupReadiness: () => call<Readiness>("GET", "/api/setup/readiness"),
   setupReady: (ready: boolean) => call<SetupState>("POST", "/api/setup/ready", { ready }),
+  setupSwitch: (name: string) => call<SetupState>("POST", "/api/setup/switch", { name }),
+  setupClose: (name: string) => call<SetupState>("POST", "/api/setup/close", { name }),
+  setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),
   printCards: (sheet: string, cell: string, names: string[], copies: number, user: string) =>
     call<PrintJob>("POST", "/api/timecards/print", { sheet, cell, names, copies, user }),

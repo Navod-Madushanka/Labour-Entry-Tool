@@ -182,3 +182,106 @@ def test_requests_give_up_on_a_silent_excel(app, small_snapshot, tmp_path, monke
     with TestClient(app) as c:
         res = c.get("/api/master")
         assert res.status_code == 504 and "Excel isn't answering" in res.json()["detail"]
+
+
+# --- several workbooks, activity checks per workbook ----------------------------------------
+
+
+def test_workbook_kind():
+    from app.books import workbook_kind
+
+    a = workbook_kind("Labour Entry Sheet October 2026 - SUB CONTRACT.xlsb")
+    assert a == workbook_kind("Labour Entry Sheet November 2026 - SUB CONTRACT (2).xlsb")
+    assert a == "labour entry sheet sub contract"
+    assert a != workbook_kind("Labour Entry Sheet October 2026 - INDIAN.xlsb")
+
+
+def _named(snapshot, name):
+    snap = snapshot.model_copy(deep=True)
+    snap.meta.source_name = name
+    return snap
+
+
+def _no_codes(snapshot):
+    """The made-up workbook kept like the sub-contract one: no activity list, no codes typed."""
+    snap = snapshot.model_copy(deep=True)
+    snap.master.activities = []
+    for d in snap.days:
+        for e in d.entries:
+            e.activities = []
+    return snap
+
+
+def test_activity_checks_follow_the_workbook(app, small_snapshot, tmp_path):
+    indian = tmp_path / "Labour Entry Sheet October 2026 - INDIAN.json"
+    sub = tmp_path / "Labour Entry Sheet October 2026 - SUB CONTRACT.json"
+    save_snapshot(_named(small_snapshot, indian.name), indian)
+    save_snapshot(_named(_no_codes(small_snapshot), sub.name), sub)
+    setup_api.choose(app, indian, indian.name, practice=True, real_file=False)
+    state = setup_api.choose(app, sub, sub.name, practice=True, real_file=False)
+    assert [b.name for b in state.books] == [indian.name, sub.name]
+    assert state.workbook == sub.name and not state.check_activities  # told from the empty list
+    with TestClient(app) as c:
+        rules = {i["rule"] for i in c.post("/api/setup/check").json()["issues"]}
+        assert not rules & {"E04", "E05", "W08", "M05"}
+        checks = {x["id"]: x for x in c.get("/api/setup/readiness").json()["checks"]}
+        assert checks["activities"]["status"] == "ok" and "medical" not in checks
+        assert c.get("/api/master").json()["check_activities"] is False
+
+        # The other workbook is still open, with its own checks.
+        state = c.post("/api/setup/switch", json={"name": indian.name}).json()
+        assert state["workbook"] == indian.name and state["check_activities"]
+        master = c.get("/api/master").json()
+        assert master["workbook"] == indian.name and master["check_activities"]
+        assert c.post("/api/setup/switch", json={"name": "nope.xlsb"}).status_code == 404
+
+        # Switched on by hand for the sub-contract workbook: the activity rules come back.
+        c.post("/api/setup/switch", json={"name": sub.name})
+        state = c.post("/api/setup/options", json={"check_activities": True}).json()
+        assert state["check_activities"]
+        acts = {x["id"]: x for x in c.get("/api/setup/readiness").json()["checks"]}["activities"]
+        assert acts["status"] == "fail" and "untick" in acts["detail"]
+
+        state = c.post("/api/setup/close", json={"name": sub.name}).json()
+        assert state["workbook"] == indian.name
+        assert [b["name"] for b in state["books"]] == [indian.name]
+
+
+def test_ready_is_kept_per_workbook(app, small_snapshot, tmp_path):
+    a = save_snapshot(small_snapshot, tmp_path / "A October 2026.json")
+    b = save_snapshot(small_snapshot, tmp_path / "B October 2026.json")
+    setup_api.choose(app, a, a.name, practice=True, real_file=False)
+    with TestClient(app) as c:
+        c.post("/api/setup/check")
+        assert c.post("/api/setup/ready", json={"ready": True}).json()["ready"]
+        setup_api.choose(app, b, b.name, practice=True, real_file=False)
+        assert not c.get("/api/setup").json()["ready"]  # B still needs its check
+        assert c.post("/api/setup/switch", json={"name": a.name}).json()["ready"]  # A doesn't
+
+
+def test_activity_setting_is_remembered_for_next_month(tmp_path, small_snapshot):
+    cfg = Config(month="2000-01", backups={"dir": tmp_path / "b"},
+                 settings_file=tmp_path / "workbooks.json")  # fmt: skip
+    oct_ = save_snapshot(small_snapshot, tmp_path / "Labour October 2026 - SUB CONTRACT.json")
+    app1 = create_app(cfg)
+    setup_api.choose(app1, oct_, oct_.name, practice=True, real_file=False)
+    with TestClient(app1) as c:
+        assert c.get("/api/setup").json()["check_activities"]  # codes are in this copy
+        c.post("/api/setup/options", json={"check_activities": False})
+    # A new start, next month's file: the choice holds even though this file has codes.
+    nov = save_snapshot(small_snapshot, tmp_path / "Labour November 2026 - SUB CONTRACT (2).json")
+    app2 = create_app(cfg)
+    state = setup_api.choose(app2, nov, nov.name, practice=True, real_file=False)
+    assert state.check_activities is False
+
+
+def test_entry_without_activities_has_no_activity_issues():
+    from app.domain.validators import check_entry
+
+    from .conftest import make_entry
+
+    e = make_entry("1", 0, "INB-01", 7.0, 19.0, [])
+    assert "W08" in {i.rule for i in check_entry(e, "Normal Day", set())}
+    assert check_entry(e, "Normal Day", set(), check_activities=False) == []
+    bad = make_entry("1", 0, "INB-01", 7.0, 19.0, [("NOPE", "x")])
+    assert {i.rule for i in check_entry(bad, "Normal Day", set(), check_activities=False)} == set()

@@ -199,6 +199,7 @@ class MasterView(BaseModel):
     workers: list[WorkerView]
     activities: list[str]  # trimmed, unique, in list order
     day_types: list[str]
+    check_activities: bool = True  # off: this workbook is kept without activity codes
 
 
 class EntryView(BaseModel):
@@ -296,6 +297,7 @@ class EntryService:
             ],
             activities=list(dict.fromkeys(a.code for a in m.activities)),
             day_types=m.day_types,
+            check_activities=self.config.check_activities,
         )  # fmt: skip
 
     def day_view(self, sheet: str, fresh: bool = False) -> DayView:
@@ -310,7 +312,8 @@ class EntryService:
             header_issues=check_header(day.header, month, holidays, t),
             entries=[
                 EntryView(entry=e, computed=compute_entry(e, day.header.day_type),
-                          issues=check_entry(e, day.header.day_type, codes, t))
+                          issues=check_entry(e, day.header.day_type, codes, t,
+                                             self.config.check_activities))
                 for e in day.entries
             ],
         )  # fmt: skip
@@ -414,7 +417,8 @@ class EntryService:
         plans, seen = [], set()
         for e in entries:
             plan = plan_entry(e, days[e.sheet], codes, self.config.month_start,
-                              self.config.holidays, self.template)  # fmt: skip
+                              self.config.holidays, self.template,
+                              check_activities=self.config.check_activities)  # fmt: skip
             key = (e.sheet, e.calling_name)
             if key in seen:
                 plan.issues.append(make_issue("E07", f"{e.calling_name} is entered twice in this "

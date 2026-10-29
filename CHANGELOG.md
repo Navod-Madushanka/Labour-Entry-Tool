@@ -1,5 +1,32 @@
 # Changelog
 
+## Several workbooks; activity checks per workbook (29 Oct 2026)
+
+Asked for: the SUB CONTRACT workbook has the same layout as the INDIAN one, but no activity codes
+(Excel books all the hours to ZIDLE). Work on several workbooks, and make the activity-code and
+hours check a setting of each workbook.
+
+- **Several workbooks at once.** *+ Workbook* (top bar) opens another workbook on the start page;
+  the ones already open stay open, each with its own connection, month, checks and undo. A menu in
+  the top bar switches between them; one already checked opens straight on the entry screen. If
+  entries are still waiting to go to Excel, switching asks first (they belong to the workbook
+  they were made for). The start page lists the open workbooks, to switch to or close.
+  *Change workbook* is now *Check workbook*.
+- **Check activity codes and hours**, a tick box on the start page, per workbook. Off: the rules
+  on activity codes and their hours (E04, E05, E06, M05, M06, W08, and E03 on activity hours)
+  are left out of the health check, the queue and the day list; the readiness check no longer
+  asks for an activity list or the medical code; the entry form has no activity boxes (Enter on
+  Time Out adds the worker); medical leave is hidden; the manpower sheet has no activity rows.
+- The tool unticks it by itself for a workbook whose activity list is empty, or where many
+  entries have times and none has a code. A choice made by hand is remembered for that kind of
+  workbook (next month's "... November 2026 - SUB CONTRACT" too), in `workbooks.json` in the data
+  folder.
+- On the SUB CONTRACT file (read only, nothing changed): its activity list is empty, and none of
+  its 1,497 entries with times has a code. Its health check had 1,496 "unallocated hours go to
+  ZIDLE" (W08) notes; with the box unticked they are gone.
+- `scripts/demo_two_books.py` and `frontend/e2e/workbooks.cjs`: two made-up workbooks, one with
+  codes and one without, to try or test this.
+
 ## The page waiting forever for Excel (29 Oct 2026)
 
 Found in testing: the page stayed blank on start. The server was running, but `/api/setup`

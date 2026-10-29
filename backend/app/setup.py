@@ -114,6 +114,7 @@ def readiness(
     mode: str,
     backup_dir: Path,
     crews: tuple[int, int] | None = None,  # (workers, crews) the day builder proposes
+    check_activities: bool = True,
 ) -> Readiness:
     checks: list[Check] = []
 
@@ -173,23 +174,33 @@ def readiness(
     else:
         add("codes", "ok", "Employee codes", "Every worker has an employee code.")
 
-    codes = {a.code for a in snapshot.master.activities}
-    add(
-        "activities",
-        "ok" if codes else "fail",
-        "Activity codes",
-        f"{len(codes)} codes in the list: suggestions and the code check work."
-        if codes
-        else "The activity list in Labour Detail is empty.",
-    )
-    add(
-        "medical",
-        "ok" if DEFAULT_ACTIVITY in codes else "warn",
-        "Medical leave",
-        f"Medical code {DEFAULT_ACTIVITY} is in the list."
-        if DEFAULT_ACTIVITY in codes
-        else f"Medical code {DEFAULT_ACTIVITY} is not in the activity list.",
-    )
+    if not check_activities:
+        add(
+            "activities",
+            "ok",
+            "Activity codes",
+            "Not used in this workbook: each worker's hours go to ZIDLE, and the activity "
+            "checks are off.",
+        )
+    else:
+        codes = {a.code for a in snapshot.master.activities}
+        add(
+            "activities",
+            "ok" if codes else "fail",
+            "Activity codes",
+            f"{len(codes)} codes in the list: suggestions and the code check work."
+            if codes
+            else "The activity list in Labour Detail is empty. If this workbook is kept without "
+            'activity codes, untick "Check activity codes and hours" on this page.',
+        )
+        add(
+            "medical",
+            "ok" if DEFAULT_ACTIVITY in codes else "warn",
+            "Medical leave",
+            f"Medical code {DEFAULT_ACTIVITY} is in the list."
+            if DEFAULT_ACTIVITY in codes
+            else f"Medical code {DEFAULT_ACTIVITY} is not in the activity list.",
+        )
 
     total = agree = 0
     for d in snapshot.days:
@@ -241,3 +252,16 @@ def readiness(
 
 def _sheet_key(sheet: str | None) -> tuple[int, str]:
     return (int(sheet), "") if sheet and sheet.isdigit() else (10**6, sheet or "")
+
+
+MIN_ENTRIES_TO_TELL = 20
+
+
+def uses_activity_codes(snapshot: WorkbookSnapshot) -> bool:
+    """Whether a workbook is kept with activity codes: not when its activity list is empty, or
+    when many entries have times and none has a code (all the hours go to ZIDLE)."""
+    if not snapshot.master.activities:
+        return False
+    entries = [e for d in snapshot.days for e in d.entries]
+    timed = sum(1 for e in entries if e.time_in is not None and e.time_in != "")
+    return timed < MIN_ENTRIES_TO_TELL or any(e.activity_lines for e in entries)

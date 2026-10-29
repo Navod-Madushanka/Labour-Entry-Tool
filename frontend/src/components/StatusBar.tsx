@@ -1,4 +1,4 @@
-import type { Status } from "../api";
+import type { BookInfo, Status } from "../api";
 
 interface Props {
   page: "entry" | "codes" | "cards";
@@ -9,10 +9,16 @@ interface Props {
   onSave: () => void;
   onChangeUser: () => void;
   onChangeWorkbook: () => void;
+  books: BookInfo[];
+  onSwitch: (name: string) => void;
+  onAddWorkbook: () => void;
   story: { on: boolean; unlocked: number; total: number; onOpen: () => void };
 }
 
-export function StatusBar({ page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story }: Props) {
+export function StatusBar(props: Props) {
+  const { page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story } = props;
+  const { books, onSwitch, onAddWorkbook } = props;
+  const active = books.find((b) => b.active)?.name ?? status?.workbook ?? "";
   return (
     <header className="statusbar">
       <strong className="brand">Labour Entry</strong>
@@ -34,9 +40,25 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
       )}
       {status ? (
         status.connected ? (
-          <span className="workbook" title={status.backup ? `Backup: ${status.backup}` : "No backup yet"}>
-            {status.workbook}
-          </span>
+          books.length > 1 ? (
+            <select
+              className="workbook-pick"
+              aria-label="Workbook"
+              value={active}
+              onChange={(e) => onSwitch(e.target.value)}
+              title={status.backup ? `Backup: ${status.backup}` : "No backup yet"}
+            >
+              {books.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="workbook" title={status.backup ? `Backup: ${status.backup}` : "No backup yet"}>
+              {status.workbook}
+            </span>
+          )
         ) : (
           <span className="badge error">Not connected: {status.error}</span>
         )
@@ -60,8 +82,11 @@ export function StatusBar({ page, status, user, historyLoaded, historyTotal, onS
       >
         📖 {!story.on ? "off" : story.unlocked ? `${story.unlocked}/${story.total}` : "?"}
       </button>
-      <button className="link" onClick={onChangeWorkbook} title="Choose another workbook or check this one again">
-        Change workbook
+      <button className="link" onClick={onAddWorkbook} title="Open one more workbook (this one stays open)">
+        + Workbook
+      </button>
+      <button className="link" onClick={onChangeWorkbook} title="Check this workbook again, or change its settings">
+        Check workbook
       </button>
       <button className="link" onClick={onChangeUser} title="Change name">
         {user || "Set name"}

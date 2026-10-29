@@ -49,6 +49,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function EntryForm(props: Props) {
   const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onCrew, onMedical, onBuild } = props;
+  const withActs = master.check_activities; // off: a workbook kept without activity codes
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [plan, setPlan] = useState<EntryPlan | null>(null);
@@ -172,9 +173,11 @@ export function EntryForm(props: Props) {
             <button onClick={onCrew} title="Same times and activity for a group of workers">
               ☰ Crew entry
             </button>
-            <button onClick={onMedical} title="10 days of medical leave">
-              ✚ Medical leave
-            </button>
+            {withActs && (
+              <button onClick={onMedical} title="10 days of medical leave">
+                ✚ Medical leave
+              </button>
+            )}
           </div>
         </div>
         <div className="field worker-field">
@@ -337,7 +340,7 @@ export function EntryForm(props: Props) {
               onChange={(e) => setForm((f) => ({ ...f, timeOut: e.target.value }))}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeOut: normaliseClock(f.timeOut) }))}
-              onKeyDown={(e) => timeKey(e, "timeOut", "code0")}
+              onKeyDown={(e) => timeKey(e, "timeOut", withActs ? "code0" : "queue")}
               aria-invalid={Boolean(problems.timeOut)}
             />
             {problems.timeOut ? (
@@ -357,71 +360,78 @@ export function EntryForm(props: Props) {
           </label>
         </div>
 
-        <table className="lines">
-          <thead>
-            <tr>
-              <th>
-                <span className="step">4</span> Activity code
-              </th>
-              <th>Hours</th>
-            </tr>
-          </thead>
-          <tbody>
-            {form.lines.slice(0, visibleLines).map((line, i) => (
-              <tr key={i}>
-                <td>
-                  <input
-                    ref={reg(`code${i}`)}
-                    list="activity-codes"
-                    aria-label={`Activity ${i + 1}`}
-                    value={line.code}
-                    onChange={(e) => setLine(i, { code: e.target.value })}
-                    onFocus={(e) => e.target.select()} // typing replaces the kept code
-                    placeholder={i === 0 ? "e.g. 03-11-00-00" : "another activity (optional)"}
-                    onKeyDown={(e) => {
-                      // Enter: a code -> the next activity (hours fill themselves); empty -> add the worker.
-                      if (e.key === "Enter" && !e.ctrlKey) {
-                        e.preventDefault();
-                        if (line.code.trim() && i < LINES - 1) focus(`code${i + 1}`);
-                        else if (line.code.trim() || i > 0) queue();
-                      } else onKey(e, `hours${i}`);
-                    }}
-                  />
-                </td>
-                <td>
-                  <input
-                    ref={reg(`hours${i}`)}
-                    aria-label={`Hours ${i + 1}`}
-                    className={auto[i] !== null ? "auto-hours" : undefined}
-                    inputMode="decimal"
-                    value={line.hours}
-                    placeholder={
-                      auto[i] !== null
-                        ? `${fmtHours(auto[i]!)} (auto)`
-                        : line.code && remaining(i) !== null
-                          ? fmtHours(remaining(i))
-                          : ""
-                    }
-                    title={auto[i] !== null ? "Worked out from the times. Type a number to change it." : undefined}
-                    onFocus={() => {
-                      const rest = remaining(i);
-                      if (auto[i] === null && !line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
-                    }}
-                    onChange={(e) => setLine(i, { hours: e.target.value })}
-                    onBlur={() => setLine(i, { hours: settleFormula(line.hours) })}
-                    onKeyDown={(e) => onKey(e, "queue")}
-                    aria-invalid={Boolean(problems.lines[i])}
-                  />
-                  {problems.lines[i] ? (
-                    <small className="error-text">{problems.lines[i]}</small>
-                  ) : (
-                    formulaHint(line.hours) && <small className="hint">{formulaHint(line.hours)}</small>
-                  )}
-                </td>
+        {withActs ? (
+          <table className="lines">
+            <thead>
+              <tr>
+                <th>
+                  <span className="step">4</span> Activity code
+                </th>
+                <th>Hours</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {form.lines.slice(0, visibleLines).map((line, i) => (
+                <tr key={i}>
+                  <td>
+                    <input
+                      ref={reg(`code${i}`)}
+                      list="activity-codes"
+                      aria-label={`Activity ${i + 1}`}
+                      value={line.code}
+                      onChange={(e) => setLine(i, { code: e.target.value })}
+                      onFocus={(e) => e.target.select()} // typing replaces the kept code
+                      placeholder={i === 0 ? "e.g. 03-11-00-00" : "another activity (optional)"}
+                      onKeyDown={(e) => {
+                        // Enter: a code -> the next activity (hours fill themselves); empty -> add the worker.
+                        if (e.key === "Enter" && !e.ctrlKey) {
+                          e.preventDefault();
+                          if (line.code.trim() && i < LINES - 1) focus(`code${i + 1}`);
+                          else if (line.code.trim() || i > 0) queue();
+                        } else onKey(e, `hours${i}`);
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      ref={reg(`hours${i}`)}
+                      aria-label={`Hours ${i + 1}`}
+                      className={auto[i] !== null ? "auto-hours" : undefined}
+                      inputMode="decimal"
+                      value={line.hours}
+                      placeholder={
+                        auto[i] !== null
+                          ? `${fmtHours(auto[i]!)} (auto)`
+                          : line.code && remaining(i) !== null
+                            ? fmtHours(remaining(i))
+                            : ""
+                      }
+                      title={auto[i] !== null ? "Worked out from the times. Type a number to change it." : undefined}
+                      onFocus={() => {
+                        const rest = remaining(i);
+                        if (auto[i] === null && !line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
+                      }}
+                      onChange={(e) => setLine(i, { hours: e.target.value })}
+                      onBlur={() => setLine(i, { hours: settleFormula(line.hours) })}
+                      onKeyDown={(e) => onKey(e, "queue")}
+                      aria-invalid={Boolean(problems.lines[i])}
+                    />
+                    {problems.lines[i] ? (
+                      <small className="error-text">{problems.lines[i]}</small>
+                    ) : (
+                      formulaHint(line.hours) && <small className="hint">{formulaHint(line.hours)}</small>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted small no-activities">
+            No activity codes in this workbook: the worked hours go to ZIDLE. <kbd>Enter</kbd> on Time Out adds the
+            worker.
+          </p>
+        )}
         <datalist id="activity-codes">
           {activityOrder.map((c) => (
             <option key={c} value={c} />
@@ -475,7 +485,8 @@ export function EntryForm(props: Props) {
           </button>
         </div>
         <p className="keys">
-          <kbd>Enter</kbd> next box · <kbd>Enter</kbd> on an empty activity adds the worker · <kbd>Esc</kbd> clear ·{" "}
+          <kbd>Enter</kbd> next box · <kbd>Enter</kbd> on {withActs ? "an empty activity" : "Time Out"} adds the worker ·{" "}
+          <kbd>Esc</kbd> clear ·{" "}
           <kbd>↑</kbd>/<kbd>↓</kbd> in a time: ±15 min · <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> change day
         </p>
       </div>

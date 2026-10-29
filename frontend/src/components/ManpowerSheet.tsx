@@ -20,6 +20,7 @@ interface Column {
 interface Props {
   items: QueueItem[];
   month: Month;
+  activities: boolean; // false: the workbook is kept without activity codes (no code rows)
   ready: boolean; // the queue can be written
   busy: boolean;
   onWrite: () => void;
@@ -78,7 +79,7 @@ const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 /** The queue, live, laid out like the site's "Daily record of manpower" form: workers across (10 per
  * sheet), activity codes down, a tick where a worker did that activity. To compare with the
  * paper before anything is written. */
-export function ManpowerSheet({ items, month, ready, busy, onWrite }: Props) {
+export function ManpowerSheet({ items, month, activities, ready, busy, onWrite }: Props) {
   const [withExcel, setWithExcel] = useState(false);
   // Re-rendered with every queue change, so this is the time of the latest entry.
   const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -120,8 +121,8 @@ export function ManpowerSheet({ items, month, ready, busy, onWrite }: Props) {
           {sheets.map(({ sheet, day, pages }) =>
             pages.map((cols, n) => {
               pageNo += 1;
-              const codes = [...new Set(cols.flatMap((c) => c.acts.map((a) => a.code)))];
-              const blanks = Math.max(0, 4 - codes.length); // a few empty rows, like the form
+              const codes = activities ? [...new Set(cols.flatMap((c) => c.acts.map((a) => a.code)))] : [];
+              const blanks = activities ? Math.max(0, 4 - codes.length) : 0; // a few empty rows, like the form
               const padded = [...cols, ...Array.from({ length: PER_PAGE - cols.length }, () => null)];
               return (
                 <section key={`${sheet}-${n}`} className="manpower">
@@ -158,7 +159,7 @@ export function ManpowerSheet({ items, month, ready, busy, onWrite }: Props) {
                   <div className="table-wrap">
                     <table className="mp-grid">
                       <thead>
-                        <Row label="Emp.No" cols={padded} codes={codes} render={(c) => <b>{c.name}</b>} rowSpanLeft />
+                        <Row label="Emp.No" cols={padded} codes={codes} render={(c) => <b>{c.name}</b>} rowSpanLeft={activities} />
                         <Row label="In:" cols={padded} render={(c) => time(c.tin)} />
                         <Row label="Out:" cols={padded} render={(c) => time(c.tout)} />
                         <Row label="Normal Hrs" cols={padded} render={(c) => fmtHours(c.normal ?? undefined)} />

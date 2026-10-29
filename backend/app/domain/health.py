@@ -445,6 +445,7 @@ def run_health(
     holidays: Iterable[dt.date] = (),
     template: TemplateConfig | None = None,
     now: dt.datetime | None = None,
+    check_activities: bool = True,
 ) -> HealthReport:
     t = template or TemplateConfig()
     holidays = sorted(set(holidays))
@@ -457,7 +458,7 @@ def run_health(
         check_employee_codes,
         check_identities,
         check_trade_groups,
-        check_activity_list,
+        *([check_activity_list] if check_activities else []),
     ):
         issues += check(ctx)
     for day in snapshot.days:
@@ -466,7 +467,7 @@ def run_health(
                 issue = _header_impact(ctx, day, issue, holidays)
             issues.append(issue)
         for e in day.entries:
-            issues += check_entry(e, day.header.day_type, codes, t)
+            issues += check_entry(e, day.header.day_type, codes, t, check_activities)
     issues += check_rest(ctx)
     issues += check_double_bookings(ctx)
     issues += check_upload_employee(ctx)

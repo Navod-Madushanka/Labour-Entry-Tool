@@ -67,6 +67,7 @@ def _report(request: Request, holidays: str | None) -> HealthReport:
         config.month_start,
         config.holidays if chosen is None else chosen,
         config.template,
+        check_activities=config.check_activities,
     )
 
 

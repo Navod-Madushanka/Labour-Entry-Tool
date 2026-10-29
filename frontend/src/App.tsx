@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type Batch, type CommitResult, type EntryInput, type EntryPlan, type Issue, type Master, type Status, type Worker } from "./api";
+import { api, type BookInfo, type Batch, type CommitResult, type EntryInput, type EntryPlan, type Issue, type Master, type Status, type Worker } from "./api";
 import { Batches } from "./components/Batches";
 import { CrewDialog } from "./components/CrewDialog";
 import { DayBar } from "./components/DayBar";
@@ -32,7 +32,14 @@ function defaultSheet(master: Master): string {
   return ym === master.month && master.sheets.includes(today) ? today : master.sheets[0];
 }
 
-export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
+interface AppProps {
+  books: BookInfo[];
+  onSwitch: (name: string) => void;
+  onAddWorkbook: () => void;
+  onChangeWorkbook: () => void;
+}
+
+export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppProps) {
   const [user, setUser] = useState(() => store.get("labour.user") ?? "");
   const [askName, setAskName] = useState(() => !store.get("labour.user"));
   const [status, setStatus] = useState<Status | null>(null);
@@ -286,6 +293,13 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
     }
   };
 
+  // Entries waiting in the queue belong to this workbook: leaving drops them, so ask first.
+  const leave = (go: () => void) => {
+    const n = queue.length;
+    if (n && !window.confirm(`${n} ${n === 1 ? "entry is" : "entries are"} still waiting to go to Excel. They are dropped if you leave this workbook now. Leave anyway?`)) return;
+    go();
+  };
+
   const activityOrder = useMemo(() => {
     if (!master) return [];
     const counts = topActivities(month);
@@ -310,7 +324,10 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
         historyTotal={master?.sheets.length ?? 0}
         onSave={save}
         onChangeUser={() => setAskName(true)}
-        onChangeWorkbook={onChangeWorkbook}
+        onChangeWorkbook={() => leave(onChangeWorkbook)}
+        books={books}
+        onSwitch={(name) => leave(() => onSwitch(name))}
+        onAddWorkbook={() => leave(onAddWorkbook)}
         story={{
           on: storyOn,
           unlocked: dayState().chapters,
@@ -416,6 +433,7 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
             />
             <ManpowerSheet
               items={queue}
+              activities={master.check_activities}
               month={month}
               busy={busy}
               ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}

@@ -79,6 +79,20 @@ RULES: dict[str, Rule] = {
 }
 
 
+# The rules about activity codes and their hours. A workbook kept without activity codes (all the
+# hours go to ZIDLE, e.g. the sub-contract workbook) switches them off: see ``check_activities``.
+ACTIVITY_RULES = frozenset({"E04", "E05", "E06", "M05", "M06", "W08"})
+
+
+def is_activity_issue(issue: Issue, template: TemplateConfig | None = None) -> bool:
+    """An activity rule, or E03 on an activity line's code or hours."""
+    if issue.rule in ACTIVITY_RULES:
+        return True
+    t = template or TemplateConfig()
+    column = (issue.cell or "").rstrip("0123456789")
+    return issue.rule == "E03" and column in (t.cols.activity, t.cols.hours)
+
+
 def make_issue(rule: str, message: str, **where: str | None) -> Issue:
     return Issue(rule=rule, severity=RULES[rule].severity, message=message, **where)
 
@@ -108,10 +122,12 @@ def check_entry(
     day_type: CellValue,
     activity_codes: Collection[str],
     template: TemplateConfig | None = None,
+    check_activities: bool = True,
 ) -> list[Issue]:
     """E01-E06, W01, W04-W06, W08 and M06 for one entry.
 
     ``activity_codes`` holds the trimmed codes of the activity list (E04 matches trimmed).
+    ``check_activities=False`` leaves out the activity rules (``ACTIVITY_RULES``).
     """
     t = template or TemplateConfig()
     sheet, name, r = entry.sheet, entry.calling_name, entry.row
@@ -217,6 +233,8 @@ def check_entry(
     computed = rules.compute_entry(entry, day_type)
     if computed is not None:
         issues += _check_computed(entry, computed, issue)
+    if not check_activities:
+        issues = [i for i in issues if not is_activity_issue(i, t)]
     return issues
 
 

@@ -137,6 +137,8 @@ class Config(BaseModel):
     month: str = Field(description="YYYY-MM")
     registration_files: list[Path] = []
     holidays: list[dt.date] = []
+    check_activities: bool = True  # activity codes and their hours are checked (per workbook)
+    settings_file: Path | None = None  # per-workbook settings (app/books.py); None: not kept
     server: ServerConfig = ServerConfig()
     backups: BackupConfig = BackupConfig()
     excel: ExcelConfig = ExcelConfig()
@@ -172,7 +174,8 @@ def default_config() -> Config:
     """No config file: this month until the start page reads the workbook's month."""
     today, data = dt.date.today(), data_dir()
     return Config(month=f"{today:%Y-%m}", backups={"dir": data / "backups"},
-                  audit={"db": data / "audit.sqlite"})  # fmt: skip
+                  audit={"db": data / "audit.sqlite"},
+                  settings_file=data / "workbooks.json")  # fmt: skip
 
 
 def load_config(path: str | Path | None = None) -> Config:

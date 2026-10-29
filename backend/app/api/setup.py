@@ -8,6 +8,11 @@
 
 Live mode writes into the workbook open in Excel (Windows). Practice mode keeps a copy of the
 file in memory: nothing reaches Excel or the file.
+
+Several workbooks can be open at once (say INDIAN and SUB CONTRACT): each chosen workbook stays
+in the session with its own connection, month and settings, and ``switch`` makes another one the
+one the entry screen works on. Whether activity codes are checked is set per kind of workbook
+(``options``) and remembered across months (app/books.py).
 """
 
 from __future__ import annotations
@@ -26,12 +31,20 @@ from pydantic import BaseModel, Field
 from app.api.entries import run_service
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
+from app.books import BookSettings
 from app.config import Config
 from app.domain.health import HealthReport, run_health
 from app.domain.models import SnapshotMeta, WorkbookSnapshot
 from app.excel.adapter import WorkbookError
 from app.service import EntryService
-from app.setup import Readiness, guess_month, month_from_name, next_sheet, readiness
+from app.setup import (
+    Readiness,
+    guess_month,
+    month_from_name,
+    next_sheet,
+    readiness,
+    uses_activity_codes,
+)
 
 router = APIRouter(prefix="/api/setup")
 
@@ -45,23 +58,49 @@ WORKBOOK_TYPES = (".xlsb",)
 REGISTRATION_TYPES = (".xlsx", ".xlsm")
 
 
+class BookInfo(BaseModel):
+    """One workbook open in this session, for the switcher."""
+
+    name: str
+    mode: Literal["live", "demo"]
+    month: str | None = None
+    ready: bool = False
+    check_activities: bool = True
+    active: bool = False
+
+
 class SetupState(BaseModel):
+    # The active workbook (the one the entry screen works on):
     workbook: str | None = None  # the chosen workbook's file name
     path: str | None = None  # where the tool read it from (a dropped file is a copy)
     mode: Literal["live", "demo"] | None = None
     month: str | None = None
     month_note: str | None = None
+    check_activities: bool = True  # activity codes and their hours are checked
+    ready: bool = False  # the user finished the start page for it
+    books: list[BookInfo] = Field(default_factory=list)  # every workbook open in this session
+    # The same for every workbook:
     holidays: list[dt.date] = Field(default_factory=list)
     registration_files: list[str] = Field(default_factory=list)
     live_available: bool = False  # Excel can be driven from here (Windows with xlwings)
     browse_available: bool = False  # a file dialog can be shown on this PC
     open_workbooks: list[str] = Field(default_factory=list)  # .xlsb files open in Excel now
     excel_note: str | None = None  # Excel did not answer (a dialog open in it?)
-    ready: bool = False  # the user finished the start page
+
+
+class Book:
+    """A workbook chosen in this session, with its own connection and settings."""
+
+    def __init__(self, name: str, path: Path | None, mode: str, service: EntryService):
+        self.name, self.path, self.mode, self.service = name, path, mode, service
+        self.month: str | None = None
+        self.month_note: str | None = None
+        self.ready = False
+        self.check_activities: bool | None = None  # None: not decided yet (see decide)
 
 
 class Session:
-    """What the start page has chosen so far (one per server: the tool is for one PC)."""
+    """The workbooks chosen so far (one session per server: the tool is for one PC)."""
 
     def __init__(self, base: Config):
         self.base = base
@@ -71,9 +110,16 @@ class Session:
             live_available=live_available(),
             browse_available=sys.platform == "win32",
         )
+        self.books: dict[str, Book] = {}
+        self.active: str | None = None
+        self.settings = BookSettings(base.settings_file)
         self.work = Path(tempfile.mkdtemp(prefix="labour_tool_"))
         self.lock = threading.Lock()
         self._uploads = 0
+
+    @property
+    def book(self) -> Book | None:
+        return self.books.get(self.active) if self.active else None
 
     def save_upload(self, filename: str, data: bytes) -> Path:
         with self.lock:
@@ -84,17 +130,46 @@ class Session:
         path.write_bytes(data)
         return path
 
-    def config(self) -> Config:
-        s = self.state
+    def config(self, book: Book | None = None) -> Config:
+        s, book = self.state, book or self.book
         update: dict = {
             "holidays": s.holidays,
             "registration_files": [Path(p) for p in s.registration_files],
         }
-        if s.month:
-            update["month"] = s.month
-        if s.path:
-            update["workbook_file"] = Path(s.path)
+        if book is not None:
+            if book.month:
+                update["month"] = book.month
+            if book.path:
+                update["workbook_file"] = book.path
+            update["check_activities"] = book.check_activities is not False
         return self.base.model_copy(update=update)
+
+    def decide(self, book: Book, snapshot: WorkbookSnapshot | None) -> None:
+        """Activity checks: as set before for this kind of workbook, else from what is in it."""
+        if book.check_activities is not None:
+            return
+        saved = self.settings.get(book.name).get("check_activities")
+        if isinstance(saved, bool):
+            book.check_activities = saved
+        elif snapshot is not None:
+            book.check_activities = uses_activity_codes(snapshot)
+
+    def sync(self) -> SetupState:
+        """Show the active workbook in ``state``."""
+        s, b = self.state, self.book
+        s.workbook = b.name if b else None
+        s.path = str(b.path) if b and b.path else None
+        s.mode = b.mode if b else None  # type: ignore[assignment]
+        s.month = b.month if b else None
+        s.month_note = b.month_note if b else None
+        s.check_activities = b is None or b.check_activities is not False
+        s.ready = bool(b and b.ready)
+        s.books = [
+            BookInfo(name=x.name, mode=x.mode, month=x.month, ready=x.ready,  # type: ignore[arg-type]
+                     check_activities=x.check_activities is not False, active=x.name == self.active)
+            for x in self.books.values()
+        ]  # fmt: skip
+        return s
 
 
 def live_available() -> bool:
@@ -150,26 +225,34 @@ def _read(path: Path, config: Config) -> WorkbookSnapshot:
 
 
 def choose(app, path: Path | None, name: str, practice: bool, real_file: bool) -> SetupState:
-    """Make ``name`` the workbook of this session. ``path``: a file to read (a dropped copy or the
-    real file); ``real_file``: Excel may open ``path`` itself when the workbook is not open."""
+    """Open ``name`` in this session (replacing an earlier copy of it) and make it the active
+    workbook; the others stay open. ``path``: a file to read (a dropped copy or the real file);
+    ``real_file``: Excel may open ``path`` itself when the workbook is not open."""
     session: Session = app.state.session
-    s = session.state
-    live = s.live_available and not practice
+    live = session.state.live_available and not practice
     snapshot = _read(path, session.base) if path is not None else None
     if snapshot is None and not live:
         raise HTTPException(422, "Practice mode needs the file: drop it here or browse to it.")
     guess = guess_month(name, snapshot) if snapshot else None
-    s.workbook, s.path = name, str(path) if path else None
-    s.mode, s.ready = ("live" if live else "demo"), False
-    s.month = guess.month if guess else month_from_name(name)
-    s.month_note = guess.note if guess else None
-    config = session.config()
+    book = Book(name, path, "live" if live else "demo", None)  # type: ignore[arg-type]
+    book.month = guess.month if guess else month_from_name(name)
+    book.month_note = guess.note if guess else None
+    session.decide(book, snapshot)
+    config = session.config(book)
     if live:
-        service = live_named_service(config, name, path if real_file else None)
+        book.service = live_named_service(config, name, path if real_file else None)
     else:
-        service = practice_service(config, snapshot, session.work)
-    app.state.set_service(service, config)
-    return s
+        book.service = practice_service(config, snapshot, session.work)
+    session.books[name] = book
+    _activate(app, session, name)
+    return session.state
+
+
+def _activate(app, session: Session, name: str) -> None:
+    session.active = name
+    book = session.books[name]
+    app.state.set_service(book.service, session.config(book))
+    session.sync()
 
 
 async def _open_books(request: Request) -> list[str]:
@@ -193,7 +276,8 @@ async def _open_books(request: Request) -> list[str]:
 
 @router.get("", response_model=SetupState)
 async def get_setup(request: Request) -> SetupState:
-    s = _session(request).state
+    session = _session(request)
+    s = session.sync()
     if s.live_available:
         s.open_workbooks = await _open_books(request)
     return s
@@ -270,12 +354,12 @@ def browse(body: BrowseRequest, request: Request) -> dict:
     return {"cancelled": False, "state": state.model_dump(mode="json")}
 
 
-class OpenRequest(BaseModel):
+class NameRequest(BaseModel):
     name: str = Field(min_length=1)
 
 
 @router.post("/open", response_model=SetupState)
-def use_open(body: OpenRequest, request: Request) -> SetupState:
+def use_open(body: NameRequest, request: Request) -> SetupState:
     """Use a workbook that is already open in Excel (live mode only)."""
     if not _session(request).state.live_available:
         raise HTTPException(501, "Live Excel is not available on this computer.")
@@ -284,9 +368,51 @@ def use_open(body: OpenRequest, request: Request) -> SetupState:
 
 def _require(request: Request) -> Session:
     session = _session(request)
-    if session.state.workbook is None:
+    if session.book is None:
         raise HTTPException(409, "Choose the workbook first.")
     return session
+
+
+@router.post("/switch", response_model=SetupState)
+def switch(body: NameRequest, request: Request) -> SetupState:
+    """Make another open workbook the one the entry screen works on. Entries waiting in the
+    browser's queue belong to the workbook they were made for: the page sends them first."""
+    session = _session(request)
+    if body.name not in session.books:
+        raise HTTPException(404, f"{body.name} is not open here. Choose it on the start page.")
+    _activate(request.app, session, body.name)
+    return session.state
+
+
+@router.post("/close", response_model=SetupState)
+def close(body: NameRequest, request: Request) -> SetupState:
+    """Take a workbook off this session's list (the file and Excel are not touched)."""
+    session = _session(request)
+    if session.books.pop(body.name, None) is None:
+        raise HTTPException(404, f"{body.name} is not open here.")
+    if session.active == body.name:
+        rest = list(session.books)
+        if rest:
+            _activate(request.app, session, rest[-1])
+        else:
+            session.active = None
+            request.app.state.set_service(None, session.config())
+    return session.sync()
+
+
+class OptionsRequest(BaseModel):
+    check_activities: bool
+
+
+@router.post("/options", response_model=SetupState)
+def set_options(body: OptionsRequest, request: Request) -> SetupState:
+    """Settings of the active workbook, kept for its kind (next month's file gets them too)."""
+    session = _require(request)
+    book = session.book
+    book.check_activities = body.check_activities
+    session.settings.set(book.name, check_activities=body.check_activities)
+    _apply(request, session)
+    return session.sync()
 
 
 @router.post("/check", response_model=HealthReport)
@@ -296,19 +422,29 @@ async def check(request: Request) -> HealthReport:
 
     def run(service: EntryService) -> HealthReport:
         snap = service.snapshot()
-        s = session.state
-        if s.path is None:  # chosen from Excel's open workbooks: the sheets tell the month too
-            guess = guess_month(s.workbook, snap)
-            if guess.month and guess.month != s.month:
-                s.month, s.month_note = guess.month, guess.note
+        b = session.book
+        if b.path is None:  # chosen from Excel's open workbooks: the sheets tell the month too
+            guess = guess_month(b.name, snap)
+            if guess.month and guess.month != b.month:
+                b.month, b.month_note = guess.month, guess.note
                 _apply(request, session)
-        if s.month is None:
+        if b.check_activities is None:
+            session.decide(b, snap)
+            _apply(request, session)
+        session.sync()
+        if b.month is None:
             raise ValueError(
                 "Could not tell which month this workbook is for: put the month in the file "
                 "name (e.g. 'October 2026') or the date in F3 of sheet 1."
             )
         config = request.app.state.config
-        return run_health(snap, config.month_start, config.holidays, config.template)
+        return run_health(
+            snap,
+            config.month_start,
+            config.holidays,
+            config.template,
+            check_activities=config.check_activities,
+        )
 
     return await run_service(request, run)
 
@@ -330,7 +466,7 @@ def set_holidays(body: HolidaysRequest, request: Request) -> SetupState:
     session = _session(request)
     session.state.holidays = sorted(set(body.holidays))
     _apply(request, session)
-    return session.state
+    return session.sync()
 
 
 @router.post("/registration", response_model=SetupState)
@@ -342,7 +478,7 @@ async def add_registration(request: Request, filename: str = Query(...)) -> Setu
     files = [p for p in session.state.registration_files if Path(p).name != name]
     session.state.registration_files = [*files, str(path)]
     _apply(request, session)
-    return session.state
+    return session.sync()
 
 
 @router.get("/readiness", response_model=Readiness)
@@ -373,6 +509,7 @@ async def get_readiness(request: Request) -> Readiness:
             service.mode,
             service.backups.directory,
             crews,
+            check_activities=config.check_activities,
         )
 
     return await run_service(request, run)
@@ -389,5 +526,6 @@ class ReadyRequest(BaseModel):
 @router.post("/ready", response_model=SetupState)
 def set_ready(body: ReadyRequest, request: Request) -> SetupState:
     session = _require(request) if body.ready else _session(request)
-    session.state.ready = body.ready
-    return session.state
+    if session.book is not None:
+        session.book.ready = body.ready
+    return session.sync()

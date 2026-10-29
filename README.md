@@ -27,7 +27,17 @@ Tick **Practice mode** to try everything on a copy in memory: Excel and the file
 No config file is needed. The month comes from the file name (or the sheet dates); backups and the
 change log go to `Labour Entry Tool` in your user folder. `config.yaml` (copy of
 `config.example.yaml`) is optional, for other folders or a fixed holiday list.
-*Change workbook* (top right of the entry screen) goes back to the start page.
+*Check workbook* (top right of the entry screen) goes back to the start page.
+
+**Several workbooks.** *+ Workbook* opens one more (say INDIAN and SUB CONTRACT); the others stay
+open, and the workbook menu in the top bar switches between them. A workbook checked once goes
+straight to entry when you switch back to it.
+
+**Workbooks without activity codes.** On the start page, *Check activity codes and hours* is set
+per workbook. Untick it for a workbook kept without codes (all hours go to ZIDLE): the activity
+boxes, the activity checks and medical leave are left out for it. The tool unticks it by itself
+when the workbook's activity list is empty, and remembers the choice for next month's file of
+the same kind (`workbooks.json` in the data folder).
 
 ## Developer setup (Python 3.11+)
 

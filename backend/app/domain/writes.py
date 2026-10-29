@@ -258,6 +258,7 @@ def plan_entry(
     month_start: dt.date,
     holidays: Collection[dt.date] = (),
     template: TemplateConfig | None = None,
+    check_activities: bool = True,
 ) -> EntryPlan:
     """Plan one entry against a freshly read day sheet."""
     t = template or TemplateConfig()
@@ -299,7 +300,7 @@ def plan_entry(
     if entry.is_clear:
         return plan  # clearing: nothing to validate beyond E07-E09
     would_be = as_entry(entry, block, row)
-    issues += check_entry(would_be, day.header.day_type, activity_codes, t)
+    issues += check_entry(would_be, day.header.day_type, activity_codes, t, check_activities)
     plan.preview = rules.compute_entry(would_be, day.header.day_type)
     if plan.preview is not None:
         plan.day_count = rules.summary_day_count(plan.preview.effective, day.header.day_type)

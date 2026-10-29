@@ -51,6 +51,7 @@ def check_file(
         config.month_start,
         config.holidays if holidays is None else holidays,
         config.template,
+        check_activities=config.check_activities,
     )
 
 
