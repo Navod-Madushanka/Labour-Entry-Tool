@@ -151,3 +151,34 @@ def test_upload_real_workbook(app):
         assert report["stats"]["workers"] > 100
         ready = c.get("/api/setup/readiness").json()
         assert {x["id"] for x in ready["checks"]} >= {"workbook", "headers", "daybuilder"}
+
+
+def test_start_page_does_not_wait_forever_for_excel(app, monkeypatch):
+    """Excel with a dialog open answers nothing: the start page must still load."""
+    import time as _time
+
+    from app.excel import xlwings_adapter
+
+    monkeypatch.setattr(setup_api, "OPEN_BOOKS_WAIT", 0.3)
+    monkeypatch.setattr(xlwings_adapter, "open_workbook_names", lambda: _time.sleep(2) or [])
+    app.state.session.state.live_available = True
+    with TestClient(app) as c:
+        started = _time.monotonic()
+        state = c.get("/api/setup").json()
+        assert _time.monotonic() - started < 1.5
+        assert state["open_workbooks"] == [] and "Excel isn't answering" in state["excel_note"]
+
+
+def test_requests_give_up_on_a_silent_excel(app, small_snapshot, tmp_path, monkeypatch):
+    import time as _time
+
+    from app.api import entries
+
+    path = save_snapshot(small_snapshot, tmp_path / "Labour Entry Sheet October 2026.json")
+    setup_api.choose(app, path, path.name, practice=True, real_file=False)
+    monkeypatch.setattr(entries, "EXCEL_WAIT", 0.3)
+    service = app.state.service
+    monkeypatch.setattr(service, "master_view", lambda fresh=False: _time.sleep(2))
+    with TestClient(app) as c:
+        res = c.get("/api/master")
+        assert res.status_code == 504 and "Excel isn't answering" in res.json()["detail"]

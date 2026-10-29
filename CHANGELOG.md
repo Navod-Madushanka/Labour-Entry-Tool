@@ -1,5 +1,18 @@
 # Changelog
 
+## The page waiting forever for Excel (29 Oct 2026)
+
+Found in testing: the page stayed blank on start. The server was running, but `/api/setup`
+never answered. It asks Excel for its open workbooks, and Excel answers no other program while
+a message box or dialog is open (or a cell is being edited).
+
+- The start page waits at most 5 seconds for that list, then shows: "Excel isn't answering.
+  Check Excel for an open message box or dialog (or a cell being edited), close it, then press
+  Check again", with a Check again button.
+- Every other request to Excel gives up after 2 minutes with the same advice instead of hanging.
+- If anything in the page breaks, the error is shown on screen with a Reload button instead of
+  a blank page.
+
 ## Time cards on protected sheets (29 Oct 2026)
 
 Found in testing: opening the Time cards tab showed "Excel error: '-2147352567 Exception

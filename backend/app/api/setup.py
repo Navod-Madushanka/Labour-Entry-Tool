@@ -12,6 +12,7 @@ file in memory: nothing reaches Excel or the file.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import sys
 import tempfile
@@ -35,6 +36,11 @@ from app.setup import Readiness, guess_month, month_from_name, next_sheet, readi
 router = APIRouter(prefix="/api/setup")
 
 MAX_UPLOAD = 100 * 1024 * 1024
+OPEN_BOOKS_WAIT = 5.0  # seconds
+EXCEL_NOT_ANSWERING = (
+    "Excel isn't answering. Check Excel for an open message box or dialog (or a cell being "
+    "edited), close it, then press Check again."
+)
 WORKBOOK_TYPES = (".xlsb",)
 REGISTRATION_TYPES = (".xlsx", ".xlsm")
 
@@ -50,6 +56,7 @@ class SetupState(BaseModel):
     live_available: bool = False  # Excel can be driven from here (Windows with xlwings)
     browse_available: bool = False  # a file dialog can be shown on this PC
     open_workbooks: list[str] = Field(default_factory=list)  # .xlsb files open in Excel now
+    excel_note: str | None = None  # Excel did not answer (a dialog open in it?)
     ready: bool = False  # the user finished the start page
 
 
@@ -168,10 +175,19 @@ def choose(app, path: Path | None, name: str, practice: bool, real_file: bool) -
 async def _open_books(request: Request) -> list[str]:
     from app.excel import xlwings_adapter
 
+    s = _session(request).state
     try:
-        names = await request.app.state.get_worker().run(xlwings_adapter.open_workbook_names)
+        # Excel answers no program while a dialog or message box is open in it: never let that
+        # hold up the start page.
+        names = await asyncio.wait_for(
+            request.app.state.get_worker().run(xlwings_adapter.open_workbook_names), OPEN_BOOKS_WAIT
+        )
+    except TimeoutError:
+        s.excel_note = EXCEL_NOT_ANSWERING
+        return []
     except WorkbookError:
         return []
+    s.excel_note = None
     return [n for n in names if n.lower().endswith(WORKBOOK_TYPES)]
 
 

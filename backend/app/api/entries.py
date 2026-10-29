@@ -7,6 +7,7 @@ passes its checks and every warning is acknowledged.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -31,6 +32,8 @@ from app.service import (
 )
 
 router = APIRouter(prefix="/api")
+
+EXCEL_WAIT = 120.0  # seconds before a request gives up on a silent Excel (a full read takes ~20)
 
 
 class PreviewRequest(BaseModel):
@@ -59,7 +62,13 @@ async def run_service(request: Request, fn: Callable[[EntryService], Any]) -> An
     """Run ``fn(service)`` on the Excel thread and map workbook errors to HTTP errors."""
     service: EntryService = request.app.state.get_service()
     try:
-        return await request.app.state.worker.run(fn, service)
+        return await asyncio.wait_for(request.app.state.worker.run(fn, service), EXCEL_WAIT)
+    except TimeoutError as exc:
+        raise HTTPException(
+            504,
+            "Excel isn't answering. Check Excel for an open message box or dialog (or a cell "
+            "being edited), close it, then try again.",
+        ) from exc
     except NotConnectedError as exc:
         service.disconnect()  # reattach on the next call
         raise HTTPException(503, str(exc)) from exc

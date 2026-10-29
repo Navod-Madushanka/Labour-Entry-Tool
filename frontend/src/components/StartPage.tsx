@@ -156,6 +156,14 @@ export function StartPage({ initial, onDone }: Props) {
           )}
         </div>
       )}
+      {setup.excel_note && step === "choose" && !busy && (
+        <div className="banner WARN">
+          <p>{setup.excel_note}</p>
+          <div className="actions">
+            <button onClick={() => run("Asking Excel again…", api.setup).then((s) => s && setSetup(s))}>Check again</button>
+          </div>
+        </div>
+      )}
       {busy && <p className="busy">{busy}</p>}
 
       {step === "choose" && (

@@ -287,6 +287,7 @@ export interface SetupState {
   live_available: boolean;
   browse_available: boolean;
   open_workbooks: string[];
+  excel_note: string | null; // Excel didn't answer (an open dialog), so open workbooks are unknown
   ready: boolean;
 }
 
