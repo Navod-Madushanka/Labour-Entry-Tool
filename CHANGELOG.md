@@ -1,5 +1,21 @@
 # Changelog
 
+## Changes made in Excel show up without reloading (29 Oct 2026)
+
+Found in testing: an activity code added to Labour Detail in Excel was rejected as unknown,
+because the tool kept the copy of Labour Detail it read at the start.
+
+- **Back from Excel:** when the tool's window gets focus again, it reads Labour Detail (workers,
+  activity codes) and the open day again, at most once every 3 seconds. A code or worker added
+  in Excel appears in the suggestions, and entries changed in Excel show in the day list.
+- **Unknown code or worker:** before an entry is called wrong for an unknown activity code (E04)
+  or a worker not on the sheet (E07), the server reads Labour Detail and the sheet again, at most
+  once every 3 seconds so a code typed letter by letter doesn't trigger a read per key.
+- Unchanged: a push always re-reads everything it checks, and *Reload from Excel* still forces a
+  full re-read.
+- Practice mode works on the copy taken when the file was opened; changes made in Excel reach it
+  only after saving and opening the file again on the start page.
+
 ## "Usually on the same record" suggestions (28 Oct 2026)
 
 - **The pattern in the October file:** 96% of worker-days have at least one other worker with

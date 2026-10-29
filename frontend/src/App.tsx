@@ -68,6 +68,24 @@ export function App({ onChangeWorkbook }: { onChangeWorkbook: () => void }) {
     [],
   );
 
+  // Back from Excel (the window gets focus again): read Labour Detail and the open day again, so
+  // activity codes, workers and entries changed in Excel show up without "Reload from Excel".
+  const lastSync = useRef(0);
+  useEffect(() => {
+    const sync = () => {
+      if (document.visibilityState !== "visible" || !master || Date.now() - lastSync.current < 3000) return;
+      lastSync.current = Date.now();
+      api.master(true).then(setMaster).catch(() => undefined);
+      api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))).catch(() => undefined);
+    };
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [master, sheet]);
+
   // Start: status, master, the chosen sheet, then the rest of the month in the background.
   useEffect(() => {
     refreshStatus();

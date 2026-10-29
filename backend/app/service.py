@@ -224,6 +224,7 @@ class EntryService:
         self._master: MasterData | None = None
         self._days: dict[str, DaySheet] = {}
         self.unsaved = False
+        self._last_reread = float("-inf")
 
     # --- connection ---
 
@@ -317,8 +318,25 @@ class EntryService:
     # --- preview / commit ---
 
     def preview(self, entries: list[EntryInput], fresh: bool = False) -> list[EntryPlan]:
-        """Plans against the cached sheets (fast enough to run while typing)."""
-        return self._plan(entries, self.master(fresh), fresh)
+        """Plans against the cached sheets (fast enough to run while typing). An activity code or
+        a worker the cache doesn't know may have been added in Excel since: then Labour Detail and
+        the sheets are read again (at most every few seconds) before the entry is called wrong."""
+        plans = self._plan(entries, self.master(fresh), fresh)
+        if not fresh and self._maybe_stale(plans):
+            plans = self._plan(entries, self.master(fresh=True), fresh=True)
+        return plans
+
+    STALE_RULES = frozenset({"E04", "E07"})  # unknown activity code, worker not on the sheet
+    REREAD_AFTER = 3.0  # seconds between such re-reads (a code typed letter by letter)
+
+    def _maybe_stale(self, plans: list[EntryPlan]) -> bool:
+        if not any(i.rule in self.STALE_RULES for p in plans for i in p.issues):
+            return False
+        now = time.monotonic()
+        if now - self._last_reread < self.REREAD_AFTER:
+            return False
+        self._last_reread = now
+        return True
 
     def commit(self, entries: list[EntryInput], user: str, dry_run: bool = False) -> CommitResult:
         started = time.perf_counter()

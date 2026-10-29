@@ -289,3 +289,31 @@ def test_read_back_failure_after_a_good_write(small_snapshot, tmp_path):
     assert svc.audit.batch(res.batch_id).status == "done"  # not left pending
     fake.fail = False
     assert fake.read_range("1", "G16:H16") == [[7.0, 19.0]]
+
+
+# --- changes made in Excel while the tool is open -----------------------------------------------
+
+
+def test_preview_sees_an_activity_code_added_in_excel(service, fake):
+    new = entry(activities=acts(11.0, code="99-99-99-99"))
+    [plan] = service.preview([new])
+    assert "E04" in {i.rule for i in plan.issues}  # not in the list yet
+    # Someone adds the code to Labour Detail's activity list in Excel.
+    _row, c = service.template.activity_start
+    last = max(row for (row, col) in fake.master_grid if col == c)
+    fake.master_grid[(last + 1, c)] = "99-99-99-99"
+    service._last_reread = float("-inf")  # the first lookup above re-read already; allow another
+    [plan] = service.preview([new])
+    assert "E04" not in {i.rule for i in plan.issues}
+    assert "99-99-99-99" in service.master_view().activities
+
+
+def test_unknown_code_rereads_at_most_every_few_seconds(service, fake, monkeypatch):
+    reads = []
+    real = fake.read_master
+    monkeypatch.setattr(fake, "read_master", lambda: reads.append(1) or real())
+    service.master()  # cached
+    bad = entry(activities=acts(11.0, code="00-00-00-0"))
+    for _ in range(5):  # a code typed letter by letter
+        service.preview([bad])
+    assert len(reads) == 2  # the first read, then one re-read
