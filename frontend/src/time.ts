@@ -1,10 +1,16 @@
 // Times are decimal hours in the workbook (7.5 = 07:30; overnight Out goes past 24).
+import { formulaValue } from "./calc";
 
 /** Accepts "7", "730", "0730", "7:30", "7h30", "7.30" (clock) and decimal hours like "7.5";
  * null if invalid. */
 export function parseClock(text: string): number | null {
   const t = text.trim();
   if (!t) return null;
+  if (t.startsWith("=")) {
+    // An Excel-style sum of hours, e.g. "=6+24" or "=7+0.5" (07:30).
+    const v = formulaValue(t);
+    return v !== null && v >= 0 && v < 48 ? v : null;
+  }
   let h: number, m: number;
   let match: RegExpMatchArray | null;
   if ((match = t.match(/^(\d{1,2})[:h](\d{2})$/))) {

@@ -1,5 +1,6 @@
 // The entry form's state and its conversion to the API's EntryInput.
 import type { Entry, EntryInput, Worker } from "./api";
+import { formulaValue } from "./calc";
 import { effectiveHours, formatClock, parseClock } from "./time";
 
 export const LINES = 5;
@@ -50,6 +51,8 @@ export function isOvernight(f: FormState): boolean {
 const toNumber = (s: string): number | null => {
   const t = s.trim();
   if (!t) return null;
+  const f = formulaValue(t); // "=16-7" -> 9, as in Excel
+  if (f !== null) return f;
   const n = Number(t);
   return Number.isFinite(n) ? n : NaN; // NaN -> the server reports it
 };
@@ -68,9 +71,9 @@ export function formProblems(f: FormState): FormProblems {
   if (f.timeOut.trim() && parseClock(f.timeOut) === null) p.timeOut = "Type a time like 19, 19.30 or 19:30";
   f.lines.forEach((l, i) => {
     const h = toNumber(l.hours);
-    if (h !== null && (Number.isNaN(h) || h <= 0)) p.lines[i] = "Type a number of hours, like 8 or 2.5";
+    if (h !== null && (Number.isNaN(h) || h <= 0)) p.lines[i] = formulaValue(l.hours) !== null ? "Check the formula, e.g. =16-7" : "Type a number of hours, like 8 or 2.5";
   });
-  if (Number.isNaN(toNumber(f.additional) as number)) p.additional = "Type a number, like -1 or 1.5";
+  if (Number.isNaN(toNumber(f.additional) as number)) p.additional = formulaValue(f.additional) !== null ? "Check the formula, e.g. =2-3" : "Type a number, like -1 or 1.5";
   return p;
 }
 

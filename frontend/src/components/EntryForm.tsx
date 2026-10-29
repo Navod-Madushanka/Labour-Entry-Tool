@@ -16,6 +16,7 @@ import {
 import { companions, crewToday, entriesOf, recentActivities, usualTimes, workerStats, type Month } from "../history";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
+import { formulaValue, settleFormula } from "../calc";
 import { loadCrews } from "./CrewDialog";
 import { IssueList } from "./IssueList";
 
@@ -316,7 +317,7 @@ export function EntryForm(props: Props) {
             {problems.timeIn ? (
               <small className="error-text" role="alert">{problems.timeIn}</small>
             ) : (
-              <small className="hint">e.g. 7 or 7.30</small>
+              <small className="hint">{formulaHint(form.timeIn, true) ?? "e.g. 7 or 7.30"}</small>
             )}
           </div>
           <div className="field">
@@ -338,7 +339,7 @@ export function EntryForm(props: Props) {
             {problems.timeOut ? (
               <small className="error-text" role="alert">{problems.timeOut}</small>
             ) : (
-              <small className="hint">after midnight? tick Next day</small>
+              <small className="hint">{formulaHint(form.timeOut, true) ?? "after midnight? tick Next day"}</small>
             )}
           </div>
           <label className="check" title="Out is on the next day (written past 24 in Excel)">
@@ -403,10 +404,15 @@ export function EntryForm(props: Props) {
                       if (auto[i] === null && !line.hours && line.code && rest !== null) setLine(i, { hours: fmtHours(rest) });
                     }}
                     onChange={(e) => setLine(i, { hours: e.target.value })}
+                    onBlur={() => setLine(i, { hours: settleFormula(line.hours) })}
                     onKeyDown={(e) => onKey(e, "queue")}
                     aria-invalid={Boolean(problems.lines[i])}
                   />
-                  {problems.lines[i] && <small className="error-text">{problems.lines[i]}</small>}
+                  {problems.lines[i] ? (
+                    <small className="error-text">{problems.lines[i]}</small>
+                  ) : (
+                    formulaHint(line.hours) && <small className="hint">{formulaHint(line.hours)}</small>
+                  )}
                 </td>
               </tr>
             ))}
@@ -428,9 +434,15 @@ export function EntryForm(props: Props) {
               value={form.additional}
               placeholder="0"
               onChange={(e) => setForm((f) => ({ ...f, additional: e.target.value }))}
+              onBlur={() => setForm((f) => ({ ...f, additional: settleFormula(f.additional) }))}
               onFocus={(e) => e.target.select()}
               onKeyDown={(e) => onKey(e, "queue")}
             />
+            {problems.additional ? (
+              <small className="error-text">{problems.additional}</small>
+            ) : (
+              formulaHint(form.additional) && <small className="hint">{formulaHint(form.additional)}</small>
+            )}
           </div>
           <div className="field grow">
             <label htmlFor="remark">Remark (optional)</label>
@@ -650,6 +662,15 @@ function AlsoFor({
       ))}
     </div>
   );
+}
+
+/** "= 9" under a box while an Excel-style sum is typed in it ("= 07:30" for a time). */
+function formulaHint(text: string, clock = false): string | null {
+  const v = formulaValue(text);
+  if (v === null) return null;
+  if (Number.isNaN(v)) return "check the formula";
+  if (clock) return v >= 0 && v < 48 ? `= ${formatClock(v)}${v >= 24 ? " next day" : ""}` : "not a time of day";
+  return `= ${fmtHours(v)}`;
 }
 
 /** "730" -> "07:30" when valid; invalid text stays so the user sees what they typed. */

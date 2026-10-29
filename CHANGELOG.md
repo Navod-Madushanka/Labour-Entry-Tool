@@ -1,5 +1,15 @@
 # Changelog
 
+## Excel-style sums in the number boxes (29 Oct 2026)
+
+- Hours, Additional hours, Time In and Time Out accept a sum starting with "=", as in an Excel
+  cell: `=16-7` → 9, `=21-5` → 16, `=(21-5)/2` → 8, `=6+24` → 06:00 next day. The answer shows
+  under the box while typing ("= 9"); leaving the box replaces the formula with its number, which
+  is what gets written to Excel. Enter adds the worker straight from a formula.
+- Only numbers, + − × ÷ (or * /) and brackets: a small parser (`frontend/src/calc.ts`), never
+  `eval`. A wrong formula ("=16-", "=1/0") is flagged: "Check the formula, e.g. =16-7".
+- New browser test `frontend/e2e/formulas.cjs`.
+
 ## Very long days are allowed (29 Oct 2026)
 
 - A day over 16 worked hours (e.g. 07:00 to 06:00 next morning = 21 h) is now a note, not a
