@@ -41,7 +41,15 @@ jobs:
 
       - name: Tests
         working-directory: backend
-        run: python -m pytest -q
+        shell: pwsh
+        run: |
+          python -m pytest -q --tb=short -rf -p no:cacheprovider 2>&1 | Tee-Object -FilePath pytest.txt
+          if ($LASTEXITCODE -ne 0) {
+            # Each failure as an annotation, readable on the run page without opening the log.
+            Select-String -Path pytest.txt -Pattern "^(FAILED|ERROR) |Error:|assert " |
+              Select-Object -First 40 | ForEach-Object { "::error::$($_.Line)" }
+            exit 1
+          }
 
       - name: Build LabourEntryTool.exe
         run: python -m PyInstaller packaging/labour_entry_tool.spec --noconfirm
