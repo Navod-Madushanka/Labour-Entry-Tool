@@ -1,5 +1,29 @@
 # Changelog
 
+## Place names and better activity code suggestions (29 Oct 2026)
+
+Research on the INDIAN October workbook (read only): the activity list is the project's WBS
+codes, numbered after MasterFormat: four pairs for the kind of work (`03-11` formwork, `03-20`
+reinforcing, `04-22` block masonry, `01-54-23` scaffolding, ...) and an optional suffix for the
+place (on this project `-P` parking area, `-A` arcade, `-C` core, `-S` skywalk, `-C-1` core 1,
+`-C-8` core 8). Codes and suffixes differ per project, so none is written into the tool.
+
+- **Place names, asked once.** After the first check of a workbook, the start page lists the
+  suffixes found in its activity list (most used first; the rare ones folded away) and asks what
+  they mean. The names are kept per project (the sheets' Project / Activity Centre), so every
+  workbook of the site shares them, and they survive restarts. A suffix is asked about once,
+  named or left blank; a new one appearing in a later list is the only thing asked again.
+  *Place names* on the start page edits them.
+- The entry screen shows the place under the activity code, in the code list and on the
+  suggestion chips; the manpower sheet shows it in the Description column.
+- **Code suggestions, partners first.** Replaying the whole month showed what predicts a
+  worker's code best: the code their usual partners (same code and times on the last days) have
+  today, then workers of the trade with the same times, their own last day, the trade today and
+  this month. First guess right for 76% of the 4,075 entries, top three 89% (own last day first,
+  as before: 64% and 85%). The best one shows in the empty first Activity box; **Enter takes
+  it**. The others are chips ("Codes:") with the place and why they are suggested; the code
+  list puts them first.
+
 ## Several workbooks; activity checks per workbook (29 Oct 2026)
 
 Asked for: the SUB CONTRACT workbook has the same layout as the INDIAN one, but no activity codes

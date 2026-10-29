@@ -50,11 +50,13 @@ def book(folder: Path, name: str, prefix: str, codes: bool) -> Path:
     workers = [Worker(row=3 + i, calling_name=f"{prefix}-{i + 1:02d}", name=f"Person {i + 1}",
                       trade_group="Helper", id_no=f"P{i:07d}", employee_code=f"X{i:05d}")
                for i in range(12)]  # fmt: skip
-    acts = ["03-11-00-00", "03-20-00-00", "00-00-10-00"] if codes else []
+    # Place suffixes like a real list: "-P" and "-C-8" (made up here; named on the start page).
+    acts = ["03-11-00-00", "03-11-00-00-P", "03-20-00-00-C-8", "00-00-10-00"] if codes else []
     days = []
     for d in range(1, 32):
         date = dt.date(2026, 10, d)
-        entries = [entry(str(d), b, workers[b].calling_name, acts[0] if codes else None)
+        crew = lambda b: acts[1] if b < 4 else acts[2]  # noqa: E731 - two crews, two places
+        entries = [entry(str(d), b, workers[b].calling_name, crew(b) if codes else None)
                    for b in range(8)] if d <= 3 else []  # fmt: skip
         header = DayHeader(sheet=str(d), date=date, day_type=calendar_day_type(date, []),
                            sheet_no=float(d), prepared_by="Clerk", project="SITE")  # fmt: skip

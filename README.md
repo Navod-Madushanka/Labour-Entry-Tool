@@ -39,6 +39,11 @@ boxes, the activity checks and medical leave are left out for it. The tool untic
 when the workbook's activity list is empty, and remembers the choice for next month's file of
 the same kind (`workbooks.json` in the data folder).
 
+**Place names.** Activity codes end with a place on site (`-P`, `-C-8`, ...). After the first
+check of a project the start page asks once what each one means; the entry screen then shows
+"Parking area" next to `03-11-00-00-P`. The empty Activity box shows the suggested code (from the
+worker's usual partners today, their last day and their trade): press Enter to take it.
+
 ## Developer setup (Python 3.11+)
 
 ```powershell

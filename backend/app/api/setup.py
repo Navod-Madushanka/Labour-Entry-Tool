@@ -31,10 +31,11 @@ from pydantic import BaseModel, Field
 from app.api.entries import run_service
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
-from app.books import BookSettings
+from app.books import BookSettings, project_key
 from app.config import Config
 from app.domain.health import HealthReport, run_health
 from app.domain.models import SnapshotMeta, WorkbookSnapshot
+from app.domain.places import Place, find_places
 from app.excel.adapter import WorkbookError
 from app.service import EntryService
 from app.setup import (
@@ -97,6 +98,7 @@ class Book:
         self.month_note: str | None = None
         self.ready = False
         self.check_activities: bool | None = None  # None: not decided yet (see decide)
+        self.places_key: str | None = None  # where its place names are kept (see decide)
 
 
 class Session:
@@ -142,10 +144,16 @@ class Session:
             if book.path:
                 update["workbook_file"] = book.path
             update["check_activities"] = book.check_activities is not False
+            if book.places_key:
+                update["places"] = self.settings.get_key(book.places_key).get("places", {})
         return self.base.model_copy(update=update)
 
     def decide(self, book: Book, snapshot: WorkbookSnapshot | None) -> None:
-        """Activity checks: as set before for this kind of workbook, else from what is in it."""
+        """Activity checks: as set before for this kind of workbook, else from what is in it.
+        Place names: those of the project on the sheets."""
+        if book.places_key is None and snapshot is not None:
+            project = next((d.header.project for d in snapshot.days if d.header.project), None)
+            book.places_key = project_key(project, book.name)
         if book.check_activities is not None:
             return
         saved = self.settings.get(book.name).get("check_activities")
@@ -428,7 +436,7 @@ async def check(request: Request) -> HealthReport:
             if guess.month and guess.month != b.month:
                 b.month, b.month_note = guess.month, guess.note
                 _apply(request, session)
-        if b.check_activities is None:
+        if b.check_activities is None or b.places_key is None:
             session.decide(b, snap)
             _apply(request, session)
         session.sync()
@@ -528,4 +536,52 @@ def set_ready(body: ReadyRequest, request: Request) -> SetupState:
     session = _require(request) if body.ready else _session(request)
     if session.book is not None:
         session.book.ready = body.ready
+    return session.sync()
+
+
+class PlacesView(BaseModel):
+    project: str | None = None  # whose names these are (the sheets' Project / Activity Centre)
+    places: list[Place]
+    new: list[str]  # suffixes never asked about: the start page asks for these once
+
+
+@router.get("/places", response_model=PlacesView)
+async def get_places(request: Request) -> PlacesView:
+    """The place suffixes in the activity list, with the names given so far (after a check)."""
+    session = _require(request)
+    book = session.book
+
+    def run(service: EntryService) -> PlacesView:
+        days = [service.day(s) for s in service.workbook.day_sheet_names()]
+        saved = session.settings.get_key(book.places_key) if book.places_key else {}
+        names, asked = saved.get("places", {}), set(saved.get("asked", []))
+        places = find_places(service.master_view().activities, days, names)
+        project = book.places_key.removeprefix("project:") if book.places_key else None
+        return PlacesView(project=project, places=places,
+                          new=[p.suffix for p in places if p.suffix not in asked])  # fmt: skip
+
+    return await run_service(request, run)
+
+
+class PlacesRequest(BaseModel):
+    names: dict[str, str]  # suffix -> name; "" leaves one unnamed (and it is not asked again)
+
+
+@router.post("/places", response_model=SetupState)
+def set_places(body: PlacesRequest, request: Request) -> SetupState:
+    """Save the place names for this project: every workbook of it uses them from now on."""
+    session = _require(request)
+    book = session.book
+    if book.places_key is None:
+        raise HTTPException(409, "Check the workbook first.")
+    saved = session.settings.get_key(book.places_key)
+    names = {**saved.get("places", {})}
+    for suffix, name in body.names.items():
+        if name.strip():
+            names[suffix] = name.strip()[:60]
+        else:
+            names.pop(suffix, None)
+    asked = sorted({*saved.get("asked", []), *body.names})
+    session.settings.set_key(book.places_key, places=names, asked=asked)
+    _apply(request, session)
     return session.sync()

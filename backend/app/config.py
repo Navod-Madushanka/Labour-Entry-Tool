@@ -138,6 +138,7 @@ class Config(BaseModel):
     registration_files: list[Path] = []
     holidays: list[dt.date] = []
     check_activities: bool = True  # activity codes and their hours are checked (per workbook)
+    places: dict[str, str] = {}  # activity-code suffix -> place name, e.g. "P": "Parking area"
     settings_file: Path | None = None  # per-workbook settings (app/books.py); None: not kept
     server: ServerConfig = ServerConfig()
     backups: BackupConfig = BackupConfig()

@@ -200,6 +200,7 @@ class MasterView(BaseModel):
     activities: list[str]  # trimmed, unique, in list order
     day_types: list[str]
     check_activities: bool = True  # off: this workbook is kept without activity codes
+    places: dict[str, str] = {}  # activity-code suffix -> place name (named on the start page)
 
 
 class EntryView(BaseModel):
@@ -298,6 +299,7 @@ class EntryService:
             activities=list(dict.fromkeys(a.code for a in m.activities)),
             day_types=m.day_types,
             check_activities=self.config.check_activities,
+            places=self.config.places,
         )  # fmt: skip
 
     def day_view(self, sheet: str, fresh: bool = False) -> DayView:

@@ -14,7 +14,8 @@ import {
   type FormState,
   type OwnTimes,
 } from "../form";
-import { companions, crewToday, entriesOf, recentActivities, usualTimes, workerStats, type Month } from "../history";
+import { companions, crewToday, entriesOf, suggestCodes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
+import { placeName } from "../codes";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
 import { formulaValue, settleFormula } from "../calc";
@@ -32,6 +33,7 @@ interface Props {
   activityOrder: string[];
   onQueue: (inputs: EntryInput[]) => void; // the main worker first, then the "also for" workers
   queued: Set<string>; // workers waiting to go to Excel for this sheet
+  queuedToday: TodayEntry[]; // those entries, for the code suggestions
   onCrew: () => void;
   onMedical: () => void;
   onBuild: () => void;
@@ -100,7 +102,30 @@ export function EntryForm(props: Props) {
   const history = useMemo(() => (worker ? entriesOf(month, worker.calling_name, Number(sheet)) : []), [month, worker, sheet]);
   const stats = worker ? workerStats(month, worker.calling_name) : null;
   const usual = usualTimes(history);
-  const recent = recentActivities(history);
+  const today = useMemo(() => {
+    const queuedNames = new Set(props.queuedToday.map((q) => q.calling_name));
+    const inExcel: TodayEntry[] = (day?.entries ?? [])
+      .filter((v) => v.entry.calling_name && !queuedNames.has(v.entry.calling_name))
+      .map((v) => ({
+        calling_name: v.entry.calling_name!,
+        code: v.entry.activities.map((a) => (typeof a.code === "string" ? a.code.trim() : "")).find(Boolean) ?? null,
+        time_in: typeof v.entry.time_in === "number" ? v.entry.time_in : null,
+        time_out: typeof v.entry.time_out === "number" ? v.entry.time_out : null,
+      }));
+    return [...inExcel, ...props.queuedToday];
+  }, [day, props.queuedToday]);
+  const suggested = useMemo(
+    () =>
+      worker && withActs
+        ? suggestCodes(month, Number(sheet), worker, master.workers, today, { time_in: input?.time_in ?? null, time_out: input?.time_out ?? null })
+        : [],
+    [worker, withActs, month, sheet, master.workers, today, input?.time_in, input?.time_out],
+  );
+  const places = master.places;
+  const codeList = useMemo(
+    () => [...new Set([...suggested.map((s) => s.code), ...activityOrder])],
+    [suggested, activityOrder],
+  );
   const yesterday = worker ? month[String(Number(sheet) - 1)]?.entries.find((v) => v.entry.calling_name === worker.calling_name) : undefined;
   const crew = worker ? crewToday(day, master.workers, worker.trade_group) : null;
 
@@ -381,16 +406,30 @@ export function EntryForm(props: Props) {
                       value={line.code}
                       onChange={(e) => setLine(i, { code: e.target.value })}
                       onFocus={(e) => e.target.select()} // typing replaces the kept code
-                      placeholder={i === 0 ? "e.g. 03-11-00-00" : "another activity (optional)"}
+                      className={i === 0 && !line.code && suggested[0] ? "suggested-code" : undefined}
+                      placeholder={
+                        i === 0 && suggested[0]
+                          ? `${suggested[0].code} (Enter to use)`
+                          : i === 0
+                            ? "e.g. 03-11-00-00"
+                            : "another activity (optional)"
+                      }
+                      title={i === 0 && !line.code && suggested[0] ? `Suggested: ${suggested[0].why}` : undefined}
                       onKeyDown={(e) => {
                         // Enter: a code -> the next activity (hours fill themselves); empty -> add the worker.
-                        if (e.key === "Enter" && !e.ctrlKey) {
+                        // On an empty first box, Enter takes the suggested code shown in it.
+                        if (e.key === "Enter" && !e.ctrlKey && i === 0 && !line.code.trim() && suggested[0]) {
+                          e.preventDefault();
+                          setLine(0, { code: suggested[0].code });
+                          requestAnimationFrame(() => focus("code1"));
+                        } else if (e.key === "Enter" && !e.ctrlKey) {
                           e.preventDefault();
                           if (line.code.trim() && i < LINES - 1) focus(`code${i + 1}`);
                           else if (line.code.trim() || i > 0) queue();
                         } else onKey(e, `hours${i}`);
                       }}
                     />
+                    {placeName(line.code, places) && <small className="hint place">{placeName(line.code, places)}</small>}
                   </td>
                   <td>
                     <input
@@ -433,8 +472,8 @@ export function EntryForm(props: Props) {
           </p>
         )}
         <datalist id="activity-codes">
-          {activityOrder.map((c) => (
-            <option key={c} value={c} />
+          {codeList.map((c) => (
+            <option key={c} value={c} label={placeName(c, places) ?? undefined} />
           ))}
         </datalist>
 
@@ -531,25 +570,28 @@ export function EntryForm(props: Props) {
                 <span className="muted">({crew.count} {String(worker.trade_group ?? "")})</span>
               </button>
             )}
-            {recent.length > 0 && (
-              <div className="chips">
-                <span className="muted small">Recent:</span>
-                {recent.map((code) => (
+            {suggested.length > 0 && (
+              <div className="chips code-chips">
+                <span className="muted small">Codes:</span>
+                {suggested.map((sg) => (
                   <button
-                    key={code}
+                    key={sg.code}
                     className="chip"
+                    title={sg.why}
                     onClick={() => {
                       const i = form.lines.findIndex((l) => !l.code.trim());
-                      setLine(i === -1 ? 0 : i, { code });
+                      setLine(i === -1 ? 0 : i, { code: sg.code });
                       focus(`hours${i === -1 ? 0 : i}`);
                     }}
                   >
-                    {code}
+                    {sg.code}
+                    {placeName(sg.code, places) && <span className="place"> · {placeName(sg.code, places)}</span>}
+                    <span className="why"> {sg.why}</span>
                   </button>
                 ))}
               </div>
             )}
-            {!usual && !yesterday && !recent.length && <p className="muted small">No history this month yet.</p>}
+            {!usual && !yesterday && !suggested.length && <p className="muted small">No history this month yet.</p>}
           </div>
         )}
       </aside>

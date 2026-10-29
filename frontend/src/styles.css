@@ -494,3 +494,15 @@ section.timecards { border-top-color: var(--brand); }
   .statusbar > * { flex-shrink: 0; }
   .statusbar .workbook, .statusbar .spacer { flex-shrink: 1; }
 }
+
+/* Place names in activity codes */
+.places-card table.places { border-collapse: collapse; margin: 6px 0 8px; }
+.places-card table.places th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 2px 10px 4px 0; }
+.places-card table.places td { padding: 3px 10px 3px 0; }
+.places-card table.places input { width: 22ch; }
+.places-card tr.new code { font-weight: 700; }
+input.suggested-code::placeholder { color: var(--accent); opacity: 0.75; }
+.hint.place { display: block; color: var(--accent); }
+.code-chips .chip .place { font-weight: 600; }
+.code-chips .chip .why { color: var(--muted); font-size: 11px; }
+

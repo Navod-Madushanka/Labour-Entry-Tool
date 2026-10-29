@@ -3,6 +3,7 @@ import type { DayView } from "../api";
 import type { Month } from "../history";
 import { fmtHours, formatClock } from "../time";
 import type { QueueItem } from "./Queue";
+import { placeName } from "../codes";
 
 const PER_PAGE = 10; // worker columns on one printed manpower sheet
 
@@ -20,6 +21,7 @@ interface Column {
 interface Props {
   items: QueueItem[];
   month: Month;
+  places: Record<string, string>; // place names for the Description column
   activities: boolean; // false: the workbook is kept without activity codes (no code rows)
   ready: boolean; // the queue can be written
   busy: boolean;
@@ -79,7 +81,7 @@ const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 /** The queue, live, laid out like the site's "Daily record of manpower" form: workers across (10 per
  * sheet), activity codes down, a tick where a worker did that activity. To compare with the
  * paper before anything is written. */
-export function ManpowerSheet({ items, month, activities, ready, busy, onWrite }: Props) {
+export function ManpowerSheet({ items, month, places, activities, ready, busy, onWrite }: Props) {
   const [withExcel, setWithExcel] = useState(false);
   // Re-rendered with every queue change, so this is the time of the latest entry.
   const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -169,7 +171,7 @@ export function ManpowerSheet({ items, month, activities, ready, busy, onWrite }
                         {codes.map((code) => (
                           <tr key={code}>
                             <td className="mp-code">{code}</td>
-                            <td className="mp-desc" />
+                            <td className="mp-desc">{placeName(code, places)}</td>
                             <td className="mp-label-col" />
                             {padded.map((c, i) => {
                               const act = c?.acts.find((a) => a.code === code);

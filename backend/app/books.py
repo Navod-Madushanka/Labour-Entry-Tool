@@ -28,8 +28,16 @@ def workbook_kind(name: str) -> str:
     return text.strip()
 
 
+def project_key(project: object, workbook: str) -> str:
+    """Place names belong to the project (the INDIAN and SUB CONTRACT workbooks of one site share
+    them): keyed by the sheets' Project / Activity Centre, else by the kind of workbook."""
+    text = re.sub(r"\s+", " ", str(project or "")).strip().lower()
+    return f"project:{text}" if text else workbook_kind(workbook)
+
+
 class BookSettings:
-    """``{kind: {"check_activities": bool}}``; in memory only when ``path`` is None."""
+    """``{kind: {"check_activities": bool}, "project:<name>": {"places": {...}}}``; in memory
+    only when ``path`` is None."""
 
     def __init__(self, path: Path | None):
         self.path = path
@@ -43,11 +51,17 @@ class BookSettings:
                 self._data = {}  # unreadable: start again rather than refuse to start
 
     def get(self, name: str) -> dict:
-        return dict(self._data.get(workbook_kind(name), {}))
+        return self.get_key(workbook_kind(name))
 
     def set(self, name: str, **values) -> None:
+        self.set_key(workbook_kind(name), **values)
+
+    def get_key(self, key: str) -> dict:
+        return dict(self._data.get(key, {}))
+
+    def set_key(self, key: str, **values) -> None:
         with self._lock:
-            self._data.setdefault(workbook_kind(name), {}).update(values)
+            self._data.setdefault(key, {}).update(values)
             if self.path is not None:
                 try:
                     self.path.parent.mkdir(parents=True, exist_ok=True)

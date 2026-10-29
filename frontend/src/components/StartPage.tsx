@@ -7,7 +7,9 @@ import {
   type Readiness,
   type SetupState,
   type PlainIssue,
+  type PlacesView,
 } from "../api";
+import { PlacesCard } from "./PlacesCard";
 import { store } from "../store";
 
 type Step = "choose" | "check" | "ready";
@@ -52,6 +54,7 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<HealthReport | null>(null);
   const [ready, setReady] = useState<Readiness | null>(null);
+  const [places, setPlaces] = useState<PlacesView | null>(null); // shown while not null
   const started = useRef(false);
 
 
@@ -87,9 +90,31 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
       setSetup(await api.setup());
       return r;
     });
-    if (res) setReport(res);
+    if (res) {
+      setReport(res);
+      // Place names: asked once per project, then only for suffixes added to the list later.
+      api
+        .setupPlaces()
+        .then((v) => setPlaces(v.new.length && v.places.length ? v : null))
+        .catch(() => undefined);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const editPlaces = async () => {
+    const v = await run("Reading the activity codes…", api.setupPlaces);
+    if (v) setPlaces(v);
+  };
+
+  const savePlaces = async (names: Record<string, string>) => {
+    // Every suffix shown counts as asked, named or not, so the card does not come back.
+    const all = Object.fromEntries((places?.places ?? []).map((p) => [p.suffix, names[p.suffix] ?? ""]));
+    const s = await run("Saving the place names…", () => api.saveSetupPlaces(all));
+    if (s) {
+      setSetup(s);
+      setPlaces(null);
+    }
+  };
 
   // Back on the start page with a workbook already chosen: check it straight away.
   useEffect(() => {
@@ -180,6 +205,11 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
                 : "(off for this workbook: no activity boxes, each worker's hours go to ZIDLE)"}
             </span>
           </label>
+          {setup.check_activities && (
+            <button className="link small" onClick={editPlaces} disabled={!!busy}>
+              Place names
+            </button>
+          )}
         </p>
       )}
 
@@ -222,6 +252,10 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
           }
           onOpen={(name) => run(`Connecting to ${name}…`, () => api.setupOpen(name)).then(chosen)}
         />
+      )}
+
+      {places && step !== "choose" && !busy && setup.check_activities && (
+        <PlacesCard view={places} busy={!!busy} onSave={savePlaces} onLater={() => setPlaces(null)} />
       )}
 
       {step === "check" && report && !busy && (

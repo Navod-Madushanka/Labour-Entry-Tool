@@ -285,3 +285,44 @@ def test_entry_without_activities_has_no_activity_issues():
     assert check_entry(e, "Normal Day", set(), check_activities=False) == []
     bad = make_entry("1", 0, "INB-01", 7.0, 19.0, [("NOPE", "x")])
     assert {i.rule for i in check_entry(bad, "Normal Day", set(), check_activities=False)} == set()
+
+
+# --- place names in activity codes ------------------------------------------------------------
+
+
+def test_place_suffix():
+    from app.domain.places import place_suffix, work_part
+
+    assert place_suffix("03-11-00-00-P") == "P"
+    assert place_suffix(" 03-20-00-00-C-8") == "C-8"
+    assert place_suffix("03-44-13-15-05-A") == "A"  # the extra pair is detail, not a place
+    assert place_suffix("03-44-13-15-05") is None
+    assert place_suffix("03-11-00-00") is None and place_suffix("ZIDLE") is None
+    assert work_part("03-11-00-00-C-8") == "03-11-00-00"
+
+
+def test_place_names_asked_once_per_project(tmp_path, small_snapshot):
+    cfg = Config(month="2000-01", backups={"dir": tmp_path / "b"},
+                 settings_file=tmp_path / "workbooks.json")  # fmt: skip
+    a = save_snapshot(_named(small_snapshot, "A"), tmp_path / "Labour October 2026 - A.json")
+    app1 = create_app(cfg)
+    setup_api.choose(app1, a, a.name, practice=True, real_file=False)
+    with TestClient(app1) as c:
+        c.post("/api/setup/check")
+        view = c.get("/api/setup/places").json()
+        assert view["project"] == "kmtt"  # from the sheets, so every workbook of the site shares it
+        assert {p["suffix"] for p in view["places"]} == {"P", "C-8"} and set(view["new"]) == {
+            "P",
+            "C-8",
+        }
+        c.post("/api/setup/places", json={"names": {"P": "Parking area", "C-8": ""}})
+        assert c.get("/api/master").json()["places"] == {"P": "Parking area"}
+        assert c.get("/api/setup/places").json()["new"] == []  # C-8 left blank: not asked again
+
+    # Another workbook of the same project, after a restart: nothing to ask, the names are there.
+    b = save_snapshot(_named(small_snapshot, "B"), tmp_path / "Other November 2026.json")
+    app2 = create_app(cfg)
+    setup_api.choose(app2, b, b.name, practice=True, real_file=False)
+    with TestClient(app2) as c:
+        assert c.get("/api/setup/places").json()["new"] == []
+        assert c.get("/api/master").json()["places"] == {"P": "Parking area"}

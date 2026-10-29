@@ -39,6 +39,37 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   // Back to A: already checked -> straight to entry with activity boxes
   await p.selectOption("select.workbook-pick", { label: "Labour Entry Sheet October 2026 - DEMO A.json" });
   await p.waitForSelector('input[aria-label="Activity 1"]');
-  console.log("A again: activity boxes shown; errors:", errs);
+  console.log("A again: activity boxes shown");
+
+  // Place names: asked once on the start page, then shown next to the codes.
+  await p.getByRole("button", { name: "Check workbook" }).click();
+  await p.waitForSelector("text=Places in the activity codes");
+  await p.getByLabel("Place for -P").fill("Parking area");
+  await p.getByRole("button", { name: "Save place names" }).click();
+  await p.waitForSelector("text=Places in the activity codes", { state: "detached" });
+  await p.getByRole("button", { name: /^Continue/ }).click();
+  await p.getByRole("button", { name: /Start entering data|Start anyway/ }).click();
+  await p.waitForSelector("#worker");
+  await p.getByRole('tab', { name: '4', exact: true }).click();
+  for (const name of ["AAA-01", "AAA-02"]) {
+    await p.locator('#worker').fill(name); await p.keyboard.press('Enter');
+    await p.keyboard.type('7'); await p.keyboard.press('Enter');
+    await p.keyboard.type('19'); await p.keyboard.press('Enter');
+    const hint = await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder");
+    console.log(name, "suggested:", hint);
+    await p.keyboard.press('Enter'); // takes the suggestion
+    await p.waitForSelector("text=Parking area");
+    await p.keyboard.press('Enter'); // empty second activity: adds the worker
+    await p.waitForFunction((n) => [...document.querySelectorAll('.queue tbody tr')].some((r) => r.textContent.includes(n)), name);
+  }
+  await p.screenshot({ path: out + "/a-places.png", fullPage: true });
+  const queued = await p.locator('.queue tbody').innerText();
+  if ((queued.match(/03-11-00-00-P/g) || []).length < 2) throw new Error("suggested code not queued: " + queued);
+  // Asked once: checking again does not ask again.
+  await p.getByRole("button", { name: "Check workbook" }).click();
+  await p.waitForSelector("text=Check activity codes and hours");
+  await p.waitForTimeout(1500);
+  if (await p.locator("text=Places in the activity codes").count()) throw new Error("place names asked twice");
+  console.log("place names asked once; errors:", errs);
   await b.close();
 })().catch(e => { console.log("FAILED", e.message); process.exit(1); });

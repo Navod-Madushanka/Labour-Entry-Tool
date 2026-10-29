@@ -45,6 +45,21 @@ export interface Master {
   activities: string[];
   day_types: string[];
   check_activities: boolean; // false: this workbook is kept without activity codes
+  places: Record<string, string>; // activity-code suffix -> place name, e.g. P -> Parking area
+}
+
+export interface Place {
+  suffix: string;
+  name: string;
+  codes: number; // codes in the activity list with it
+  used: number; // entry lines this month with it
+  example: string;
+}
+
+export interface PlacesView {
+  project: string | null;
+  places: Place[];
+  new: string[]; // never asked about: the start page asks once
 }
 
 export interface DayHeader {
@@ -437,6 +452,8 @@ export const api = {
   setupReady: (ready: boolean) => call<SetupState>("POST", "/api/setup/ready", { ready }),
   setupSwitch: (name: string) => call<SetupState>("POST", "/api/setup/switch", { name }),
   setupClose: (name: string) => call<SetupState>("POST", "/api/setup/close", { name }),
+  setupPlaces: () => call<PlacesView>("GET", "/api/setup/places"),
+  saveSetupPlaces: (names: Record<string, string>) => call<SetupState>("POST", "/api/setup/places", { names }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),
   printCards: (sheet: string, cell: string, names: string[], copies: number, user: string) =>

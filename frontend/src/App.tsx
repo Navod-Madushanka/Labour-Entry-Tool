@@ -306,6 +306,20 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
     return [...master.activities].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
   }, [master, month]);
 
+  // Entries waiting for this sheet: what workers are doing today counts for the code suggestions.
+  const queuedToday = useMemo(
+    () =>
+      queue
+        .filter((q) => q.input.sheet === sheet)
+        .map((q) => ({
+          calling_name: q.input.calling_name,
+          code: q.input.activities.find((a) => a.code?.trim())?.code?.trim() ?? null,
+          time_in: q.input.time_in,
+          time_out: q.input.time_out,
+        })),
+    [queue, sheet],
+  );
+
   const formIn = parseClock(form.timeIn);
   const formOut = parseClock(form.timeOut);
   const firstCode = form.lines.find((l) => l.code.trim())?.code.trim();
@@ -425,6 +439,7 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
               activityOrder={activityOrder}
               onQueue={onQueue}
               queued={new Set(queue.filter((q) => q.input.sheet === sheet).map((q) => q.input.calling_name))}
+              queuedToday={queuedToday}
               onCrew={() => setCrewOpen(true)}
               onMedical={() => setMedicalOpen(true)}
               onBuild={() => setBuilderOpen(true)}
@@ -434,6 +449,7 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
             <ManpowerSheet
               items={queue}
               activities={master.check_activities}
+              places={master.places}
               month={month}
               busy={busy}
               ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
