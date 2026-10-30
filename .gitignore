@@ -40,3 +40,6 @@ Thumbs.db
 
 # Screenshots from the e2e tests
 frontend/*.png
+
+# Built from the real workbook by scripts/snapshot_fixture.py: keep it on this PC
+fixtures/sanitized/*.json

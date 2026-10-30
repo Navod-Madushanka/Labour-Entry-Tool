@@ -1,5 +1,26 @@
 # Changelog
 
+## Test pass: two bugs fixed (30 Oct 2026)
+
+Every test run end to end: 354 backend tests (with the golden tests on the sanitized October
+snapshot), lint, type checks, and all 12 browser tests on practice copies.
+
+- **Fixed: "Next day" kept from a suggestion.** A worker whose suggested times run past midnight
+  (e.g. 07:00-03:00) got "Next day" with the suggestion; typing a day shift over it (Out 19)
+  kept "Next day", so 07:00-19:00 counted as 34 hours. Typing over suggested times now works
+  "Next day" out again from the times typed.
+- **Fixed: a fast Enter after taking a suggested code.** The second activity box only appeared
+  a moment after the code was taken, so a quick next Enter moved to it instead of adding the
+  worker (4 of 20 workers in a fast run). The box is now there beforehand, and the times and
+  code move the cursor on at once: name and Enter five times adds a worker at any speed.
+- Lint: the lines the rename made too long (the pre-commit check would have refused a commit).
+- `fixtures/sanitized/*.json` is now ignored by git: the snapshot is built from the real
+  workbook and stays on the PC (nothing of it was ever committed).
+- Two older browser tests (`ui-smoke`, `same-for-many`) updated for the cleared form.
+- Data note, not a bug: in the October INDIAN workbook, sheet 25 (Sunday 25 Oct) has day type
+  "Holiday" while 25 Oct is not in the holiday list; the tool blocks a push there until the day
+  type is fixed or 25 Oct is added as a holiday.
+
 ## Discard a whole sheet before pushing (30 Oct 2026)
 
 - Under each day of the manpower sheet: **Discard sheet N** removes all of that sheet's waiting

@@ -40,6 +40,11 @@ const out = process.argv[2] || ".";
   await also.fill("INB-08"); await also.press("Enter");
   await also.press("Enter"); // empty: on to Time In
   console.log("focus after the also row:", await p.evaluate(() => document.activeElement.id));
+  // The form is cleared after each add (suggested times may be filled in): type this entry.
+  await p.keyboard.type("7"); await p.keyboard.press("Enter");
+  await p.keyboard.type("19"); await p.keyboard.press("Enter");
+  await p.keyboard.type(codes[0]); await p.keyboard.press("Enter");
+  await p.keyboard.type(codes[1]); await p.keyboard.press("Enter");
   await p.locator(".entry .actions button.primary").click();
   await p.waitForFunction(() => document.querySelectorAll(".queue tbody tr").length === 6);
 

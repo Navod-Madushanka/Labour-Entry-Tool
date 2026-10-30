@@ -60,7 +60,9 @@ def create_app(
         if app.state.worker is not None:
             app.state.worker.stop()
 
-    app = FastAPI(title="Pattern-Based Labour Entry Assistant", version=__version__, lifespan=lifespan)
+    app = FastAPI(
+        title="Pattern-Based Labour Entry Assistant", version=__version__, lifespan=lifespan
+    )
     app.state.config = config
     app.state.snapshots = health.SnapshotCache()
     app.state.excel_disabled = (
@@ -129,7 +131,9 @@ def main(argv: list[str] | None = None) -> None:
 
     import uvicorn
 
-    parser = argparse.ArgumentParser(prog="python -m app.main", description="Pattern-Based Labour Entry Assistant")
+    parser = argparse.ArgumentParser(
+        prog="python -m app.main", description="Pattern-Based Labour Entry Assistant"
+    )
     parser.add_argument("--config", type=Path, help="config.yaml to use (optional)")
     parser.add_argument("--demo", type=Path, metavar="FILE",
                         help="practice on a copy of FILE (.xlsb or snapshot .json) in memory; "

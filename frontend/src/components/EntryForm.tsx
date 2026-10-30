@@ -75,7 +75,6 @@ export function EntryForm(props: Props) {
   const auto = autoHours(form); // blank Hours boxes share the worked hours
   // The filled activity lines plus one empty one (all 5 at most): no wall of empty boxes.
   const lastFilled = form.lines.reduce((last, l, i) => (l.code.trim() || l.hours.trim() ? i : last), -1);
-  const visibleLines = Math.min(LINES, Math.max(1, lastFilled + 2));
 
   // Live preview from the server (cached sheets, no Excel round trip).
   useEffect(() => {
@@ -125,6 +124,9 @@ export function EntryForm(props: Props) {
     () => (worker ? suggestTimes(month, Number(sheet), worker, master.workers, today) : null),
     [worker, month, sheet, master.workers, today],
   );
+  // With a suggested code the second box is already there, so Enter taking the code moves on at
+  // once (a fast second Enter must not land on the first box again).
+  const visibleLines = Math.min(LINES, Math.max(suggested[0] ? 2 : 1, lastFilled + 2));
   const places = master.places;
   const codeList = useMemo(
     () => [...new Set([...suggested.map((s) => s.code), ...activityOrder])],
@@ -372,8 +374,11 @@ export function EntryForm(props: Props) {
               title={(autoTimes || !form.timeIn) && suggestedTimes ? `Suggested: ${formatShift(suggestedTimes.time_in, suggestedTimes.time_out)}, ${suggestedTimes.why}` : undefined}
               value={form.timeIn}
               onChange={(e) => {
+                // Typing over suggested times: "Next day" came with the suggestion, so it is
+                // worked out again from the times typed (Out not after In = next day).
+                const fromSuggestion = autoTimes;
                 setAutoTimes(false);
-                setForm((f) => ({ ...f, timeIn: e.target.value }));
+                setForm((f) => ({ ...f, timeIn: e.target.value, ...(fromSuggestion ? { overnight: null } : {}) }));
               }}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeIn: normaliseClock(f.timeIn) }))}
@@ -383,7 +388,7 @@ export function EntryForm(props: Props) {
                   e.preventDefault();
                   const t = suggestedTimes;
                   setForm((f) => ({ ...f, timeIn: formatClock(t.time_in), timeOut: f.timeOut || formatClock(t.time_out), overnight: f.timeOut ? f.overnight : t.time_out >= 24 }));
-                  requestAnimationFrame(() => focus(withActs ? "code0" : "out"));
+                  focus(withActs ? "code0" : "out");
                 } else timeKey(e, "timeIn", "out");
               }}
               aria-invalid={Boolean(problems.timeIn)}
@@ -406,8 +411,9 @@ export function EntryForm(props: Props) {
               placeholder={suggestedTimes ? `${formatClock(suggestedTimes.time_out)} (Enter to use)` : "19:00"}
               value={form.timeOut}
               onChange={(e) => {
+                const fromSuggestion = autoTimes;
                 setAutoTimes(false);
-                setForm((f) => ({ ...f, timeOut: e.target.value }));
+                setForm((f) => ({ ...f, timeOut: e.target.value, ...(fromSuggestion ? { overnight: null } : {}) }));
               }}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeOut: normaliseClock(f.timeOut) }))}
@@ -416,7 +422,7 @@ export function EntryForm(props: Props) {
                   e.preventDefault();
                   const t = suggestedTimes;
                   setForm((f) => ({ ...f, timeOut: formatClock(t.time_out), overnight: t.time_out >= 24 }));
-                  if (withActs) requestAnimationFrame(() => focus("code0")); // without activities: Enter again adds
+                  if (withActs) focus("code0"); // without activities: Enter again adds
                 } else timeKey(e, "timeOut", withActs ? "code0" : "queue");
               }}
               aria-invalid={Boolean(problems.timeOut)}
@@ -474,7 +480,7 @@ export function EntryForm(props: Props) {
                         if (e.key === "Enter" && !e.ctrlKey && i === 0 && !line.code.trim() && suggested[0]) {
                           e.preventDefault();
                           setLine(0, { code: suggested[0].code });
-                          requestAnimationFrame(() => focus("code1"));
+                          focus("code1");
                         } else if (e.key === "Enter" && !e.ctrlKey) {
                           e.preventDefault();
                           if (line.code.trim() && i < LINES - 1) focus(`code${i + 1}`);

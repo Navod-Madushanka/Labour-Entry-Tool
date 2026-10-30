@@ -27,11 +27,14 @@ async function keyboardFlow(out) {
   await p.waitForFunction(() => document.querySelector('.big-number')?.textContent?.startsWith('11 '));
   await p.keyboard.press('Enter'); // hours prefilled with remaining 11 on focus; Enter queues
   await p.waitForSelector('.queue tbody tr');
-  // next worker keeps times and activity
+  // next worker: the form is cleared (suggested times filled in, In selected): typing replaces them
   await p.keyboard.type('INB-02'); await p.keyboard.press('Enter');
-  await p.locator('#worker').focus();
+  await p.waitForFunction(() => document.activeElement?.id === 'in');
+  await p.keyboard.type('7'); await p.keyboard.press('Enter');
+  await p.keyboard.type('19'); await p.keyboard.press('Enter');
+  await p.keyboard.type(code); await p.keyboard.press('Enter');
   await p.waitForFunction(() => document.querySelector('.big-number')?.textContent?.startsWith('11 '));
-  await p.locator('[aria-label="Hours 1"]').press('Enter');
+  await p.keyboard.press('Enter'); // empty second activity: adds the worker
   await p.waitForFunction(() => document.querySelectorAll('.queue tbody tr').length === 2);
   await p.waitForFunction(() => [...document.querySelectorAll('.queue .pill.ok')].length === 2, null, {timeout: 10000});
   await p.screenshot({ path: `${out}/ui_queue.png`, fullPage: true });

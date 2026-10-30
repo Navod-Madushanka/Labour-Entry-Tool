@@ -68,6 +68,24 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   console.log("fast typing replaced it:", fast[0]);
   await p.keyboard.press('Escape');
 
+  // A night-shift worker (19:00-03:00 suggested, "Next day" with it): typing a day shift over it
+  // must not keep "Next day" (07:00-19:00 is 11 hours, not 35).
+  await p.locator('#worker').fill("AAA-09"); await p.keyboard.press('Enter');
+  await p.waitForFunction(() => document.querySelector("#in").value === "19:00" && document.querySelector("#out").value === "03:00");
+  await p.keyboard.type('7'); await p.keyboard.press('Enter');
+  await p.keyboard.type('19'); await p.keyboard.press('Enter');
+  await p.waitForFunction(() => document.querySelector('.big-number')?.textContent?.startsWith('11 '), null, { timeout: 5000 })
+    .catch(async () => { throw new Error("night shift typed over: " + await p.locator('.big-number').textContent()); });
+  console.log("night-shift suggestion typed over: 11 hours");
+  await p.keyboard.press('Escape');
+
+  // Full speed: name and Enter x5 without waiting (pick, In, Out, code, add) adds the worker.
+  await p.locator('#worker').fill("AAA-07");
+  for (let i = 0; i < 5; i++) await p.keyboard.press('Enter');
+  await p.waitForFunction(() => document.querySelector('.queue tbody').innerText.includes("AAA-07"), null, { timeout: 5000 })
+    .catch(() => { throw new Error("Enter x5 at full speed did not add AAA-07"); });
+  console.log("Enter x5 at full speed adds the worker");
+
   // Push: the form is left clean (no worker was being typed).
   await p.locator('#worker').fill("");
   await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled);

@@ -37,12 +37,12 @@ from app.main import create_app
 T = TemplateConfig()
 
 
-def entry(sheet: str, block: int, name: str, code: str | None) -> Entry:
+def entry(sheet: str, block: int, name: str, code: str | None, tin=7.0, tout=19.0) -> Entry:
     r0 = T.block_row(block)
     lines = [ActivityLine(row=r0 + i) for i in range(5)]
     if code:
         lines[0] = ActivityLine(row=r0, code=code, hours=11.0)
-    return Entry(sheet=sheet, block=block, row=r0, calling_name=name, time_in=7.0, time_out=19.0,
+    return Entry(sheet=sheet, block=block, row=r0, calling_name=name, time_in=tin, time_out=tout,
                  activities=lines)  # fmt: skip
 
 
@@ -58,6 +58,10 @@ def book(folder: Path, name: str, prefix: str, codes: bool) -> Path:
         crew = lambda b: acts[1] if b < 4 else acts[2]  # noqa: E731 - two crews, two places
         entries = [entry(str(d), b, workers[b].calling_name, crew(b) if codes else None)
                    for b in range(8)] if d <= 3 else []  # fmt: skip
+        if d <= 3:  # a night shift, 19:00 to 03:00 the next morning (written as 27 in Excel)
+            code = acts[0] if codes else None
+            night = entry(str(d), 8, workers[8].calling_name, code, 19.0, 27.0)
+            entries.append(night)
         header = DayHeader(sheet=str(d), date=date, day_type=calendar_day_type(date, []),
                            sheet_no=float(d), prepared_by="Clerk", project="SITE")  # fmt: skip
         days.append(DaySheet(header=header, block_names=[w.calling_name for w in workers],
