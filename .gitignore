@@ -37,3 +37,6 @@ Thumbs.db
 # PyInstaller output (packaging/)
 /dist/
 /build/
+
+# Screenshots from the e2e tests
+frontend/*.png
