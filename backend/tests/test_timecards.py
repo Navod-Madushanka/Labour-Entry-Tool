@@ -153,5 +153,5 @@ def test_names_from_csv_and_errors():
     assert names == ["INB-02", "INB-01"]
     with pytest.raises(ValueError, match="No calling name"):
         names_from_file("list.csv", b"a\r\nb\r\n", KNOWN)
-    with pytest.raises(ValueError, match=".xlsx"):
+    with pytest.raises(ValueError, match=r"\.xlsx"):
         names_from_file("list.xls", b"x", KNOWN)

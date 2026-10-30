@@ -327,3 +327,24 @@ def test_very_long_day_is_written_without_confirmation(service, fake):
     assert w01 and w01[0].severity == "INFO" and plan.ok
     res = service.commit([long_day], USER)
     assert res.status == "written" and res.readback[0].effective == 21.0
+
+
+def test_live_snapshot_reports_progress(small_snapshot, tmp_path):
+    """Reading through Excel goes sheet by sheet and says how far it has got (the start page shows
+    it); demo copies are read at once."""
+    from app.audit.backups import BackupManager
+    from app.audit.store import AuditStore
+    from app.config import Config
+    from app.excel.fake_adapter import FakeWorkbook
+    from app.service import EntryService
+
+    fake = FakeWorkbook(small_snapshot, Config(month="2026-10").template)
+    seen = []
+    service = EntryService(lambda: fake, Config(month="2026-10"), AuditStore(tmp_path / "a.sqlite"),
+                           BackupManager(tmp_path / "b", 2))  # fmt: skip
+    read_day = fake.read_day
+    fake.read_day = lambda sheet: (seen.append(dict(service.progress)), read_day(sheet))[1]
+    snap = service.snapshot()
+    assert len(snap.days) == len(small_snapshot.days)
+    assert seen[0] == {"done": 1, "total": len(small_snapshot.days) + 1, "step": "sheet 1"}
+    assert service.progress is None  # done

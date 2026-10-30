@@ -1,5 +1,25 @@
 # Changelog
 
+## Slow PCs: less reading through Excel, progress, a log (30 Oct 2026)
+
+Reported: on coworkers' PCs (i5 10th gen, 8 GB, 3 GB of it for graphics) the tool kept loading.
+In practice mode it is light (about 150 MB for the server, 11 MB for the page, a worker picked in
+0.1-0.2 s with the CPU slowed 4x), so the cost is in live mode, where every read goes through
+Excel. Found and changed:
+
+- **Half the reading.** A day sheet was read whole through Excel: 3,508 rows x 18 columns, 31
+  times on every check. Now only the blocks that can hold a worker are read (the last worker in
+  Labour Detail plus 10 blocks): about 1,780 rows for the INDIAN workbook. Rows past them are
+  blank, so the result is the same.
+- **No pile-up.** The check gave up after 2 minutes while Excel went on reading, and pressing
+  Check again queued a second full read behind the first. The check now has 15 minutes, a second
+  one is refused while one reads, and re-reading on switching back from Excel is skipped while
+  the last one is still on its way.
+- **Progress.** While the start page reads it shows "Reading from Excel: sheet 12 (12 of 32)" with
+  a bar, instead of a spinner.
+- **A log on each PC**: `Labour Entry Tool/logs/labour-tool.log` (path printed at start): version,
+  Windows and memory at start, Excel steps over 2 s, requests over 5 s, errors.
+
 ## Day list newest first; batches list scrolls (30 Oct 2026)
 
 - **Already in Excel for this day** shows the workers pushed most recently at the top, each with

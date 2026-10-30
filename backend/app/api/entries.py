@@ -58,11 +58,15 @@ class HeaderFixRequest(UserRequest):
     approve: bool = False  # the user saw the old and new values and said yes
 
 
-async def run_service(request: Request, fn: Callable[[EntryService], Any]) -> Any:
+async def run_service(
+    request: Request, fn: Callable[[EntryService], Any], wait: float | None = None
+) -> Any:
     """Run ``fn(service)`` on the Excel thread and map workbook errors to HTTP errors."""
     service: EntryService = request.app.state.get_service()
     try:
-        return await asyncio.wait_for(request.app.state.worker.run(fn, service), EXCEL_WAIT)
+        return await asyncio.wait_for(
+            request.app.state.worker.run(fn, service), EXCEL_WAIT if wait is None else wait
+        )
     except TimeoutError as exc:
         raise HTTPException(
             504,

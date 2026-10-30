@@ -51,6 +51,7 @@ BUSY_HRESULTS = frozenset({RPC_E_CALL_REJECTED, VBA_E_IGNORE, RPC_E_SERVERCALL_R
 GONE_HRESULTS = frozenset({-2147023174, -2147023170, -2147417848})  # RPC unavailable / disconnected
 
 MASTER_MARGIN = 500  # rows read past Labour Detail's last worker row
+BLOCK_MARGIN = 10  # day-sheet blocks read past the one of Labour Detail's last worker
 
 
 # --- Pure helpers ------------------------------------------------------------------------------
@@ -213,6 +214,10 @@ class XlwingsWorkbook:
         self.book = book
         self.template = template
         self.busy_timeout = busy_timeout
+        # Day-sheet blocks that can hold a worker (block k shows Labour Detail row k): set by
+        # read_master, so a day read stops after them instead of reading all 500 blocks through
+        # Excel. None until Labour Detail has been read: then the whole sheet is read.
+        self._blocks: int | None = None
 
     def _com(self, fn: Callable[[], T]) -> T:
         try:
@@ -250,14 +255,23 @@ class XlwingsWorkbook:
         # worker rows / activity list (plus a margin for a longer list).
         last = min(max(used, t.master_rows[1]), t.master_rows[1] + MASTER_MARGIN)
         grid = self._grid(t.master_sheet, last, master_max_col(t))
-        return master_from_grid(grid, t)
+        master = master_from_grid(grid, t)
+        if master.workers:
+            last_block = t.block_for_master_row(max(w.row for w in master.workers))
+            self._blocks = min(t.blocks, last_block + 1 + BLOCK_MARGIN)
+        return master
 
     def day_sheet_names(self) -> list[str]:
         return self.template.day_sheet_names()
 
     def read_day(self, sheet: str) -> DaySheet:
+        """Rows past the blocks that can hold a worker are not read: those blocks have no name,
+        so they come out empty, as they are (the INDIAN file: 1,780 rows instead of 3,508)."""
         t = self.template
-        return day_from_grid(sheet, self._grid(sheet, t.last_block_row, day_max_col(t)), t)
+        last_row = (
+            t.block_row(self._blocks - 1) + t.block_size - 1 if self._blocks else t.last_block_row
+        )
+        return day_from_grid(sheet, self._grid(sheet, last_row, day_max_col(t)), t)
 
     def snapshot(self) -> WorkbookSnapshot:
         return WorkbookSnapshot(

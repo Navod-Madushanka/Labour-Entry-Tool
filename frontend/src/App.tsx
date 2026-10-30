@@ -82,12 +82,18 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // Back from Excel (the window gets focus again): read Labour Detail and the open day again, so
   // activity codes, workers and entries changed in Excel show up without "Reload from Excel".
   const lastSync = useRef(0);
+  const syncing = useRef(false);
   useEffect(() => {
     const sync = () => {
-      if (document.visibilityState !== "visible" || !master || Date.now() - lastSync.current < 3000) return;
+      // Not while the last re-read is still on its way (on a slow PC reading through Excel can
+      // take longer than switching windows): they would only queue up behind each other.
+      if (document.visibilityState !== "visible" || !master || syncing.current || Date.now() - lastSync.current < 3000) return;
       lastSync.current = Date.now();
-      api.master(true).then(setMaster).catch(() => undefined);
-      api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))).catch(() => undefined);
+      syncing.current = true;
+      Promise.allSettled([
+        api.master(true).then(setMaster),
+        api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))),
+      ]).finally(() => (syncing.current = false));
     };
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);

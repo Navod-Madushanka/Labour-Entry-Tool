@@ -386,3 +386,59 @@ def test_time_card_on_a_protected_sheet():
     assert wb.calling_name_cell("Time Card (Internal)") == ("E8", "INS-01")
     with pytest.raises(WorkbookError, match="unlock E8"):
         wb.print_card("Time Card (Internal)", "E8", "INB-05")
+
+
+# --- reading only the rows that can hold a worker -------------------------------------------
+
+
+class _Range:
+    def __init__(self, sheet, address):
+        self.sheet, self.address = sheet, address
+
+    def options(self, **_):
+        return self
+
+    @property
+    def value(self):
+        from app.excel.refs import parse_range
+
+        self.sheet.reads.append(self.address)
+        (r1, c1), (r2, c2) = parse_range(self.address)
+        return [
+            [self.sheet.cells.get((r, c)) for c in range(c1, c2 + 1)] for r in range(r1, r2 + 1)
+        ]
+
+
+class _Sheet:
+    def __init__(self, cells, last_row):
+        self.cells, self.reads = cells, []
+        self.used_range = type("U", (), {"last_cell": type("C", (), {"row": last_row})()})()
+
+    def range(self, address):
+        return _Range(self, address)
+
+
+class _Book:
+    name = "Labour Entry Sheet October 2026 - DEMO.xlsb"
+
+    def __init__(self, sheets):
+        self.sheets = sheets
+
+
+def test_day_reads_stop_after_the_last_worker():
+    from app.config import TemplateConfig
+    from app.excel.xlwings_adapter import BLOCK_MARGIN, XlwingsWorkbook
+
+    t = TemplateConfig()
+    master = _Sheet({(3, 1): "INB-01", (4, 1): "INB-02", (5, 1): "INC-03"}, last_row=6)
+    day = _Sheet({(9, 1): "INB-01", (9, 7): 7.0, (9, 8): 19.0, (16, 1): "INB-02"}, last_row=3508)
+    wb = XlwingsWorkbook(_Book({"Labour Detail": master, "1": day}), t)
+
+    wb.read_day("1")  # Labour Detail not read yet: the whole sheet
+    assert day.reads[-1].endswith(str(t.last_block_row))
+    wb.read_master()  # three workers -> blocks 0..2, plus a margin
+    d = wb.read_day("1")
+    last = t.block_row(3 + BLOCK_MARGIN - 1) + t.block_size - 1
+    assert day.reads[-1] == f"A1:R{last}" and last < 200
+    assert [e.calling_name for e in d.entries] == ["INB-01"]  # same result, a fraction of the rows
+    assert d.block_names[:2] == ["INB-01", "INB-02"]

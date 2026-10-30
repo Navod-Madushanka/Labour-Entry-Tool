@@ -327,3 +327,8 @@ def test_place_names_asked_once_per_project(tmp_path, small_snapshot):
     with TestClient(app2) as c:
         assert c.get("/api/setup/places").json()["new"] == []
         assert c.get("/api/master").json()["places"] == {"P": "Parking area"}
+
+
+def test_check_progress_without_excel(app):
+    with TestClient(app) as c:
+        assert c.get("/api/setup/progress").json() == {}  # nothing chosen, nothing reading

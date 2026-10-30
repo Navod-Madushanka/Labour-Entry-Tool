@@ -9,6 +9,7 @@ write, then a read-back that compares Excel's results with the preview.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import re
 import time
 from collections.abc import Callable
@@ -44,6 +45,7 @@ from app.domain.models import (
     Entry,
     Issue,
     MasterData,
+    SnapshotMeta,
     WorkbookSnapshot,
     Worker,
     as_number,
@@ -73,6 +75,8 @@ from app.excel.adapter import LiveWorkbook, WorkbookError
 from app.excel.grid import date_to_excel_serial
 from app.excel.refs import col_to_index, index_to_col, parse_cell
 from app.timecards import time_card_sheets
+
+log = logging.getLogger("labour")
 
 
 class ReadBack(BaseModel):
@@ -230,6 +234,7 @@ class EntryService:
         self.mode = mode
         self.config = config
         self.template = config.template
+        self.progress: dict | None = None  # {"done", "total", "step"} while snapshot() reads
         self.audit = audit
         self.backups = backups
         self._workbook: LiveWorkbook | None = None
@@ -257,8 +262,28 @@ class EntryService:
         self.template = config.template
 
     def snapshot(self) -> WorkbookSnapshot:
-        """Every sheet read fresh (the health check); the caches are refreshed with it."""
-        snap = self.workbook.snapshot()
+        """Every sheet read fresh (the health check); the caches are refreshed with it. Live, sheet
+        by sheet with ``progress`` set, so the start page can show how far reading through Excel
+        has got (it can take a while on a slow PC)."""
+        wb = self.workbook
+        if self.mode == "demo":
+            snap = wb.snapshot()  # a copy in memory: instant
+        else:
+            started = time.perf_counter()
+            names = wb.day_sheet_names()
+            self.progress = {"done": 0, "total": len(names) + 1, "step": "Labour Detail"}
+            try:
+                master = wb.read_master()  # first: it tells how many rows the day sheets need
+                days = []
+                for i, sheet in enumerate(names, start=1):
+                    self.progress = {"done": i, "total": len(names) + 1, "step": f"sheet {sheet}"}
+                    days.append(wb.read_day(sheet))
+                meta = SnapshotMeta(source_name=wb.name, read_at=dt.datetime.now().astimezone())
+                snap = WorkbookSnapshot(meta=meta, master=master, days=days)
+            finally:
+                self.progress = None
+            log.info("read %s from Excel: %d sheets in %.1f s", snap.meta.source_name,
+                     len(names) + 1, time.perf_counter() - started)  # fmt: skip
         self._master = snap.master
         self._days = {d.header.sheet: d for d in snap.days}
         return snap

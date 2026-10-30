@@ -453,6 +453,7 @@ export const api = {
   setupSwitch: (name: string) => call<SetupState>("POST", "/api/setup/switch", { name }),
   setupClose: (name: string) => call<SetupState>("POST", "/api/setup/close", { name }),
   setupPlaces: () => call<PlacesView>("GET", "/api/setup/places"),
+  setupProgress: () => call<{ done?: number; total?: number; step?: string }>("GET", "/api/setup/progress"),
   saveSetupPlaces: (names: Record<string, string>) => call<SetupState>("POST", "/api/setup/places", { names }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),

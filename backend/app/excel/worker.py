@@ -7,8 +7,10 @@ exception comes back through a future.
 from __future__ import annotations
 
 import asyncio
+import logging
 import queue
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import Future
 from typing import Any, TypeVar
@@ -16,6 +18,8 @@ from typing import Any, TypeVar
 T = TypeVar("T")
 
 _STOP = object()
+SLOW = 2.0  # seconds: a job taking longer goes into the log (to find slow PCs and stuck Excel)
+log = logging.getLogger("labour.excel")
 
 
 class ExcelWorker:
@@ -60,10 +64,27 @@ class ExcelWorker:
                 future, fn, args, kwargs = job
                 if not future.set_running_or_notify_cancel():
                     continue
+                started = time.perf_counter()
                 try:
                     future.set_result(fn(*args, **kwargs))
                 except BaseException as exc:  # handed to the caller
+                    log.warning(
+                        "%s failed after %.1f s: %s", _name(fn), time.perf_counter() - started, exc
+                    )
                     future.set_exception(exc)
+                else:
+                    if (took := time.perf_counter() - started) > SLOW:
+                        log.info("%s took %.1f s (%d waiting)", _name(fn), took, self._jobs.qsize())
         finally:
             if self._cleanup:
                 self._cleanup()
+
+
+def _name(fn: Callable[..., Any]) -> str:
+    """A readable name for a job: a lambda shows where it was written (file:line)."""
+    name = getattr(fn, "__qualname__", repr(fn))
+    code = getattr(fn, "__code__", None)
+    if not code or "lambda" not in name:
+        return name
+    file = code.co_filename.replace("\\", "/").rsplit("/", 1)[-1]
+    return f"{name} ({file}:{code.co_firstlineno})"

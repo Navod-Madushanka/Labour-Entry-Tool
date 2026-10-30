@@ -55,6 +55,18 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
   const [report, setReport] = useState<HealthReport | null>(null);
   const [ready, setReady] = useState<Readiness | null>(null);
   const [places, setPlaces] = useState<PlacesView | null>(null); // shown while not null
+  const [reading, setReading] = useState<{ done?: number; total?: number; step?: string } | null>(null);
+
+  // While the check reads every sheet through Excel, show how far it has got (asked every second;
+  // answered without waiting for Excel).
+  useEffect(() => {
+    if (!busy) {
+      setReading(null);
+      return;
+    }
+    const t = setInterval(() => api.setupProgress().then(setReading).catch(() => undefined), 1000);
+    return () => clearInterval(t);
+  }, [busy]);
   const started = useRef(false);
 
 
@@ -231,7 +243,22 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
           </div>
         </div>
       )}
-      {busy && <p className="busy">{busy}</p>}
+      {busy && (
+        <div className="busy">
+          <p>{busy}</p>
+          {reading && reading.total ? (
+            <div className="read-progress" role="status">
+              <div className="tc-bar">
+                <span style={{ width: `${Math.round(((reading.done ?? 0) / reading.total) * 100)}%` }} />
+              </div>
+              <small className="muted">
+                Reading from Excel: {reading.step} ({reading.done} of {reading.total}). On a slow PC this can take a
+                few minutes; keep Excel open and don't click in it meanwhile.
+              </small>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {step === "choose" && (
         <ChooseStep

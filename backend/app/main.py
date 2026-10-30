@@ -60,9 +60,26 @@ def create_app(
         if app.state.worker is not None:
             app.state.worker.stop()
 
+    import logging
+    import time
+
+    from fastapi import Request
+
+    slow_log = logging.getLogger("labour.http")
+
     app = FastAPI(
         title="Pattern-Based Labour Entry Assistant", version=__version__, lifespan=lifespan
     )
+
+    @app.middleware("http")
+    async def log_slow_requests(request: Request, call_next):
+        started = time.perf_counter()
+        response = await call_next(request)
+        if (took := time.perf_counter() - started) > 5:
+            slow_log.info("%s %s took %.1f s (%s)", request.method, request.url.path, took,
+                          response.status_code)  # fmt: skip
+        return response
+
     app.state.config = config
     app.state.snapshots = health.SnapshotCache()
     app.state.excel_disabled = (
@@ -144,6 +161,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--open", action="store_true", help="open the start page in the browser")
     args = parser.parse_args(argv)
     config = load_config(args.config)
+    from app.config import data_dir
+    from app.diag import setup_logging
+
+    if log_file := setup_logging(data_dir() / "logs"):
+        print(f"Log file: {log_file}")
     if args.registration:
         config = config.model_copy(update={"registration_files": args.registration})
     if args.demo and not args.demo.exists():

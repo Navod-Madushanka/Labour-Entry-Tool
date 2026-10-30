@@ -62,6 +62,15 @@ check of a project the start page asks once what each one means; the entry scree
 "Parking area" next to `03-11-00-00-P`. The empty Activity box shows the suggested code (from the
 worker's usual partners today, their last day and their trade): press Enter to take it.
 
+## If it is slow or seems stuck
+
+- While the start page reads the workbook through Excel it shows "Reading from Excel: sheet 12 of
+  31". On a slow PC this takes a few minutes: keep Excel open and don't click in it meanwhile.
+- A message box or a cell being edited in Excel stops the tool from reading: close it.
+- Each PC keeps a log: `Labour Entry Tool\logs\labour-tool.log` in the user folder (the path is
+  also printed in the black window at start). It lists slow Excel steps, slow requests and
+  errors, with the PC's memory at start. Send it along with the time it got stuck.
+
 ## Developer setup (Python 3.11+)
 
 ```powershell

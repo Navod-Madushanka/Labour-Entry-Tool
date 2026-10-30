@@ -51,6 +51,7 @@ router = APIRouter(prefix="/api/setup")
 
 MAX_UPLOAD = 100 * 1024 * 1024
 OPEN_BOOKS_WAIT = 5.0  # seconds
+CHECK_WAIT = 15 * 60.0  # seconds: reading every sheet through Excel takes minutes on a slow PC
 EXCEL_NOT_ANSWERING = (
     "Excel isn't answering. Check Excel for an open message box or dialog (or a cell being "
     "edited), close it, then press Check again."
@@ -423,10 +424,31 @@ def set_options(body: OptionsRequest, request: Request) -> SetupState:
     return session.sync()
 
 
+_checking = threading.Lock()
+
+
+@router.get("/progress")
+def check_progress(request: Request) -> dict:
+    """How far the check's read has got: {"done", "total", "step"} or {} (not reading). Answered
+    without Excel, while the Excel thread is busy reading."""
+    service = request.app.state.service
+    return dict(service.progress or {}) if service is not None else {}
+
+
 @router.post("/check", response_model=HealthReport)
 async def check(request: Request) -> HealthReport:
-    """Read every sheet of the chosen workbook (fresh) and run the health check."""
+    """Read every sheet of the chosen workbook (fresh) and run the health check. One at a time:
+    a second check while one reads would only queue another full read behind it."""
     session = _require(request)
+    if not _checking.acquire(blocking=False):
+        raise HTTPException(409, "The workbook is still being read. Wait for it to finish.")
+    try:
+        return await _check(request, session)
+    finally:
+        _checking.release()
+
+
+async def _check(request: Request, session: Session) -> HealthReport:
 
     def run(service: EntryService) -> HealthReport:
         snap = service.snapshot()
@@ -454,7 +476,7 @@ async def check(request: Request) -> HealthReport:
             check_activities=config.check_activities,
         )
 
-    return await run_service(request, run)
+    return await run_service(request, run, CHECK_WAIT)
 
 
 def _apply(request: Request, session: Session) -> None:
