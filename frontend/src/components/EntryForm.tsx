@@ -14,7 +14,7 @@ import {
   type FormState,
   type OwnTimes,
 } from "../form";
-import { companions, crewToday, entriesOf, suggestCodes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
+import { companions, crewToday, entriesOf, suggestCodes, suggestTimes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
 import { placeName } from "../codes";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
@@ -120,6 +120,10 @@ export function EntryForm(props: Props) {
         ? suggestCodes(month, Number(sheet), worker, master.workers, today, { time_in: input?.time_in ?? null, time_out: input?.time_out ?? null })
         : [],
     [worker, withActs, month, sheet, master.workers, today, input?.time_in, input?.time_out],
+  );
+  const suggestedTimes = useMemo(
+    () => (worker ? suggestTimes(month, Number(sheet), worker, master.workers, today) : null),
+    [worker, month, sheet, master.workers, today],
   );
   const places = master.places;
   const codeList = useMemo(
@@ -338,12 +342,22 @@ export function EntryForm(props: Props) {
               id="in"
               ref={reg("in")}
               inputMode="numeric"
-              placeholder="07:00"
+              className={!form.timeIn && suggestedTimes ? "suggested-code" : undefined}
+              placeholder={suggestedTimes ? `${formatClock(suggestedTimes.time_in)} (Enter to use)` : "07:00"}
+              title={!form.timeIn && suggestedTimes ? `Suggested: ${formatShift(suggestedTimes.time_in, suggestedTimes.time_out)}, ${suggestedTimes.why}` : undefined}
               value={form.timeIn}
               onChange={(e) => setForm((f) => ({ ...f, timeIn: e.target.value }))}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeIn: normaliseClock(f.timeIn) }))}
-              onKeyDown={(e) => timeKey(e, "timeIn", "out")}
+              onKeyDown={(e) => {
+                // On an empty box, Enter takes the suggested In and Out shown in them.
+                if (e.key === "Enter" && !e.ctrlKey && !form.timeIn.trim() && suggestedTimes) {
+                  e.preventDefault();
+                  const t = suggestedTimes;
+                  setForm((f) => ({ ...f, timeIn: formatClock(t.time_in), timeOut: f.timeOut || formatClock(t.time_out), overnight: f.timeOut ? f.overnight : t.time_out >= 24 }));
+                  requestAnimationFrame(() => focus(withActs ? "code0" : "out"));
+                } else timeKey(e, "timeIn", "out");
+              }}
               aria-invalid={Boolean(problems.timeIn)}
             />
             {problems.timeIn ? (
@@ -360,12 +374,20 @@ export function EntryForm(props: Props) {
               id="out"
               ref={reg("out")}
               inputMode="numeric"
-              placeholder="19:00"
+              className={!form.timeOut && suggestedTimes ? "suggested-code" : undefined}
+              placeholder={suggestedTimes ? `${formatClock(suggestedTimes.time_out)} (Enter to use)` : "19:00"}
               value={form.timeOut}
               onChange={(e) => setForm((f) => ({ ...f, timeOut: e.target.value }))}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeOut: normaliseClock(f.timeOut) }))}
-              onKeyDown={(e) => timeKey(e, "timeOut", withActs ? "code0" : "queue")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.ctrlKey && !form.timeOut.trim() && suggestedTimes) {
+                  e.preventDefault();
+                  const t = suggestedTimes;
+                  setForm((f) => ({ ...f, timeOut: formatClock(t.time_out), overnight: t.time_out >= 24 }));
+                  if (withActs) requestAnimationFrame(() => focus("code0")); // without activities: Enter again adds
+                } else timeKey(e, "timeOut", withActs ? "code0" : "queue");
+              }}
               aria-invalid={Boolean(problems.timeOut)}
             />
             {problems.timeOut ? (

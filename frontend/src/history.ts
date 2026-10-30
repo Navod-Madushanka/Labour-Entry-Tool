@@ -167,6 +167,63 @@ const firstCode = (e: Entry): string | null =>
  * last days) have today first, then workers with the same times in the trade today, yesterday's
  * own code, the trade today, the trade this month. First guess right 76% of the time, top three
  * 89% (yesterday's code first: 64% and 85%). `today` is this sheet's entries, Excel and queue. */
+/** The worker's usual partners: who had the same first code and the same times as them on the
+ * last `window` days, more recent days weighing more (1 / days ago); the top five. Also their own
+ * latest entry before `sheet`. */
+export function usualPartners(month: Month, sheet: number, worker: Worker, window = 10): { partners: Set<string>; last?: Entry } {
+  const score = new Map<string, number>();
+  let last: Entry | undefined;
+  for (let n = sheet - 1; n >= Math.max(1, sheet - window); n--) {
+    const day = month[String(n)];
+    const mine = day?.entries.find((v) => v.entry.calling_name === worker.calling_name)?.entry;
+    if (!day || !mine) continue;
+    last ??= mine;
+    const code = firstCode(mine);
+    if (!code) continue;
+    for (const v of day.entries) {
+      const e = v.entry;
+      if (e.calling_name && e.calling_name !== worker.calling_name && firstCode(e) === code &&
+          e.time_in === mine.time_in && e.time_out === mine.time_out)
+        score.set(e.calling_name, (score.get(e.calling_name) ?? 0) + 1 / (sheet - n));
+    }
+  }
+  const partners = new Set([...score].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name]) => name));
+  return { partners, last };
+}
+
+export interface TimeSuggestion {
+  time_in: number;
+  time_out: number;
+  why: string;
+}
+
+/** Times to suggest for a worker on `sheet`: the times most of their usual partners have today,
+ * else their own usual times this month, else the times most of their trade has today. */
+export function suggestTimes(month: Month, sheet: number, worker: Worker, workers: Worker[], today: TodayEntry[]): TimeSuggestion | null {
+  const others = today.filter((t) => t.calling_name !== worker.calling_name && t.time_in !== null && t.time_out !== null);
+  const commonest = (list: TodayEntry[]) => {
+    const counts = new Map<string, { t: TodayEntry; n: number; names: string[] }>();
+    for (const t of list) {
+      const key = `${t.time_in}-${t.time_out}`;
+      const c = counts.get(key) ?? { t, n: 0, names: [] };
+      c.n += 1;
+      c.names.push(t.calling_name);
+      counts.set(key, c);
+    }
+    return [...counts.values()].sort((a, b) => b.n - a.n)[0];
+  };
+  const { partners } = usualPartners(month, sheet, worker);
+  const withPartners = commonest(others.filter((t) => partners.has(t.calling_name)));
+  if (withPartners)
+    return { time_in: withPartners.t.time_in!, time_out: withPartners.t.time_out!,
+             why: `${withPartners.names.slice(0, 2).join(", ")}${withPartners.names.length > 2 ? " …" : ""} today` };  // prettier-ignore
+  const usual = usualTimes(entriesOf(month, worker.calling_name, sheet));
+  if (usual) return { time_in: usual.time_in, time_out: usual.time_out, why: `usual (${usual.count}×)` };
+  const trade = new Map(workers.map((w) => [w.calling_name, w.trade_group]));
+  const crew = commonest(others.filter((t) => trade.get(t.calling_name) === worker.trade_group));
+  return crew ? { time_in: crew.t.time_in!, time_out: crew.t.time_out!, why: `${String(worker.trade_group ?? "trade")} today` } : null;
+}
+
 export function suggestCodes(
   month: Month,
   sheet: number,
@@ -190,24 +247,7 @@ export function suggestCodes(
   };
   const others = today.filter((t) => t.calling_name !== worker.calling_name && t.code);
 
-  // Usual partners: same first code and the same times as this worker on the last days.
-  const score = new Map<string, number>();
-  let last: Entry | undefined;
-  for (let n = sheet - 1; n >= Math.max(1, sheet - window); n--) {
-    const day = month[String(n)];
-    const mine = day?.entries.find((v) => v.entry.calling_name === worker.calling_name)?.entry;
-    if (!day || !mine) continue;
-    last ??= mine;
-    const code = firstCode(mine);
-    if (!code) continue;
-    for (const v of day.entries) {
-      const e = v.entry;
-      if (e.calling_name && e.calling_name !== worker.calling_name && firstCode(e) === code &&
-          e.time_in === mine.time_in && e.time_out === mine.time_out)
-        score.set(e.calling_name, (score.get(e.calling_name) ?? 0) + 1 / (sheet - n));
-    }
-  }
-  const partners = new Set(top(score).slice(0, 5));
+  const { partners, last } = usualPartners(month, sheet, worker, window);
   const withPartners = others.filter((t) => partners.has(t.calling_name));
   for (const code of top(count(withPartners.map((t) => t.code))).slice(0, 1)) {
     const names = withPartners.filter((t) => t.code === code).map((t) => t.calling_name);

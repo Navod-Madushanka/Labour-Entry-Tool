@@ -1,5 +1,22 @@
 # Changelog
 
+## A clean form after each worker, with suggested times (30 Oct 2026)
+
+Found in testing: after adding a worker (or a set of workers) or pushing, the times and activity
+code stayed in the form, so the next worker's suggestions never showed.
+
+- After **Add worker** the form is cleared, and after a push too (unless a worker is being
+  typed). Keeping the last entry was there for crews; the suggestions now cover that, because the
+  workers just added count as "today" for their partners.
+- **Suggested times**: the empty Time In and Time Out show the suggested times; Enter on Time In
+  takes both and goes to the activity. From the times most of the worker's usual partners have
+  today, else their usual times this month, else their trade's times today. Replayed on the
+  October INDIAN workbook: exactly right for 71% of 4,074 entries (code suggestions unchanged:
+  76% first, 89% top three).
+- A worker of a crew is now four Enters when the suggestions are right: name, Enter (times),
+  Enter (code), Enter (add).
+- `frontend/e2e/suggest-fill.cjs` tests it on made-up data.
+
 ## Change entries on the manpower sheet before pushing (30 Oct 2026)
 
 Found in testing: the manpower sheet only showed the waiting entries; nothing could be adjusted

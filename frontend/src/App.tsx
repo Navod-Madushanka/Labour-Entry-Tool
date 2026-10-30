@@ -206,7 +206,9 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
 
   const onQueue = (inputs: EntryInput[]) => {
     addToQueue(inputs);
-    setForm((f) => forWorker(f, null)); // keep times and activities for the next worker
+    // A clean form for the next worker: their own suggested times and code show in the empty boxes
+    // (from their usual partners, who may be the workers just added).
+    setForm(emptyForm());
     setFocusToken((t) => t + 1);
   };
 
@@ -226,6 +228,7 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
       }
       if (res.status === "written" || res.status === "unchanged") {
         setQueue((items) => items.filter((it) => !planOf.has(it.id)));
+        setForm((f) => (f.worker ? f : emptyForm())); // pushed: clear leftovers, keep a worker being typed
         await Promise.all([...new Set(sent.map((q) => q.input.sheet))].map(reloadDay));
         refreshBatches();
         refreshStatus();
