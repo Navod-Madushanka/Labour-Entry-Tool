@@ -71,7 +71,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
 
   const fail = (e: unknown) => setMessage(e instanceof Error ? e.message : String(e));
   const refreshStatus = useCallback(() => api.status().then(setStatus).catch(fail), []);
-  const refreshBatches = useCallback(() => api.batches().then(setBatches).catch(() => undefined), []);
+  // Enough history for the day list's "most recent first" (the list itself scrolls).
+  const refreshBatches = useCallback(() => api.batches(200).then(setBatches).catch(() => undefined), []);
   const reloadDay = useCallback(
     (s: string) =>
       api.day(s).then((d) => setMonth((m) => ({ ...m, [s]: d }))).catch(fail),
@@ -338,6 +339,21 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     return [...master.activities].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
   }, [master, month]);
 
+  // When each worker on this sheet was last pushed with the tool (from the change log), so the day
+  // list can show the newest first. Rows entered in Excel directly have no time and stay below.
+  const recentOnSheet = useMemo(() => {
+    const out = new Map<string, { rank: number; at: string }>();
+    for (const b of batches) {
+      if (b.kind !== "write" || b.undone_by || b.status !== "done" || !b.sheets.includes(sheet)) continue;
+      if (master && b.workbook !== master.workbook) continue;
+      b.calling_names.forEach((name, i) => {
+        // batches come newest first; within one, the last added was typed last
+        if (!out.has(name)) out.set(name, { rank: b.id * 10000 + i, at: b.created_at });
+      });
+    }
+    return out;
+  }, [batches, sheet, master]);
+
   // Entries waiting for this sheet: what workers are doing today counts for the code suggestions.
   const queuedToday = useMemo(
     () =>
@@ -535,6 +551,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
             />
             <DayList
               day={day}
+              recent={recentOnSheet}
               onEdit={(v) => {
                 const w = v.entry.calling_name ? workerByName.get(v.entry.calling_name) : undefined;
                 if (w) setForm(fromEntry(v.entry, w, true));

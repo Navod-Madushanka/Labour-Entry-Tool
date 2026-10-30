@@ -5,23 +5,26 @@ import { IssueList } from "./IssueList";
 
 interface Props {
   day: DayView | undefined;
+  recent: Map<string, { rank: number; at: string }>; // pushed with the tool: newest first, with the time
   onEdit: (v: EntryView) => void;
   onClear: (v: EntryView) => void;
 }
 
 /** Everything already on the sheet, with edit (overwrite) and clear. */
-export function DayList({ day, onEdit, onClear }: Props) {
+export function DayList({ day, recent, onEdit, onClear }: Props) {
   const [q, setQ] = useState("");
   if (!day) return null;
   const query = q.trim().toLowerCase();
-  const rows = day.entries.filter(
-    (v) => !query || JSON.stringify(v.entry).toLowerCase().includes(query),
-  );
+  const rank = (v: EntryView) => (v.entry.calling_name ? recent.get(v.entry.calling_name)?.rank ?? -1 : -1);
+  const rows = day.entries
+    .filter((v) => !query || JSON.stringify(v.entry).toLowerCase().includes(query))
+    // The latest pushed first; rows the tool has no time for (typed in Excel) after, in sheet order.
+    .sort((a, b) => rank(b) - rank(a) || a.entry.block - b.entry.block);
   return (
     <section className="daylist">
       <div className="section-head">
         <h2>
-          Already in Excel for this day <span className="muted">({day.entries.length})</span>
+          Already in Excel for this day <span className="muted">({day.entries.length}, latest first)</span>
         </h2>
         <input type="search" placeholder="Find a worker" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter entries" />
       </div>
@@ -46,6 +49,11 @@ export function DayList({ day, onEdit, onClear }: Props) {
                   <tr key={v.entry.block}>
                     <td>
                       <b>{v.entry.calling_name}</b>
+                      {v.entry.calling_name && recent.get(v.entry.calling_name) && (
+                        <div className="muted small" title="Pushed with the tool at this time">
+                          added {new Date(recent.get(v.entry.calling_name)!.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
                     </td>
                     <td>{formatShift(v.entry.time_in, v.entry.time_out)}</td>
                     <td className="small">

@@ -11,8 +11,10 @@ export function Batches({ batches, busy, onUndo }: Props) {
   if (!batches.length) return null;
   return (
     <section className="batches">
-      <h2>Recent batches</h2>
-      <ul>
+      <h2>
+        Recent batches <span className="muted">({batches.length})</span>
+      </h2>
+      <ul className="batches-scroll">
         {batches.map((b) => (
           <li key={b.id} className={b.undone_by ? "undone" : ""}>
             <span>

@@ -1,5 +1,14 @@
 # Changelog
 
+## Day list newest first; batches list scrolls (30 Oct 2026)
+
+- **Already in Excel for this day** shows the workers pushed most recently at the top, each with
+  "added 12:54" (the push time), newest push first. The workbook keeps no entry times, so the
+  order comes from the tool's change log; rows typed in Excel directly have no time and follow
+  below in sheet order. Undone pushes don't count.
+- **Recent batches** keeps a fixed height (240 px) and scrolls; it now loads the last 200 pushes.
+- `frontend/e2e/daylist-order.cjs` tests both on made-up data.
+
 ## Time cards from an Excel list (30 Oct 2026)
 
 Asked for: print time cards from an Excel file of calling names instead of typing them.

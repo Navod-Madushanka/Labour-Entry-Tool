@@ -545,4 +545,6 @@ button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
 .mp-move select { padding: 4px 6px; }
 .entry-day { color: var(--accent); font-weight: 700; }
 textarea.drop-over { border-color: var(--accent); background: var(--row); }
+.batches-scroll { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px !important; }
+.batches-scroll li:last-child { border-bottom: none; }
 
