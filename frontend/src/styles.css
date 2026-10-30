@@ -515,3 +515,7 @@ input.suggested-code::placeholder { color: var(--accent); opacity: 0.75; }
 .mp-input { width: 6ch; padding: 1px 3px; font-size: 12px; text-align: center; }
 .mp-input.bad { border-color: var(--block); }
 input.auto-filled { color: var(--accent); font-weight: 600; } /* suggested value, not changed yet */
+.mp-discard { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 14px; }
+button.danger-outline { color: var(--block); border-color: var(--block); background: var(--panel); }
+button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
+

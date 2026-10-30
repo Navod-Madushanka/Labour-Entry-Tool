@@ -471,6 +471,10 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
               onWrite={() => commit(false)}
               onEdit={editQueued}
               onRemove={removeQueued}
+              onDiscardSheet={(s) => {
+                setQueue((items) => items.filter((it) => it.input.sheet !== s));
+                setResult(null);
+              }}
               onChange={(id, input) => {
                 setQueue((items) => items.map((it) => (it.id === id ? { ...it, input, plan: null } : it)));
                 setResult(null);

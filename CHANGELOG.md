@@ -1,5 +1,13 @@
 # Changelog
 
+## Discard a whole sheet before pushing (30 Oct 2026)
+
+- Under each day of the manpower sheet: **Discard sheet N** removes all of that sheet's waiting
+  entries, after a confirmation that names the sheet, its date and how many entries go. Other
+  sheets stay in the queue and Excel is not changed. (Entries already pushed are taken back with
+  Undo, as before.)
+- `frontend/e2e/discard-sheet.cjs` tests it on made-up data.
+
 ## Suggested times filled in (30 Oct 2026)
 
 Found in testing: the suggested times were only shown in the empty boxes; they had to be typed.

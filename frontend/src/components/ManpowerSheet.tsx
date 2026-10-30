@@ -32,6 +32,7 @@ interface Props {
   onEdit: (id: number) => void; // back into the entry form
   onRemove: (id: number) => void;
   onChange: (id: number, input: EntryInput) => void; // a time or hours changed on the sheet
+  onDiscardSheet: (sheet: string) => void; // drop every waiting entry of that sheet
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
@@ -169,7 +170,7 @@ function EditCell({ shown, start, parse, onSave, label }: {
   );
 }
 
-export function ManpowerSheet({ items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange }: Props) {
+export function ManpowerSheet({ items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet }: Props) {
   const [withExcel, setWithExcel] = useState(false);
   // Re-rendered with every queue change, so this is the time of the latest entry.
   const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -208,8 +209,9 @@ export function ManpowerSheet({ items, month, places, activities, ready, busy, o
           workers already in Excel for these days (grey)
         </label>
         <div className="manpower-pages">
-          {sheets.map(({ sheet, day, pages }) =>
-            pages.map((cols, n) => {
+          {sheets.map(({ sheet, day, pages }) => (
+            <div key={sheet} className="mp-day">
+            {pages.map((cols, n) => {
               pageNo += 1;
               const codes = activities ? [...new Set(cols.flatMap((c) => c.acts.map((a) => a.code)))] : [];
               const blanks = activities ? Math.max(0, 4 - codes.length) : 0; // a few empty rows, like the form
@@ -367,8 +369,30 @@ export function ManpowerSheet({ items, month, places, activities, ready, busy, o
                   </p>
                 </section>
               );
-            }),
-          )}
+            })}
+            {(() => {
+              const waiting = items.filter((i) => i.input.sheet === sheet).length;
+              const when = longDate(day?.header.date);
+              return (
+                <div className="mp-discard">
+                  <button
+                    className="danger-outline"
+                    disabled={busy || !waiting}
+                    onClick={() => {
+                      const what = `${waiting} ${waiting === 1 ? "entry" : "entries"} waiting for sheet ${sheet}${when ? ` (${when})` : ""}`;
+                      if (window.confirm(`Discard the ${what}?\n\nNothing has been written to Excel yet; other sheets stay in the queue.`)) onDiscardSheet(sheet);
+                    }}
+                  >
+                    Discard sheet {sheet}
+                  </button>
+                  <span className="muted small">
+                    Removes this sheet's {waiting} waiting {waiting === 1 ? "entry" : "entries"}. Excel is not changed.
+                  </span>
+                </div>
+              );
+            })()}
+            </div>
+          ))}
           {total === 0 && <p className="muted">Add an entry above and it appears here.</p>}
         </div>
         {items.length > 0 && (
