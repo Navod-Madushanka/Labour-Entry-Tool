@@ -46,9 +46,10 @@ change log go to `Labour Entry Tool` in your user folder. `config.yaml` (copy of
 `config.example.yaml`) is optional, for other folders or a fixed holiday list.
 *Check workbook* (top right of the entry screen) goes back to the start page.
 
-**Several workbooks.** *+ Workbook* opens one more (say INDIAN and SUB CONTRACT); the others stay
-open, and the workbook menu in the top bar switches between them. A workbook checked once goes
-straight to entry when you switch back to it.
+**Several workbooks.** Click the workbook name in the top bar: the menu lists every workbook open
+in the tool (say INDIAN and SUB CONTRACT). Click one to work on it, *✕ Close* to take it off the
+list (the file and Excel are not changed), or *Open another workbook*. A workbook checked once
+goes straight to entry when you switch back to it.
 
 **Workbooks without activity codes.** On the start page, *Check activity codes and hours* is set
 per workbook. Untick it for a workbook kept without codes (all hours go to ZIDLE): the activity

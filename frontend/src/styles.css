@@ -519,3 +519,25 @@ input.auto-filled { color: var(--accent); font-weight: 600; } /* suggested value
 button.danger-outline { color: var(--block); border-color: var(--block); background: var(--panel); }
 button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
 
+/* Workbook menu in the top bar */
+.book-menu { position: relative; }
+.book-current { display: inline-flex; align-items: center; gap: 6px; max-width: 46ch; padding: 3px 8px; background: var(--panel); color: var(--text); font-weight: 500; }
+.book-current .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-current .count { font-size: 11px; color: var(--muted); }
+.book-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 360px; max-width: 80vw; padding: 6px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0003; }
+.book-list .head { padding: 2px 6px 6px; }
+.book-row { display: flex; align-items: center; gap: 6px; border-radius: 6px; }
+.book-row.active { background: var(--row); }
+.book-row .book-name { flex: 1; text-align: left; background: none; border: none; color: var(--text); padding: 6px; font-weight: 500; }
+.book-row .book-name:disabled { cursor: default; opacity: 1; }
+.book-row .book-name:not(:disabled):hover { color: var(--accent); }
+.book-row .danger { color: var(--block); white-space: nowrap; }
+.book-list .book-add { display: block; padding: 6px; margin-top: 4px; }
+.statusbar .book-list button.link { color: var(--accent); }
+.statusbar .book-list button.link.danger { color: var(--block); }
+.statusbar .book-list .muted { color: var(--muted); }
+.statusbar .book-list button.book-name { background: none; border: none; color: var(--text); box-shadow: none; }
+.statusbar .book-list button.book-name:not(:disabled):hover { background: var(--row); color: var(--accent); }
+.statusbar .book-list .book-row.active button.book-name { background: none; }
+
+.statusbar .book-list button.book-name:disabled { opacity: 1; font-weight: 700; }

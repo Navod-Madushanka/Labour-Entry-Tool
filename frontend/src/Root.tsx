@@ -51,6 +51,7 @@ export function Root() {
       books={setup.books}
       onSwitch={(name) => api.setupSwitch(name).then(setSetup).catch(fail)}
       onAddWorkbook={() => setAdding(true)}
+      onCloseBook={(name) => api.setupClose(name).then(setSetup).catch(fail)}
       onChangeWorkbook={() => api.setupReady(false).then(setSetup).catch(fail)}
     />
   );

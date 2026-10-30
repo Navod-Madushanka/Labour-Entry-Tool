@@ -1,5 +1,17 @@
 # Changelog
 
+## Close a workbook from the top bar (30 Oct 2026)
+
+- The workbook name in the top bar is now a menu of the workbooks open in the tool: click one to
+  work on it, **✕ Close** to take it off the list, or **Open another workbook** (was *+ Workbook*).
+  Closing asks first and only takes the workbook off the list: the file and Excel are not
+  changed, and it can be opened again later.
+- Closing one that is not in use leaves the entry screen and its waiting entries as they are.
+  Closing the one in use warns if entries are still waiting, then moves to another open
+  workbook; closing the last one goes back to choosing a workbook.
+- The made-up demo (`scripts/demo_two_books.py`) now opens three workbooks;
+  `frontend/e2e/close-workbook.cjs` tests closing them.
+
 ## Test pass: two bugs fixed (30 Oct 2026)
 
 Every test run end to end: 354 backend tests (with the golden tests on the sanitized October

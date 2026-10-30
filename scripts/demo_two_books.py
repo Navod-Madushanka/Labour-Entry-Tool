@@ -1,9 +1,10 @@
-"""Two made-up workbooks open at once, for trying several workbooks (frontend/e2e/workbooks.cjs).
+"""Made-up workbooks open at once, for trying several workbooks (frontend/e2e/workbooks.cjs).
 
     cd backend && python ../scripts/demo_two_books.py [port]
 
-"DEMO A" is kept with activity codes, "DEMO B" without (like the sub-contract workbook). No real
-data: workers, codes and times are invented. A is ready for entry; B goes through the start page.
+"DEMO A" and "DEMO C" are kept with activity codes, "DEMO B" without (like the sub-contract
+workbook). No real data: workers, codes and times are invented. A is ready for entry; B and C go
+through the start page.
 """
 
 from __future__ import annotations
@@ -78,12 +79,14 @@ def main() -> None:
     folder = Path(tempfile.mkdtemp(prefix="labour_two_books_"))
     a = book(folder, "Labour Entry Sheet October 2026 - DEMO A.json", "AAA", codes=True)
     b = book(folder, "Labour Entry Sheet October 2026 - DEMO B.json", "BBB", codes=False)
+    c = book(folder, "Labour Entry Sheet October 2026 - DEMO C.json", "CCC", codes=True)
     app = create_app(Config(month="2026-10", backups={"dir": folder / "backups"},
                             audit={"db": folder / "audit.sqlite"}))  # fmt: skip
     setup.choose(app, b, b.name, practice=True, real_file=False)
+    setup.choose(app, c, c.name, practice=True, real_file=False)
     setup.choose(app, a, a.name, practice=True, real_file=False)
     app.state.session.book.ready = True
-    print(f"Two practice workbooks on http://127.0.0.1:{port}/ (files in {folder})")
+    print(f"Three practice workbooks on http://127.0.0.1:{port}/ (files in {folder})")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 

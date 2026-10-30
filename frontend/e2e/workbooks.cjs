@@ -11,11 +11,15 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
   await p.goto(BASE);
   await p.evaluate(() => localStorage.setItem("labour.user", "Tester")); await p.reload();
-  await p.waitForSelector("select.workbook-pick");
+  await p.waitForSelector(".book-current");
+  const switchTo = async (name) => {
+    await p.locator(".book-current").click();
+    await p.locator(".book-list .book-name", { hasText: name }).click();
+  };
   if (!(await p.locator('input[aria-label="Activity 1"]').count())) throw new Error("A should have activity boxes");
   console.log("A: activity boxes shown");
   // Switch to B: not checked yet -> start page, activity checks found off
-  await p.selectOption("select.workbook-pick", { label: "Labour Entry Sheet October 2026 - DEMO B.json" });
+  await switchTo("DEMO B.json");
   await p.waitForSelector("text=Check activity codes and hours");
   const on = await p.locator(".activity-toggle input").isChecked();
   console.log("B toggle checked:", on);
@@ -37,7 +41,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   const day = await p.evaluate(async () => (await (await fetch('/api/days/5')).json()).entries.map(v => [v.entry.calling_name, v.issues.map(i => i.rule)]));
   console.log("B sheet 5 after push:", JSON.stringify(day));
   // Back to A: already checked -> straight to entry with activity boxes
-  await p.selectOption("select.workbook-pick", { label: "Labour Entry Sheet October 2026 - DEMO A.json" });
+  await switchTo("DEMO A.json");
   await p.waitForSelector('input[aria-label="Activity 1"]');
   console.log("A again: activity boxes shown");
 
