@@ -220,7 +220,15 @@ export function EntryForm(props: Props) {
     <section className="entry">
       <div className="entry-main">
         <div className="entry-head">
-          <h2>Add a worker</h2>
+          <h2>
+            Add a worker{" "}
+            <span className="entry-day" title="The day these entries go to: check it before you start">
+              · {day?.header.date
+                ? new Date(`${day.header.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
+                : "sheet"}{" "}
+              (sheet {sheet})
+            </span>
+          </h2>
           <div className="tools" role="group" aria-label="Quick fill">
             <button onClick={onBuild} title="Fill today from the workers' last days">
               ⟲ Start day from previous days

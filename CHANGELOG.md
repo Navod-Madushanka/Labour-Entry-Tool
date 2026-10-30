@@ -1,5 +1,19 @@
 # Changelog
 
+## Entered on the wrong day: move a sheet (30 Oct 2026)
+
+Found in use: entries typed without checking the day only showed up as wrong in the manpower
+sheet, and the only way out was to discard the sheet and type it all again.
+
+- Under each day of the manpower sheet: **Move to [another day…]** moves all of that sheet's
+  waiting entries to the chosen day, after a confirmation naming both days. A worker already
+  waiting on that day is replaced (said in the confirmation), not doubled. The moved entries are
+  checked again for the new day (confirmations and overwrite start over), and the entry screen
+  follows to it. Nothing is written to Excel until the push.
+- The form heading shows the day being entered: "Add a worker · Friday, October 9 (sheet 9)", in
+  orange, so the day is in view while typing.
+- `frontend/e2e/move-sheet.cjs` tests it on made-up data, down to what reaches the workbook.
+
 ## Reverted: suggestions for workbooks without codes (30 Oct 2026)
 
 The change that found partners by times alone and grouped workers by calling-name prefix

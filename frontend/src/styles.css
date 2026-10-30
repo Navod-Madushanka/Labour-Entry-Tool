@@ -541,3 +541,7 @@ button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
 .statusbar .book-list .book-row.active button.book-name { background: none; }
 
 .statusbar .book-list button.book-name:disabled { opacity: 1; font-weight: 700; }
+.mp-move { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.mp-move select { padding: 4px 6px; }
+.entry-day { color: var(--accent); font-weight: 700; }
+

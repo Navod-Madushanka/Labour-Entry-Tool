@@ -33,6 +33,8 @@ interface Props {
   onRemove: (id: number) => void;
   onChange: (id: number, input: EntryInput) => void; // a time or hours changed on the sheet
   onDiscardSheet: (sheet: string) => void; // drop every waiting entry of that sheet
+  allSheets: string[]; // the workbook's day sheets, for "Move to"
+  onMoveSheet: (from: string, to: string) => void; // entered on the wrong day: move them all
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
@@ -85,6 +87,8 @@ const longDate = (iso: string | null | undefined) =>
   iso
     ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : "";
+const shortDate = (iso: string | null | undefined) =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : "";
 const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
 /** The queue, live, laid out like the site's "Daily record of manpower" form: workers across (10 per
@@ -170,7 +174,7 @@ function EditCell({ shown, start, parse, onSave, label }: {
   );
 }
 
-export function ManpowerSheet({ items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet }: Props) {
+export function ManpowerSheet({ items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet }: Props) {
   const [withExcel, setWithExcel] = useState(false);
   // Re-rendered with every queue change, so this is the time of the latest entry.
   const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -385,8 +389,39 @@ export function ManpowerSheet({ items, month, places, activities, ready, busy, o
                   >
                     Discard sheet {sheet}
                   </button>
+                  <label className="mp-move">
+                    <span>Move to</span>
+                    <select
+                      aria-label={`Move sheet ${sheet} to`}
+                      disabled={busy || !waiting}
+                      value=""
+                      onChange={(e) => {
+                        const to = e.target.value;
+                        if (!to) return;
+                        const toDate = shortDate(month[to]?.header.date);
+                        const names = new Set(items.filter((i) => i.input.sheet === sheet).map((i) => i.input.calling_name));
+                        const clash = items.filter((i) => i.input.sheet === to && names.has(i.input.calling_name)).length;
+                        const msg =
+                          `Move the ${waiting} ${waiting === 1 ? "entry" : "entries"} waiting for sheet ${sheet}${when ? ` (${shortDate(day?.header.date)})` : ""} ` +
+                          `to sheet ${to}${toDate ? ` (${toDate})` : ""}?` +
+                          (clash ? `\n\n${clash} of these workers ${clash === 1 ? "is" : "are"} already waiting on sheet ${to}: ${clash === 1 ? "that entry is" : "those entries are"} replaced.` : "") +
+                          "\n\nThey are checked again for that day. Nothing is written to Excel until you push.";
+                        if (window.confirm(msg)) onMoveSheet(sheet, to);
+                      }}
+                    >
+                      <option value="">another day…</option>
+                      {allSheets
+                        .filter((s) => s !== sheet)
+                        .map((s) => (
+                          <option key={s} value={s}>
+                            Sheet {s}
+                            {month[s]?.header.date ? ` · ${shortDate(month[s].header.date)}` : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
                   <span className="muted small">
-                    Removes this sheet's {waiting} waiting {waiting === 1 ? "entry" : "entries"}. Excel is not changed.
+                    Entered on the wrong day? Move them, or discard them. Excel is not changed.
                   </span>
                 </div>
               );

@@ -309,6 +309,22 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   };
   const removeQueued = (id: number) => setQueue((items) => items.filter((q) => q.id !== id));
 
+  // Entered on the wrong day: every waiting entry of `from` goes to `to` (a worker already waiting on
+  // `to` is replaced), checked again from scratch there (confirmations and overwrite are per day),
+  // and the entry screen follows to that day.
+  const moveSheet = (from: string, to: string) => {
+    setQueue((items) => {
+      const names = new Set(items.filter((it) => it.input.sheet === from).map((it) => it.input.calling_name));
+      return items
+        .filter((it) => !(it.input.sheet === to && names.has(it.input.calling_name)))
+        .map((it) =>
+          it.input.sheet === from ? { ...it, input: { ...it.input, sheet: to, overwrite: false, acknowledged: [] }, plan: null } : it,
+        );
+    });
+    setResult(null);
+    setSheet(to);
+  };
+
   // Entries waiting in the queue belong to this workbook: leaving drops them, so ask first.
   const leave = (go: () => void) => {
     const n = queue.length;
@@ -474,6 +490,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               onWrite={() => commit(false)}
               onEdit={editQueued}
               onRemove={removeQueued}
+              allSheets={master.sheets}
+              onMoveSheet={moveSheet}
               onDiscardSheet={(s) => {
                 setQueue((items) => items.filter((it) => it.input.sheet !== s));
                 setResult(null);
