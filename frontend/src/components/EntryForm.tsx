@@ -14,7 +14,7 @@ import {
   type FormState,
   type OwnTimes,
 } from "../form";
-import { companions, crewToday, entriesOf, suggestCodes, suggestTimes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
+import { companions, crewOf, crewToday, entriesOf, suggestCodes, suggestTimes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
 import { placeName } from "../codes";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
@@ -133,7 +133,7 @@ export function EntryForm(props: Props) {
     [suggested, activityOrder],
   );
   const yesterday = worker ? month[String(Number(sheet) - 1)]?.entries.find((v) => v.entry.calling_name === worker.calling_name) : undefined;
-  const crew = worker ? crewToday(day, master.workers, worker.trade_group) : null;
+  const crew = worker ? crewToday(day, master.workers, worker) : null;
 
   // Picking a worker fills empty times with their suggested times (orange until changed), and
   // Time In takes focus with the time selected: right -> Enter, wrong -> just type over it.
@@ -626,7 +626,7 @@ export function EntryForm(props: Props) {
                 }
               >
                 Crew today: {crew.activity ?? "—"} {crew.time_in !== null && formatShift(crew.time_in, crew.time_out)}{" "}
-                <span className="muted">({crew.count} {String(worker.trade_group ?? "")})</span>
+                <span className="muted">({crew.count} {crewOf(worker)})</span>
               </button>
             )}
             {suggested.length > 0 && (

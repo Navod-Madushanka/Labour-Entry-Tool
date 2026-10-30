@@ -1,5 +1,24 @@
 # Changelog
 
+## Suggestions in workbooks without codes or trade groups (30 Oct 2026)
+
+Found in testing: the SUB CONTRACT workbook got almost no suggestions. Its entries have no
+activity codes and its workers no trade group, and the "usual partners" and "crew" logic needed
+both. Replayed on its October entries (1,624 with times), read only:
+
+| | before | after |
+| --- | --- | --- |
+| Usual partners found | 0% | 85% |
+| "Usually on the same record" chips shown | 0% | 85% (a right one among them: 73%) |
+| Suggested times exactly right | 37% | 55% |
+
+- Partners and the "same record" chips: in a workbook without codes, workers who had the same
+  times on the same days (with codes: the same code and times, as before).
+- A worker's group: the trade group, or, where it is blank, the calling-name prefix (ABC of
+  ABC-01). Used for the crew's times and codes today.
+- Last fallback for times: what most workers on the sheet have today.
+- Nothing is SUB CONTRACT-specific; the INDIAN results are unchanged (codes 76% / 89%, times 71%).
+
 ## Close a workbook from the top bar (30 Oct 2026)
 
 - The workbook name in the top bar is now a menu of the workbooks open in the tool: click one to
