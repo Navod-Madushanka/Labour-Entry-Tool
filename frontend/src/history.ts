@@ -86,11 +86,10 @@ export interface CrewToday {
   count: number;
 }
 
-/** What the worker's group (crewOf) is doing on this sheet (most common activity and times). */
-export function crewToday(day: DayView | undefined, workers: Worker[], worker: Worker): CrewToday | null {
-  const group = crewOf(worker);
-  if (!day || !group) return null;
-  const sameTrade = new Set(workers.filter((w) => crewOf(w) === group).map((w) => w.calling_name));
+/** What the worker's trade group is doing on this sheet (most common activity and times). */
+export function crewToday(day: DayView | undefined, workers: Worker[], trade: unknown): CrewToday | null {
+  if (!day || !trade) return null;
+  const sameTrade = new Set(workers.filter((w) => w.trade_group === trade).map((w) => w.calling_name));
   const peers = day.entries.map((v) => v.entry).filter((e) => e.calling_name && sameTrade.has(e.calling_name));
   if (!peers.length) return null;
   const acts = new Map<string, number>();
@@ -108,15 +107,14 @@ export interface Companion {
   days: number; // days in the window with exactly the same entry
 }
 
-/** Same times and the same activities (codes and hours): workers on one record of the paper sheet.
- * In a workbook kept without activity codes the same times alone. */
+/** Same times and the same activities (codes and hours): workers on one record of the paper sheet. */
 function recordKey(e: Entry): string | null {
   if (typeof e.time_in !== "number" || typeof e.time_out !== "number") return null;
   const acts = e.activities
     .filter((a) => typeof a.code === "string" && a.code.trim())
     .map((a) => `${String(a.code).trim()}:${a.hours ?? ""}`)
     .sort();
-  return `${e.time_in}|${e.time_out}|${acts.join(",")}`;
+  return acts.length ? `${e.time_in}|${e.time_out}|${acts.join(",")}` : null;
 }
 
 /** Workers who usually share these workers' record: over the `window` days before `sheet`, how
@@ -164,17 +162,14 @@ export interface TodayEntry {
 const firstCode = (e: Entry): string | null =>
   e.activities.map((a) => (typeof a.code === "string" ? a.code.trim() : "")).find(Boolean) ?? null;
 
-/** The worker's group for "what the crew is doing": the trade group, or, when the workbook has
- * none (the sub-contract workbook leaves it blank), the calling-name prefix ("ABC" of ABC-01). */
-export function crewOf(w: Pick<Worker, "calling_name" | "trade_group">): string {
-  const trade = typeof w.trade_group === "string" ? w.trade_group.trim() : "";
-  return trade || (w.calling_name.match(/^[A-Za-z]+/)?.[0] ?? "");
-}
-const crewLabel = (w: Worker) => (typeof w.trade_group === "string" && w.trade_group.trim()) || `${crewOf(w)} workers`;
-
+/** Activity codes to suggest for a worker on `sheet`, best first. The order comes from replaying
+ * the October INDIAN workbook: the code the worker's usual partners (same code and times on the
+ * last days) have today first, then workers with the same times in the trade today, yesterday's
+ * own code, the trade today, the trade this month. First guess right 76% of the time, top three
+ * 89% (yesterday's code first: 64% and 85%). `today` is this sheet's entries, Excel and queue. */
 /** The worker's usual partners: who had the same first code and the same times as them on the
- * last `window` days (the same times alone in a workbook without codes), more recent days weighing
- * more (1 / days ago); the top five. Also their own latest entry before `sheet`. */
+ * last `window` days, more recent days weighing more (1 / days ago); the top five. Also their own
+ * latest entry before `sheet`. */
 export function usualPartners(month: Month, sheet: number, worker: Worker, window = 10): { partners: Set<string>; last?: Entry } {
   const score = new Map<string, number>();
   let last: Entry | undefined;
@@ -184,7 +179,7 @@ export function usualPartners(month: Month, sheet: number, worker: Worker, windo
     if (!day || !mine) continue;
     last ??= mine;
     const code = firstCode(mine);
-    if (typeof mine.time_in !== "number") continue;
+    if (!code) continue;
     for (const v of day.entries) {
       const e = v.entry;
       if (e.calling_name && e.calling_name !== worker.calling_name && firstCode(e) === code &&
@@ -203,8 +198,7 @@ export interface TimeSuggestion {
 }
 
 /** Times to suggest for a worker on `sheet`: the times most of their usual partners have today,
- * else their own usual times this month, else the times most of their group (crewOf) has today,
- * else the times most workers on the sheet have. */
+ * else their own usual times this month, else the times most of their trade has today. */
 export function suggestTimes(month: Month, sheet: number, worker: Worker, workers: Worker[], today: TodayEntry[]): TimeSuggestion | null {
   const others = today.filter((t) => t.calling_name !== worker.calling_name && t.time_in !== null && t.time_out !== null);
   const commonest = (list: TodayEntry[]) => {
@@ -225,18 +219,11 @@ export function suggestTimes(month: Month, sheet: number, worker: Worker, worker
              why: `${withPartners.names.slice(0, 2).join(", ")}${withPartners.names.length > 2 ? " …" : ""} today` };  // prettier-ignore
   const usual = usualTimes(entriesOf(month, worker.calling_name, sheet));
   if (usual) return { time_in: usual.time_in, time_out: usual.time_out, why: `usual (${usual.count}×)` };
-  const group = new Map(workers.map((w) => [w.calling_name, crewOf(w)]));
-  const crew = commonest(others.filter((t) => group.get(t.calling_name) === crewOf(worker)));
-  if (crew) return { time_in: crew.t.time_in!, time_out: crew.t.time_out!, why: `${crewLabel(worker)} today` };
-  const anyone = commonest(others); // no history and no one of their group yet: the sheet's usual times
-  return anyone ? { time_in: anyone.t.time_in!, time_out: anyone.t.time_out!, why: "most workers today" } : null;
+  const trade = new Map(workers.map((w) => [w.calling_name, w.trade_group]));
+  const crew = commonest(others.filter((t) => trade.get(t.calling_name) === worker.trade_group));
+  return crew ? { time_in: crew.t.time_in!, time_out: crew.t.time_out!, why: `${String(worker.trade_group ?? "trade")} today` } : null;
 }
 
-/** Activity codes to suggest for a worker on `sheet`, best first. The order comes from replaying
- * the October INDIAN workbook: the code the worker's usual partners (same code and times on the
- * last days) have today first, then workers with the same times in the trade today, yesterday's
- * own code, the trade today, the trade this month. First guess right 76% of the time, top three
- * 89% (yesterday's code first: 64% and 85%). `today` is this sheet's entries, Excel and queue. */
 export function suggestCodes(
   month: Month,
   sheet: number,
@@ -246,8 +233,8 @@ export function suggestCodes(
   times: { time_in: number | null; time_out: number | null },
   window = 10,
 ): CodeSuggestion[] {
-  const group = new Map(workers.map((w) => [w.calling_name, crewOf(w)]));
-  const sameTrade = (name: string) => group.get(name) === crewOf(worker) && name !== worker.calling_name;
+  const trade = new Map(workers.map((w) => [w.calling_name, w.trade_group]));
+  const sameTrade = (name: string) => trade.get(name) === worker.trade_group && name !== worker.calling_name;
   const out: CodeSuggestion[] = [];
   const add = (code: string | null | undefined, why: string) => {
     if (code && !out.some((s) => s.code === code)) out.push({ code, why });
@@ -273,7 +260,7 @@ export function suggestCodes(
     add(top(count(same.map((t) => t.code)))[0], "same times today");
   }
   if (last) add(firstCode(last), "last day");
-  const tradeName = crewLabel(worker);
+  const tradeName = String(worker.trade_group ?? "trade");
   for (const code of top(count(others.filter((t) => sameTrade(t.calling_name)).map((t) => t.code))).slice(0, 2))
     add(code, `${tradeName} today`);
   const monthCodes: (string | null)[] = [];

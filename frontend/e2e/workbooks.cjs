@@ -30,14 +30,6 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForSelector("#worker");
   if (await p.locator('input[aria-label="Activity 1"]').count()) throw new Error("B should have no activity boxes");
   await p.getByRole('tab', { name: '5', exact: true }).click();
-  // No codes and no trade groups: partners come from the same times, groups from the name prefix.
-  await p.locator('#worker').fill('BBB-02'); await p.keyboard.press('Enter');
-  await p.waitForFunction(() => document.querySelector('#in').value === "07:00");
-  await p.waitForSelector("text=Usually on the same record");
-  const usual = await p.locator(".also").innerText();
-  if (!/BBB-0[1-8]/.test(usual)) throw new Error("no work-together suggestions in B: " + usual);
-  console.log("B suggestions: times filled,", usual.match(/BBB-\d+/g).slice(0, 3).join(" "), "...");
-  await p.keyboard.press('Escape');
   await p.locator('#worker').fill('BBB-10'); await p.keyboard.press('Enter');
   await p.keyboard.type('7'); await p.keyboard.press('Enter');
   await p.keyboard.type('19'); await p.keyboard.press('Enter');

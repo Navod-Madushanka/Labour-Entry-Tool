@@ -2,9 +2,9 @@
 
     cd backend && python ../scripts/demo_two_books.py [port]
 
-"DEMO A" and "DEMO C" are kept with activity codes, "DEMO B" without codes or trade groups (like
-the sub-contract workbook). No real data: workers, codes and times are invented. A is ready for
-entry; B and C go through the start page.
+"DEMO A" and "DEMO C" are kept with activity codes, "DEMO B" without (like the sub-contract
+workbook). No real data: workers, codes and times are invented. A is ready for entry; B and C go
+through the start page.
 """
 
 from __future__ import annotations
@@ -49,8 +49,7 @@ def entry(sheet: str, block: int, name: str, code: str | None, tin=7.0, tout=19.
 
 def book(folder: Path, name: str, prefix: str, codes: bool) -> Path:
     workers = [Worker(row=3 + i, calling_name=f"{prefix}-{i + 1:02d}", name=f"Person {i + 1}",
-                      trade_group="Helper" if codes else None, id_no=f"P{i:07d}",
-                      employee_code=f"X{i:05d}")
+                      trade_group="Helper", id_no=f"P{i:07d}", employee_code=f"X{i:05d}")
                for i in range(12)]  # fmt: skip
     # Place suffixes like a real list: "-P" and "-C-8" (made up here; named on the start page).
     acts = ["03-11-00-00", "03-11-00-00-P", "03-20-00-00-C-8", "00-00-10-00"] if codes else []
