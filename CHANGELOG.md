@@ -1,5 +1,19 @@
 # Changelog
 
+## Change entries on the manpower sheet before pushing (30 Oct 2026)
+
+Found in testing: the manpower sheet only showed the waiting entries; nothing could be adjusted
+there before pushing.
+
+- Click an **In**, **Out** or **hours** cell to change it in place (Enter saves, Esc cancels). A
+  new In or Out also scales the activity hours when they added up to the worked hours (as the
+  entry form does): 07:00-19:00 with 11 h becomes 07:00-21:00 with 13 h. Times accept the same
+  input as the form (7, 7.30, =16-7); an Out earlier than In is the next morning.
+- Under each worker's name: **✎** moves the entry back into the form, **✕** removes it.
+- The queue re-checks after every change; while it does, the sheet says "Checking…" instead of
+  showing the entries as problems.
+- `frontend/e2e/manpower-edit.cjs` tests it on made-up data, down to what reaches the workbook.
+
 ## Name: Pattern-Based Labour Entry Assistant (29 Oct 2026)
 
 The tool is now called the **Pattern-Based Labour Entry Assistant** ("Labour Entry Assistant" in

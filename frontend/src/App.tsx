@@ -293,6 +293,18 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
     }
   };
 
+  // A waiting entry back into the form (it leaves the queue until added again), or dropped.
+  const editQueued = (id: number) => {
+    const it = queue.find((q) => q.id === id);
+    const w = it && workerByName.get(it.input.calling_name);
+    if (!it || !w) return;
+    setSheet(it.input.sheet);
+    setForm(fromInput(it.input, w));
+    setQueue((items) => items.filter((q) => q.id !== id));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const removeQueued = (id: number) => setQueue((items) => items.filter((q) => q.id !== id));
+
   // Entries waiting in the queue belong to this workbook: leaving drops them, so ask first.
   const leave = (go: () => void) => {
     const n = queue.length;
@@ -454,6 +466,12 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
               busy={busy}
               ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
               onWrite={() => commit(false)}
+              onEdit={editQueued}
+              onRemove={removeQueued}
+              onChange={(id, input) => {
+                setQueue((items) => items.map((it) => (it.id === id ? { ...it, input, plan: null } : it)));
+                setResult(null);
+              }}
             />
             {result && <CommitResultView result={result} onClose={() => setResult(null)} />}
             <Queue
@@ -482,15 +500,8 @@ export function App({ books, onSwitch, onAddWorkbook, onChangeWorkbook }: AppPro
               onOverwrite={(id) =>
                 setQueue((items) => items.map((it) => (it.id === id ? { ...it, input: { ...it.input, overwrite: true } } : it)))
               }
-              onEdit={(id) => {
-                const it = queue.find((q) => q.id === id);
-                const w = it && workerByName.get(it.input.calling_name);
-                if (!it || !w) return;
-                setSheet(it.input.sheet);
-                setForm(fromInput(it.input, w));
-                setQueue((items) => items.filter((q) => q.id !== id));
-              }}
-              onRemove={(id) => setQueue((items) => items.filter((q) => q.id !== id))}
+              onEdit={editQueued}
+              onRemove={removeQueued}
               onCommit={commit}
               onClear={() => setQueue([])}
             />

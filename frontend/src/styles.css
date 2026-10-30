@@ -506,3 +506,12 @@ input.suggested-code::placeholder { color: var(--accent); opacity: 0.75; }
 .code-chips .chip .place { font-weight: 600; }
 .code-chips .chip .why { color: var(--muted); font-size: 11px; }
 
+/* Manpower sheet: change before pushing */
+.mp-actions { display: inline-flex; gap: 2px; margin-left: 4px; }
+.mp-actions button.link { padding: 0 3px; font-size: 13px; }
+.mp-actions button.danger { color: var(--block); }
+.mp-edit { background: none; border: 1px dashed transparent; border-radius: 4px; padding: 0 4px; font: inherit; color: inherit; cursor: text; }
+.mp-edit:hover, .mp-edit:focus-visible { border-color: var(--accent); background: var(--row); }
+.mp-input { width: 6ch; padding: 1px 3px; font-size: 12px; text-align: center; }
+.mp-input.bad { border-color: var(--block); }
+
