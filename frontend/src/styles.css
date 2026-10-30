@@ -544,4 +544,5 @@ button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
 .mp-move { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .mp-move select { padding: 4px 6px; }
 .entry-day { color: var(--accent); font-weight: 700; }
+textarea.drop-over { border-color: var(--accent); background: var(--row); }
 

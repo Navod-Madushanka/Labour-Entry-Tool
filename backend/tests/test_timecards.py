@@ -98,3 +98,60 @@ def test_print_job_stops_between_cards(small_snapshot, tmp_path):
         c.post("/api/timecards/stop")
         job = wait_done(c)
         assert job["stopped"] and job["done"] < len(names)
+
+
+# --- the list of workers from a file ---------------------------------------------------------
+
+
+def _xlsx(rows_by_sheet: dict[str, list[list]]) -> bytes:
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    for title, rows in rows_by_sheet.items():
+        ws = wb.create_sheet(title)
+        for r in rows:
+            ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+KNOWN = {"INB-01", "INB-02", "INB-03", "INC-05", "INB-01 CH"}
+
+
+def test_names_from_one_column():
+    from app.timecards import names_from_file
+
+    data = _xlsx({"Sheet1": [["INB-03"], ["INB-01"], [None], ["inb-02 "], ["XYZ-99"]]})
+    names, source = names_from_file("Book2.xlsx", data, KNOWN)
+    assert names == ["INB-03", "INB-01", "INB-02", "XYZ-99"]  # file order; unknown kept to be shown
+    assert source == "Sheet1, column A"
+
+
+def test_names_from_the_best_column():
+    from app.timecards import names_from_file
+
+    data = _xlsx({
+        "Notes": [["just a note"]],
+        "List": [["Name", "NIC", "Calling Name"], ["Alpha", "200012345678", "INC-05"],
+                 ["Bravo", "199912345678", "INB-01 CH"], ["Charlie", "199812345678", "INB-02"]],
+    })  # fmt: skip
+    names, source = names_from_file("crew.xlsx", data, KNOWN)
+    assert names == ["INC-05", "INB-01 CH", "INB-02"]  # the header is skipped, NICs never read
+    assert source == "List, column C"
+
+
+def test_names_from_csv_and_errors():
+    import pytest
+
+    from app.timecards import names_from_file
+
+    names, _ = names_from_file("list.csv", b"Calling Name\r\nINB-02\r\nINB-01\r\n", KNOWN)
+    assert names == ["INB-02", "INB-01"]
+    with pytest.raises(ValueError, match="No calling name"):
+        names_from_file("list.csv", b"a\r\nb\r\n", KNOWN)
+    with pytest.raises(ValueError, match=".xlsx"):
+        names_from_file("list.xls", b"x", KNOWN)

@@ -456,6 +456,7 @@ export const api = {
   saveSetupPlaces: (names: Record<string, string>) => call<SetupState>("POST", "/api/setup/places", { names }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),
+  timecardList: (file: File) => send<{ names: string[]; source: string }>("/api/timecards/list", file),
   printCards: (sheet: string, cell: string, names: string[], copies: number, user: string) =>
     call<PrintJob>("POST", "/api/timecards/print", { sheet, cell, names, copies, user }),
   printJob: () => call<PrintJob>("GET", "/api/timecards/job"),

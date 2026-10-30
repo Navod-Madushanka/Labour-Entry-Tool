@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Master, type PrintJob, type TimeCardSheet, type Worker } from "../api";
 import type { Month } from "../history";
 
@@ -51,6 +51,22 @@ export function TimeCards({ master, month, user }: Props) {
   const [copies, setCopies] = useState(1);
   const [job, setJob] = useState<PrintJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<string | null>(null); // "67 names from Book2.xlsx (Sheet1, column A)"
+  const [over, setOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  // A file of calling names (the order of the file is the print order): its names fill the list.
+  const loadFile = async (file: File) => {
+    setError(null);
+    setLoaded(null);
+    try {
+      const res = await api.timecardList(file);
+      setText(res.names.join("\n"));
+      setLoaded(`${res.names.length} name${res.names.length === 1 ? "" : "s"} from ${file.name} (${res.source})`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   useEffect(() => {
     api
@@ -153,13 +169,44 @@ export function TimeCards({ master, month, user }: Props) {
         <label htmlFor="tc-names">Workers to print</label>
         <textarea
           id="tc-names"
+          className={over ? "drop-over" : undefined}
           rows={3}
           value={text}
           disabled={running}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. INB-01 to INB-20, INC-05, INC-08"
+          onChange={(e) => {
+            setText(e.target.value);
+            setLoaded(null);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            const f = e.dataTransfer.files[0];
+            if (f && !running) loadFile(f);
+          }}
+          placeholder="e.g. INB-01 to INB-20, INC-05, INC-08 (or drop an Excel file with the calling names here)"
         />
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".xlsx,.xlsm,.csv"
+          hidden
+          aria-label="Excel file with calling names"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) loadFile(f);
+            e.target.value = ""; // the same file can be loaded again
+          }}
+        />
+        {loaded && <small className="hint">Loaded {loaded}. They print in this order.</small>}
         <div className="row tc-quick">
+          <button className="small" disabled={running} onClick={() => fileInput.current?.click()} title="An Excel (.xlsx) or .csv file with the calling names, one per row">
+            Load from Excel file…
+          </button>
           <button className="small" disabled={running} onClick={() => setText(worked.join(", "))}>
             Everyone who worked this month ({worked.length})
           </button>
@@ -167,7 +214,7 @@ export function TimeCards({ master, month, user }: Props) {
             Everyone in Labour Detail ({master.workers.length})
           </button>
           {text && (
-            <button className="link small" disabled={running} onClick={() => setText("")}>
+            <button className="link small" disabled={running} onClick={() => { setText(""); setLoaded(null); }}>
               Clear
             </button>
           )}

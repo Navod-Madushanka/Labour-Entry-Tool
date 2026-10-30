@@ -11,12 +11,13 @@ from __future__ import annotations
 import threading
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.api.entries import run_service
 from app.excel.adapter import WorkbookError
 from app.service import EntryService, TimeCardSheet
+from app.timecards import MAX_LIST_BYTES, names_from_file
 
 router = APIRouter(prefix="/api/timecards")
 
@@ -60,6 +61,30 @@ def _state(request: Request) -> _State:
 @router.get("", response_model=list[TimeCardSheet])
 async def sheets(request: Request) -> list[TimeCardSheet]:
     return await run_service(request, lambda s: s.timecard_sheets())
+
+
+class NameList(BaseModel):
+    names: list[str]  # in the file's order; ones not in Labour Detail are kept, to be shown
+    source: str  # where in the file they were found, e.g. "Sheet1, column A"
+
+
+@router.post("/list", response_model=NameList)
+async def name_list(request: Request, filename: str = Query(...)) -> NameList:
+    """A list of calling names from an Excel (.xlsx) or .csv file sent as the request body. The file
+    is only read, in memory: nothing is saved."""
+    data = await request.body()
+    if not data:
+        raise HTTPException(422, "The file is empty.")
+    if len(data) > MAX_LIST_BYTES:
+        raise HTTPException(413, "The file is too large for a list of names.")
+    known = await run_service(request, lambda s: {w.calling_name for w in s.master().workers})
+    try:
+        names, source = names_from_file(filename, data, known)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:  # not a workbook, damaged
+        raise HTTPException(422, f"Could not read {filename} ({exc}).") from exc
+    return NameList(names=names, source=source)
 
 
 @router.get("/job", response_model=Job)

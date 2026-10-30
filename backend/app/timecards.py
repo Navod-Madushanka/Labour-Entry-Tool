@@ -60,3 +60,71 @@ def _col(cell: str) -> int:
     for ch in letters:
         n = n * 26 + ord(ch) - 64
     return n - 1
+
+
+# --- A list of workers from a file ------------------------------------------------------------
+
+LIST_TYPES = (".xlsx", ".xlsm", ".csv")
+MAX_LIST_BYTES = 10 * 1024 * 1024
+
+
+def _norm(value: object) -> str:
+    return "".join(str(value).split()).upper()
+
+
+def _rows(filename: str, data: bytes) -> list[tuple[str, list[list[object]]]]:
+    """(sheet name, rows) for every sheet of an .xlsx/.xlsm, or the one table of a .csv."""
+    name = filename.lower()
+    if name.endswith(".csv"):
+        import csv
+        import io
+
+        text = data.decode("utf-8-sig", errors="replace")
+        return [("", [list(r) for r in csv.reader(io.StringIO(text))])]
+    import io
+
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    try:
+        return [
+            (ws.title, [list(r) for r in ws.iter_rows(values_only=True)]) for ws in wb.worksheets
+        ]
+    finally:
+        wb.close()
+
+
+def names_from_file(filename: str, data: bytes, known: set[str]) -> tuple[list[str], str]:
+    """The calling names in a list file, in the file's order (top to bottom), and where they were
+    found. The column with the most names that are in Labour Detail is used, on any sheet; its
+    other filled cells (a header, a name not in Labour Detail) come back too, so they can be
+    shown as not found, except a header-like first cell."""
+    if not filename.lower().endswith(LIST_TYPES):
+        raise ValueError("Use an Excel workbook (.xlsx) or a .csv file with the calling names.")
+    wanted = {_norm(k): k for k in known}
+    best: tuple[int, str, int, list[list[object]]] | None = None  # (matches, sheet, col, rows)
+    for sheet, rows in _rows(filename, data):
+        width = max((len(r) for r in rows), default=0)
+        for col in range(width):
+            hits = sum(
+                1 for r in rows if col < len(r) and r[col] is not None and _norm(r[col]) in wanted
+            )
+            if hits and (best is None or hits > best[0]):
+                best = (hits, sheet, col, rows)
+    if best is None:
+        raise ValueError("No calling name from Labour Detail was found in that file.")
+    _, sheet, col, rows = best
+    names: list[str] = []
+    for i, r in enumerate(rows):
+        value = r[col] if col < len(r) else None
+        if value is None or not str(value).strip():
+            continue
+        key = _norm(value)
+        if key in wanted:
+            names.append(wanted[key])
+        elif i == 0 or not any(ch.isdigit() for ch in key):
+            continue  # a header ("Calling Name") or a note, not a worker
+        else:
+            names.append(str(value).strip())
+    letter = chr(ord("A") + col) if col < 26 else f"column {col + 1}"
+    return names, f"{sheet + ', ' if sheet else ''}column {letter}"

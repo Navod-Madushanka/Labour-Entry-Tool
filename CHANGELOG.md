@@ -1,5 +1,18 @@
 # Changelog
 
+## Time cards from an Excel list (30 Oct 2026)
+
+Asked for: print time cards from an Excel file of calling names instead of typing them.
+
+- On the Time cards tab, **Load from Excel file…** (or drop the file on the list box) reads an
+  .xlsx, .xlsm or .csv and fills the list with its calling names **in the file's order**, which
+  is the print order. A file with several columns works too: the column with the most names
+  from Labour Detail is used, a header row is skipped, other columns (names, NIC) are not read.
+  Names not in Labour Detail are listed as "Not found" before printing.
+- The file is only read, in memory: nothing is saved or changed.
+- `POST /api/timecards/list`; tests in `backend/tests/test_timecards.py` and
+  `frontend/e2e/timecards-list.cjs` (made-up files).
+
 ## Entered on the wrong day: move a sheet (30 Oct 2026)
 
 Found in use: entries typed without checking the day only showed up as wrong in the manpower
