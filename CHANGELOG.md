@@ -1,5 +1,14 @@
 # Changelog
 
+## Suggested times filled in (30 Oct 2026)
+
+Found in testing: the suggested times were only shown in the empty boxes; they had to be typed.
+
+- Picking a worker now **fills in** Time In and Time Out with the suggested times (orange until
+  changed) and selects Time In. Right: Enter, Enter goes on to the activity. Wrong: type, and the
+  new time replaces it (also when typed straight after picking the worker). Typing another name
+  takes the suggested times away again; times already in the form are never replaced.
+
 ## A clean form after each worker, with suggested times (30 Oct 2026)
 
 Found in testing: after adding a worker (or a set of workers) or pushing, the times and activity

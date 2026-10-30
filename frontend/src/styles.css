@@ -514,4 +514,4 @@ input.suggested-code::placeholder { color: var(--accent); opacity: 0.75; }
 .mp-edit:hover, .mp-edit:focus-visible { border-color: var(--accent); background: var(--row); }
 .mp-input { width: 6ch; padding: 1px 3px; font-size: 12px; text-align: center; }
 .mp-input.bad { border-color: var(--block); }
-
+input.auto-filled { color: var(--accent); font-weight: 600; } /* suggested value, not changed yet */

@@ -26,10 +26,15 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   if (after.join("|") !== "||") throw new Error("form not cleared after adding: " + after);
   console.log("form cleared after adding");
 
-  // AAA-02 usually works with AAA-01: today's times and code are suggested; Enter, Enter, Enter, Enter.
+  // AAA-02 usually works with AAA-01: today's times are filled in; Enter, Enter, Enter, Enter.
   await p.locator('#worker').fill("AAA-02"); await p.keyboard.press('Enter');
-  console.log("In suggests:", await p.locator("#in").getAttribute("placeholder"), "| Out:", await p.locator("#out").getAttribute("placeholder"));
-  await p.keyboard.press('Enter'); // takes In and Out, goes to the activity
+  await p.waitForFunction(() => document.querySelector("#in").value === "08:00" && document.activeElement?.id === "in");
+  const filled = await values();
+  console.log("AAA-02 times filled in:", filled[0], filled[1], "| In selected:",
+    await p.evaluate(() => { const i = document.querySelector("#in"); return i.selectionStart === 0 && i.selectionEnd === i.value.length; }));
+  await p.keyboard.press('Enter'); // In is right -> Out
+  await p.waitForFunction(() => document.activeElement?.id === "out");
+  await p.keyboard.press('Enter'); // Out is right -> activity
   await p.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Activity 1");
   console.log("Activity suggests:", await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder"));
   await p.keyboard.press('Enter'); // takes the code
@@ -40,9 +45,28 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   console.log("AAA-02 queued:", row.replace(/\s+/g, " "));
   if (!/08:00.20:00/.test(row) || !row.includes("03-11-00-00-P")) throw new Error("suggestion not used");
 
+  // Wrong suggestion: typing replaces it.
+  await p.locator('#worker').fill("AAA-03"); await p.keyboard.press('Enter');
+  await p.waitForFunction(() => document.querySelector("#in").value === "08:00" && document.activeElement?.id === "in");
+  await p.keyboard.type('9'); await p.keyboard.press('Enter');
+  const typed = await values();
+  if (typed[0] !== "09:00" || typed[1] !== "20:00") throw new Error("typing should replace In only: " + typed);
+  console.log("typed over the suggestion:", typed[0], typed[1]);
+  await p.keyboard.press('Escape'); // clear the form
+
   // A worker with no partner today: their usual times are suggested.
   await p.locator('#worker').fill("AAA-05"); await p.keyboard.press('Enter');
-  console.log("AAA-05 In suggests:", await p.locator("#in").getAttribute("placeholder"), await p.locator("#in").getAttribute("title"));
+  await p.waitForFunction(() => document.querySelector("#in").value !== "");
+  console.log("AAA-05 times filled in:", (await values()).slice(0, 2).join("-"), "|", await p.locator("#in").getAttribute("title"));
+
+  // A fast typist: name, Enter and a time straight away still replaces the suggestion.
+  await p.keyboard.press('Escape');
+  await p.locator('#worker').fill("AAA-06"); await p.keyboard.press('Enter'); await p.keyboard.type('6');
+  await p.keyboard.press('Enter');
+  const fast = await values();
+  if (fast[0] !== "06:00") throw new Error("fast typing should replace the suggestion: " + fast);
+  console.log("fast typing replaced it:", fast[0]);
+  await p.keyboard.press('Escape');
 
   // Push: the form is left clean (no worker was being typed).
   await p.locator('#worker').fill("");

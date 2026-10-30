@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type DayView, type EntryInput, type EntryPlan, type Master, type Worker } from "../api";
 import {
   emptyForm,
@@ -133,11 +133,33 @@ export function EntryForm(props: Props) {
   const yesterday = worker ? month[String(Number(sheet) - 1)]?.entries.find((v) => v.entry.calling_name === worker.calling_name) : undefined;
   const crew = worker ? crewToday(day, master.workers, worker.trade_group) : null;
 
+  // Picking a worker fills empty times with their suggested times (orange until changed), and
+  // Time In takes focus with the time selected: right -> Enter, wrong -> just type over it.
+  const [autoTimes, setAutoTimes] = useState(false);
+  /** Picked worker -> form update that also fills empty times with their suggested times. */
+  const timesFor = (w: Worker): Partial<FormState> => {
+    if (form.timeIn.trim() || form.timeOut.trim()) return {};
+    const t = suggestTimes(month, Number(sheet), w, master.workers, today);
+    return t ? { timeIn: formatClock(t.time_in), timeOut: formatClock(t.time_out), overnight: t.time_out >= 24 } : {};
+  };
+  useEffect(() => {
+    if (!form.timeIn && !form.timeOut) setAutoTimes(false); // cleared (next worker, Esc)
+  }, [form.timeIn, form.timeOut]);
+  const focusIn = () => focus("in");
+  // The suggested time lands in the box after the focus: select it right then (before the next key),
+  // so typing replaces it.
+  useLayoutEffect(() => {
+    const el = refs.current.in;
+    if (autoTimes && el && document.activeElement === el) el.select();
+  }, [autoTimes, form.timeIn]);
+
   const pick = (w: Worker) => {
     setNameError(null);
-    setForm((f) => ({ ...f, worker: w, query: w.calling_name, overwrite: false, acknowledged: [] }));
+    const times = timesFor(w);
+    setForm((f) => ({ ...f, worker: w, query: w.calling_name, overwrite: false, acknowledged: [], ...times }));
+    if (times.timeIn) setAutoTimes(true);
     setOpen(false);
-    focus("in");
+    focusIn();
   };
 
   // Queue what the form holds now (not the last preview, which may predate the last keystroke);
@@ -152,9 +174,11 @@ export function EntryForm(props: Props) {
     setNameError(missing.length ? `Not found: ${missing.join(", ")}` : null);
     if (!found.length) return false;
     const [first, ...rest] = found;
-    setForm((f) => ({ ...f, worker: first, also: rest, query: first.calling_name, overwrite: false, acknowledged: [] }));
+    const times = timesFor(first);
+    setForm((f) => ({ ...f, worker: first, also: rest, query: first.calling_name, overwrite: false, acknowledged: [], ...times }));
+    if (times.timeIn) setAutoTimes(true);
     setOpen(false);
-    focus("in");
+    focusIn();
     return true;
   };
 
@@ -223,7 +247,8 @@ export function EntryForm(props: Props) {
             aria-expanded={open}
             aria-controls="worker-list"
             onChange={(e) => {
-              setForm((f) => ({ ...f, query: e.target.value, worker: null }));
+              setForm((f) => ({ ...f, query: e.target.value, worker: null, ...(autoTimes ? { timeIn: "", timeOut: "", overnight: null } : {}) }));
+              setAutoTimes(false);
               setOpen(true);
               setHighlight(0);
             }}
@@ -342,11 +367,14 @@ export function EntryForm(props: Props) {
               id="in"
               ref={reg("in")}
               inputMode="numeric"
-              className={!form.timeIn && suggestedTimes ? "suggested-code" : undefined}
+              className={!form.timeIn && suggestedTimes ? "suggested-code" : autoTimes ? "auto-filled" : undefined}
               placeholder={suggestedTimes ? `${formatClock(suggestedTimes.time_in)} (Enter to use)` : "07:00"}
-              title={!form.timeIn && suggestedTimes ? `Suggested: ${formatShift(suggestedTimes.time_in, suggestedTimes.time_out)}, ${suggestedTimes.why}` : undefined}
+              title={(autoTimes || !form.timeIn) && suggestedTimes ? `Suggested: ${formatShift(suggestedTimes.time_in, suggestedTimes.time_out)}, ${suggestedTimes.why}` : undefined}
               value={form.timeIn}
-              onChange={(e) => setForm((f) => ({ ...f, timeIn: e.target.value }))}
+              onChange={(e) => {
+                setAutoTimes(false);
+                setForm((f) => ({ ...f, timeIn: e.target.value }));
+              }}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeIn: normaliseClock(f.timeIn) }))}
               onKeyDown={(e) => {
@@ -374,10 +402,13 @@ export function EntryForm(props: Props) {
               id="out"
               ref={reg("out")}
               inputMode="numeric"
-              className={!form.timeOut && suggestedTimes ? "suggested-code" : undefined}
+              className={!form.timeOut && suggestedTimes ? "suggested-code" : autoTimes ? "auto-filled" : undefined}
               placeholder={suggestedTimes ? `${formatClock(suggestedTimes.time_out)} (Enter to use)` : "19:00"}
               value={form.timeOut}
-              onChange={(e) => setForm((f) => ({ ...f, timeOut: e.target.value }))}
+              onChange={(e) => {
+                setAutoTimes(false);
+                setForm((f) => ({ ...f, timeOut: e.target.value }));
+              }}
               onFocus={(e) => e.target.select()} // typing replaces the kept time
               onBlur={() => setForm((f) => ({ ...f, timeOut: normaliseClock(f.timeOut) }))}
               onKeyDown={(e) => {
