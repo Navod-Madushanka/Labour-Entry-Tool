@@ -1,5 +1,10 @@
 # Changelog
 
+## Reverted: suggestions for workbooks without codes (30 Oct 2026)
+
+The change that found partners by times alone and grouped workers by calling-name prefix
+(commit 12387d8) broke the suggestions in use and was reverted: suggestions work as before it.
+
 ## Close a workbook from the top bar (30 Oct 2026)
 
 - The workbook name in the top bar is now a menu of the workbooks open in the tool: click one to
