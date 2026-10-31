@@ -22,7 +22,7 @@ from app.health import write_issues_csv
 from app.registration.checks import RegistrationReport, check_registrations
 from app.registration.proposals import CodeProposal, IdConflict, id_conflicts, propose_codes
 from app.registration.reader import RegistrationFile, RegistrationRow, read_registration
-from app.service import CodeWrite, CodeWriteResult
+from app.service import ActivityAddResult, CodeWrite, CodeWriteResult
 
 router = APIRouter(prefix="/api")
 
@@ -123,6 +123,21 @@ async def write_codes(body: CodeWriteRequest, request: Request) -> CodeWriteResu
     if not body.approve:
         raise HTTPException(422, "Writing employee codes needs the user's explicit approval.")
     return await run_service(request, lambda s: s.write_codes(body.items, body.user))
+
+
+class ActivityAddRequest(BaseModel):
+    codes: list[str] = Field(min_length=1, max_length=50)
+    user: str = Field(min_length=1)
+    approve: bool = False
+
+
+@router.post("/activities/add", response_model=ActivityAddResult)
+async def add_activities(body: ActivityAddRequest, request: Request) -> ActivityAddResult:
+    """New codes go into the Labour Detail activity list, outside the input cells: the user must
+    approve them."""
+    if not body.approve:
+        raise HTTPException(422, "Adding activity codes needs the user's explicit approval.")
+    return await run_service(request, lambda s: s.add_activities(body.codes, body.user))
 
 
 def _csv(text: str, name: str) -> Response:

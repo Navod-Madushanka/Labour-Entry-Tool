@@ -1,5 +1,24 @@
 # Changelog
 
+## Add activity codes from the tool (31 Oct 2026)
+
+Asked for: add new activity codes to Labour Detail without switching to Excel.
+
+- **Codes & registration** tab, **Activity codes**: type new codes (one per line or comma
+  separated). Each is checked as you type: letters, digits and dashes only, already in the list,
+  typed twice, not the usual NN-NN-NN-NN form, or a place ending not named yet. **Add N codes to
+  Labour Detail** asks first, then writes each code (trimmed, in capitals) into the next empty
+  or space-only cell of column L, rows 3 to 502 (the INDIAN list is full to L311 and padded with
+  spaces below, so new codes go to L312 on). Like every write: checked again on a fresh read,
+  backup first, read back, logged, and undoable from Recent batches. The codes can be used in
+  entries at once; they are not saved in Excel until **Save Excel file**.
+- Only those column L cells are allowed for this write (E09 guard); undo of them needs no worker
+  on the row.
+- If Labour Detail is protected in Excel, Excel refuses the write and the tool says so.
+- `POST /api/activities/add`; tests in `backend/tests/test_setup.py` and
+  `frontend/e2e/add-activity.cjs`. Two older browser tests updated (the new section comes first
+  on the tab; a timing race).
+
 ## Slow PCs: less reading through Excel, progress, a log (30 Oct 2026)
 
 Reported: on coworkers' PCs (i5 10th gen, 8 GB, 3 GB of it for graphics) the tool kept loading.

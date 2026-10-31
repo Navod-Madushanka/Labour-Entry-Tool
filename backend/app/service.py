@@ -65,6 +65,7 @@ from app.domain.writes import (
     EntryInput,
     EntryPlan,
     RangeWrite,
+    activity_list_cell,
     block_writes,
     header_fix_cells,
     plan_entry,
@@ -73,7 +74,7 @@ from app.domain.writes import (
 )
 from app.excel.adapter import LiveWorkbook, WorkbookError
 from app.excel.grid import date_to_excel_serial
-from app.excel.refs import col_to_index, index_to_col, parse_cell
+from app.excel.refs import col_to_index, index_to_col, parse_cell, parse_range
 from app.timecards import time_card_sheets
 
 log = logging.getLogger("labour")
@@ -120,6 +121,18 @@ class CodeWrite(BaseModel):
     row: int  # Labour Detail row
     calling_name: str  # must still be on that row
     code: str
+
+
+class ActivityAddResult(BaseModel):
+    status: Literal["written", "rejected", "failed"]
+    batch_id: int | None = None
+    added: dict[str, str] = Field(default_factory=dict)  # cell -> code
+    problems: list[str] = Field(default_factory=list)
+    mismatches: list[str] = Field(default_factory=list)  # read-back
+    error: str | None = None
+
+
+ACTIVITY_CHARS = re.compile(r"[A-Z0-9][A-Z0-9-]*")
 
 
 class CodeWriteResult(BaseModel):
@@ -550,7 +563,10 @@ class EntryService:
         for ch in code_changes:  # Labour Detail codes: cell by cell, row must not have moved
             row = parse_cell(ch.cell)[0]
             name_cell = f"{t.master_cols.calling_name}{row}"
-            [[name]] = self.workbook.read_range(ch.sheet, name_cell)
+            listed = activity_list_cell(t, ch.cell)  # an added activity code: no worker on its row
+            name = (
+                ch.calling_name if listed else self.workbook.read_range(ch.sheet, name_cell)[0][0]
+            )
             [[now]] = self.workbook.read_range(ch.sheet, ch.cell)
             if name != ch.calling_name:
                 conflicts.append(f"{ch.sheet}!{name_cell} is now {name!r}, was {ch.calling_name!r}")
@@ -593,6 +609,7 @@ class EntryService:
             "allow_header": bool(header_changes),
             "allow_codes": bool(code_changes),
             "allow_worker_rows": {parse_cell(ch.cell)[0] for ch in code_changes},
+            "allow_activity_list": any(activity_list_cell(t, ch.cell) for ch in code_changes),
         }
         if bad := unwritable_cells(writes, t, **allow):
             raise RuntimeError(f"refusing to write outside the input cells: {bad}")
@@ -774,6 +791,77 @@ class EntryService:
         self.audit.finish(batch_id, "done", "employee codes")
         return CodeWriteResult(status="written", batch_id=batch_id, written=written,
                                mismatches=mismatches)  # fmt: skip
+
+    # --- new activity codes in the Labour Detail activity list (approved by the user) ---
+
+    def add_activities(self, codes: list[str], user: str) -> ActivityAddResult:
+        """Add codes to the activity list: each in the next empty (or space-only) cell of column
+        L, checked against a fresh read. Written trimmed and in capitals, as the list holds them."""
+        if not user.strip():
+            raise ValueError("a user name is required for writes")
+        t, wb = self.template, self.workbook
+        master = self.master(fresh=True)
+        have = {a.code.upper(): a.row for a in master.activities}
+        problems, new = [], []
+        for raw in codes:
+            code = raw.strip().upper()
+            if not code:
+                continue
+            if not ACTIVITY_CHARS.fullmatch(code) or len(code) > 40:
+                problems.append(f"{raw.strip()!r} is not an activity code: letters, digits and "
+                                "dashes only, e.g. 03-11-00-00-P.")  # fmt: skip
+            elif code in have:
+                problems.append(f"{code} is already in the list (Labour Detail L{have[code]}).")
+            elif code not in new:
+                new.append(code)
+        if problems or not new:
+            return ActivityAddResult(status="rejected", problems=problems or ["Nothing to add."])
+        first_row, _ = t.activity_start
+        last_row = max(t.master_rows[1], parse_range(t.activity_list)[1][0])
+        used = {a.row for a in master.activities}
+        free = [r for r in range(first_row, last_row + 1) if r not in used]
+        if len(free) < len(new):
+            return ActivityAddResult(status="rejected", problems=[
+                f"The activity list has room for {len(free)} more code(s) (up to row {last_row})."
+            ])  # fmt: skip
+        col = parse_range(t.activity_list)[0][1]
+        letter = index_to_col(col)
+        changes = []
+        for code, row in zip(new, free, strict=False):
+            [[old]] = wb.read_range(t.master_sheet, f"{letter}{row}")  # a space-padded cell
+            changes.append(Change(sheet=t.master_sheet, cell=f"{letter}{row}", old=old, new=code))
+        writes = [RangeWrite(sheet=c.sheet, address=c.cell, values=[[c.new]]) for c in changes]
+        if bad := unwritable_cells(writes, t, allow_activity_list=True):
+            raise RuntimeError(f"refusing to write outside the activity list: {bad}")
+        try:
+            self.backups.ensure(wb.name, wb.save_copy)
+        except (OSError, WorkbookError) as exc:
+            return ActivityAddResult(
+                status="failed", error=f"Backup failed, nothing written: {exc}"
+            )
+        batch_id = self.audit.start("write", user, wb.name, changes)
+        self._master = None
+        added = {c.cell: c.new for c in changes}
+        try:
+            wb.write_ranges(writes)
+        except WorkbookError as exc:
+            self.unsaved = True
+            self.audit.finish(batch_id, "failed", str(exc))
+            return ActivityAddResult(
+                status="failed", batch_id=batch_id, added=added, error=str(exc)
+            )
+        self.unsaved = True
+        mismatches = []
+        try:
+            for c in changes:
+                [[now]] = wb.read_range(c.sheet, c.cell)
+                if not same_value(now, c.new):
+                    mismatches.append(f"{c.cell} reads {now!r}, wrote {c.new!r}")
+        except WorkbookError as exc:
+            mismatches.append(f"Written, but the check read-back failed: {exc}")
+        self.audit.finish(batch_id, "done", "activity codes")
+        return ActivityAddResult(status="written", batch_id=batch_id, added=added,
+                                 mismatches=mismatches)  # fmt: skip
 
     # --- day builder: start a sheet from the previous days (crews of identical entries) ---
 

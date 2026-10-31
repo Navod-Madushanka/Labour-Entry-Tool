@@ -452,6 +452,9 @@ export const api = {
   setupReady: (ready: boolean) => call<SetupState>("POST", "/api/setup/ready", { ready }),
   setupSwitch: (name: string) => call<SetupState>("POST", "/api/setup/switch", { name }),
   setupClose: (name: string) => call<SetupState>("POST", "/api/setup/close", { name }),
+  addActivities: (codes: string[], user: string) =>
+    call<{ status: "written" | "rejected" | "failed"; added: Record<string, string>; problems: string[]; mismatches: string[]; error: string | null }>(
+      "POST", "/api/activities/add", { codes, user, approve: true }),
   setupPlaces: () => call<PlacesView>("GET", "/api/setup/places"),
   setupProgress: () => call<{ done?: number; total?: number; step?: string }>("GET", "/api/setup/progress"),
   saveSetupPlaces: (names: Record<string, string>) => call<SetupState>("POST", "/api/setup/places", { names }),

@@ -117,9 +117,10 @@ class FakeWorkbook:
             self.busy_failures -= 1
             raise WorkbookBusyError("Excel is busy (a cell is being edited).")
         rows = range(self.template.master_rows[0], self.template.master_rows[1] + 1)
-        for w in writes:  # unlocked: block inputs, day-sheet header, Labour Detail A-H
-            if bad := unwritable_cells([w], self.template, allow_header=True, allow_codes=True,
-                                       allow_worker_rows=rows):  # fmt: skip
+        for w in writes:  # unlocked: block inputs, day-sheet header, Labour Detail A-H, the list
+            bad = unwritable_cells([w], self.template, allow_header=True, allow_codes=True,
+                                   allow_worker_rows=rows, allow_activity_list=True)  # fmt: skip
+            if bad:
                 raise ProtectionError(f"The cell {bad[0]} is protected.")
         for w in writes:
             grid = self._grid(w.sheet)

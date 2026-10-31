@@ -5,6 +5,7 @@ import { CrewDialog } from "./components/CrewDialog";
 import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
+import { ActivityAdder } from "./components/ActivityAdder";
 import { MasterTools } from "./components/MasterTools";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
@@ -457,6 +458,15 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (
           <>
+            <ActivityAdder
+              master={master}
+              user={user}
+              onChanged={() => {
+                api.master(true).then(setMaster).catch(fail);
+                refreshBatches();
+                refreshStatus();
+              }}
+            />
             <MasterTools
               user={user}
               onChanged={() => {

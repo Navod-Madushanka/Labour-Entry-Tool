@@ -547,4 +547,8 @@ button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
 textarea.drop-over { border-color: var(--accent); background: var(--row); }
 .batches-scroll { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px !important; }
 .batches-scroll li:last-child { border-bottom: none; }
+.new-codes { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.new-codes li.bad code { text-decoration: line-through; color: var(--block); }
+.banner.OK { background: var(--ok-bg, #e5f4e4); color: var(--ok, #1f7a35); }
+.ok-text { color: var(--ok, #1f7a35); }
 

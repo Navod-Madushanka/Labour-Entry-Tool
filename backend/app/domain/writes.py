@@ -163,16 +163,27 @@ def employee_code_cell(template: TemplateConfig, cell: str) -> bool:
     return first <= row <= last and col == col_to_index(template.master_cols.employee_code)
 
 
+def activity_list_cell(template: TemplateConfig, cell: str) -> bool:
+    """``Labour Detail`` column L from the first list row down to the end of the worker rows: the
+    activity list (new codes are added there only after approval)."""
+    (row, col), _ = parse_range(cell)
+    first_row, list_col = template.activity_start
+    last_row = max(template.master_rows[1], parse_range(template.activity_list)[1][0])
+    return col == list_col and first_row <= row <= last_row
+
+
 def unwritable_cells(
     writes: list[RangeWrite],
     template: TemplateConfig,
     allow_header: bool = False,
     allow_codes: bool = False,
     allow_worker_rows: Collection[int] = (),
+    allow_activity_list: bool = False,
 ) -> list[str]:
     """Cells the tool must not write: anything but the §5.4 inputs of a day sheet, plus F3/H3/F4
-    when a header fix was approved, Labour Detail G when employee codes were approved, and
-    Labour Detail A-H of the given rows when adding a worker (e.g. a medical line) was approved."""
+    when a header fix was approved, Labour Detail G when employee codes were approved, Labour
+    Detail A-H of the given rows when adding a worker (e.g. a medical line) was approved, and the
+    activity list when adding activity codes was approved."""
     header = set(header_fix_cells(template).values()) if allow_header else set()
     day_sheets = set(template.day_sheet_names())
     worker_cols = {col_to_index(c) for c in template.master_cols.model_dump().values()}
@@ -183,6 +194,8 @@ def unwritable_cells(
         if sheet == template.master_sheet:
             (row, col), _ = parse_range(cell)
             if row in allow_worker_rows and col in worker_cols:
+                return True
+            if allow_activity_list and activity_list_cell(template, cell):
                 return True
             return allow_codes and employee_code_cell(template, cell)
         return False

@@ -332,3 +332,34 @@ def test_place_names_asked_once_per_project(tmp_path, small_snapshot):
 def test_check_progress_without_excel(app):
     with TestClient(app) as c:
         assert c.get("/api/setup/progress").json() == {}  # nothing chosen, nothing reading
+
+
+# --- new activity codes from the tool -------------------------------------------------------------
+
+
+def test_add_activity_codes(app, small_snapshot, tmp_path):
+    path = save_snapshot(small_snapshot, tmp_path / "Labour Entry Sheet October 2026.json")
+    setup_api.choose(app, path, path.name, practice=True, real_file=False)
+    add = "/api/activities/add"
+    with TestClient(app) as c:
+        assert c.post(add, json={"codes": ["03-31-05-35-P"], "user": USER}).status_code == 422
+        res = c.post(add, json={"codes": [" 03-31-05-35-p ", "03-31-05-35-P", "05-20-00-00"],
+                                "user": USER, "approve": True}).json()  # fmt: skip
+        assert res["status"] == "written"
+        assert res["added"] == {"L6": "03-31-05-35-P", "L7": "05-20-00-00"}  # next free rows, once
+        assert "03-31-05-35-P" in c.get("/api/master").json()["activities"]
+
+        act = [{"code": "03-31-05-35-P", "hours": 11}]
+        entry = {"sheet": "1", "calling_name": "INB-01 CH", "time_in": 7, "time_out": 19,
+                 "activities": act, "overwrite": True}  # fmt: skip
+        plan = c.post("/api/preview", json={"entries": [entry]}).json()["plans"][0]
+        assert "E04" not in {i["rule"] for i in plan["issues"]}  # usable at once
+
+        bad = c.post(add, json={"codes": ["03-11-00-00", "03 11", "X/Y"], "user": USER,
+                                "approve": True}).json()  # fmt: skip
+        assert bad["status"] == "rejected" and len(bad["problems"]) == 3
+        assert "already in the list (Labour Detail L3)" in bad["problems"][0]
+
+        undo = c.post(f"/api/batches/{res['batch_id']}/undo", json={"user": USER}).json()
+        assert undo["status"] == "undone", undo
+        assert "03-31-05-35-P" not in c.get("/api/master?fresh=true").json()["activities"]

@@ -16,7 +16,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
     await p.locator(".book-current").click();
     await p.locator(".book-list .book-name", { hasText: name }).click();
   };
-  if (!(await p.locator('input[aria-label="Activity 1"]').count())) throw new Error("A should have activity boxes");
+  await p.waitForSelector('input[aria-label="Activity 1"]', { timeout: 15000 }).catch(() => { throw new Error("A should have activity boxes"); });
   console.log("A: activity boxes shown");
   // Switch to B: not checked yet -> start page, activity checks found off
   await switchTo("DEMO B.json");
