@@ -325,6 +325,20 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       },
     };
   }, [master, month, queue, sheet]);
+  // Ctrl+K from any tab: the command box (on Codes & registration).
+  const [commandFocus, setCommandFocus] = useState(0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        if (window.location.hash !== "#codes") window.location.hash = "#codes";
+        setCommandFocus((n) => n + 1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const applyCommand = (res: CommandResult) => {
     const drop = new Set(res.removeQueued.map((r) => `${r.sheet}|${r.name}`));
     if (drop.size) setQueue((items) => items.filter((it) => !drop.has(`${it.input.sheet}|${it.input.calling_name}`)));
@@ -484,6 +498,18 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (
           <>
+            {commandCtx && (
+              <CommandBar
+                ctx={commandCtx}
+                onApply={applyCommand}
+                waiting={queue.length}
+                onReview={() => {
+                  window.location.hash = "";
+                  window.scrollTo({ top: 0 });
+                }}
+                focusToken={commandFocus}
+              />
+            )}
             <ActivityAdder
               master={master}
               user={user}
@@ -520,7 +546,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))).catch(fail);
               }}
             />
-            {commandCtx && <CommandBar ctx={commandCtx} onApply={applyCommand} />}
             <EntryForm
               master={master}
               sheet={sheet}

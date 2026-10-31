@@ -1,5 +1,12 @@
 # Changelog
 
+## Commands moved to Codes & registration (31 Oct 2026)
+
+- The command box is now at the top of the **Codes & registration** tab, out of the way of
+  daily entry. **Ctrl+K** still works from any tab: it opens that tab with the cursor in the box.
+- After a command, **Check and push N waiting entries →** goes to the entry screen, where the
+  queue and the manpower sheet are.
+
 ## Commands: change many entries at once by typing (31 Oct 2026)
 
 Asked for: a programmable way to do bulk changes ("out 19 to 20 on 10 days", "copy these four

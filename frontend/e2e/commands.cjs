@@ -13,8 +13,12 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.goto(BASE);
   await p.evaluate(() => { localStorage.setItem("labour.user", "Tester"); localStorage.setItem("labour.commands.open", "1"); });
   await p.reload();
-  await p.waitForSelector('input[aria-label="Command"]');
+  await p.waitForSelector("#worker");
   await p.waitForFunction(() => !document.body.innerText.includes("Loading month"), null, { timeout: 30000 });
+  if (await p.locator('input[aria-label="Command"]').count()) throw new Error("the command box should not be on the entry screen");
+  await p.keyboard.press("Control+k"); // from the entry screen: to Codes & registration, cursor in the box
+  await p.waitForFunction(() => location.hash === "#codes" && document.activeElement?.getAttribute("aria-label") === "Command");
+  console.log("Ctrl+K: Codes & registration, cursor in the command box");
   const box = p.getByLabel("Command");
   const card = () => p.locator(".command-card").first().innerText();
   const preview = () => p.locator(".command-preview").innerText();
@@ -39,15 +43,14 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   console.log("preview:", (await preview()).replace(/\s+/g, " "));
   await p.locator(".command-card").first().screenshot({ path: out + "/command-card.png" });
   await box.press("Enter");
-  await p.waitForFunction(() => [...document.querySelectorAll('.queue tbody tr')].filter((r) => r.cells[0].textContent.trim() === "6").length === 2);
-  console.log("queued:", (await p.$$eval('.queue tbody tr', rs => rs.map(r => r.cells[0].textContent.trim() + " " + r.cells[1].textContent.trim() + " " + r.cells[2].textContent.trim()))).join(" / "));
+  await p.waitForSelector("text=Check and push 2 waiting entries");
+  console.log("waiting: 2 (button to the entry screen shown)");
 
   // SET on what is waiting: out 20, hours follow.
   await box.type("change out 20 for AAA-01, AAA-02 on 6");
   console.log("preview:", (await preview()).replace(/\s+/g, " "));
   await box.press("Enter");
-  await p.waitForFunction(() => [...document.querySelectorAll('.queue tbody tr')].every((r) => r.innerText.includes("20:00")));
-  console.log("after SET:", (await p.$$eval('.queue tbody tr', rs => rs.map(r => r.innerText.replace(/\s+/g, " ").slice(0, 50)))).join(" / "));
+  await p.waitForSelector(".commands .notice");
 
   // SHOW lists without changing.
   await box.type("show AAA on 1-3 where out = 19");
@@ -55,6 +58,13 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForSelector(".command-rows");
   console.log("show:", await p.locator(".command-rows p").first().innerText(), "| rows:", await p.locator(".command-rows tbody tr").count());
   await p.screenshot({ path: out + "/commands.png", fullPage: false });
+
+  // To the entry screen: the queue holds the result of both commands.
+  await p.getByRole("button", { name: /Check and push 2 waiting entries/ }).click();
+  await p.waitForSelector(".queue tbody tr");
+  const queued = await p.$$eval('.queue tbody tr', rs => rs.map(r => r.innerText.replace(/\s+/g, " ").slice(0, 50)));
+  console.log("queue on the entry screen:", queued.join(" / "));
+  if (queued.length !== 2 || !queued.every((r) => r.includes("07:00–20:00"))) throw new Error("queue should hold the copied, changed entries");
 
   // Push and read back what the workbook holds.
   await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled, null, { timeout: 15000 });

@@ -64,8 +64,8 @@ worker's usual partners today, their last day and their trade): press Enter to t
 
 ## Commands: many changes at once
 
-Above the entry form, **Commands** (Ctrl+K) takes a typed command and puts the result in the
-queue: nothing is written until you check it on the manpower sheet and push (one undoable batch).
+On the **Codes & registration** tab, **Commands** (Ctrl+K from any tab) takes a typed command and
+puts the result in the queue: nothing is written until you check it on the manpower sheet and push (one undoable batch).
 Suggestions complete each word, a card explains the word you are on (synonyms name the command:
 `insert` is ADD), and a preview says what Enter will do.
 

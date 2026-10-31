@@ -15,6 +15,7 @@ import { fmtHours } from "../time";
 import { store } from "../store";
 
 const HISTORY = "labour.commands";
+let handledFocus = 0; // the last Ctrl+K served (the box comes back each time the tab is opened)
 const readHistory = (): string[] => {
   try {
     return JSON.parse(store.get(HISTORY) ?? "[]");
@@ -26,12 +27,15 @@ const readHistory = (): string[] => {
 interface Props {
   ctx: CommandContext;
   onApply: (result: CommandResult) => void; // put the entries in the queue (nothing is written)
+  waiting: number; // entries in the queue now (they are checked and pushed on the entry screen)
+  onReview: () => void; // to the entry screen
+  focusToken: number; // changes when Ctrl+K asks for the box
 }
 
 /** Many changes at once by typing: "set out 20 for INB-01 on 1-10", "copy … from 26 to 21".
  * Suggestions complete the word, a card explains it (synonyms name the command), and a preview
  * says what will happen before Enter. The result only goes into the queue. */
-export function CommandBar({ ctx, onApply }: Props) {
+export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Props) {
   const [open, setOpen] = useState(() => store.get("labour.commands.open") === "1");
   const [text, setText] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -42,19 +46,14 @@ export function CommandBar({ ctx, onApply }: Props) {
   const [hist, setHist] = useState<number | null>(null);
   const box = useRef<HTMLInputElement>(null);
 
-  // Ctrl+K: to the command box from anywhere
+  // Ctrl+K (handled by the app, from any tab): open the box and put the cursor in it, once per press
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen(true);
-        store.set("labour.commands.open", "1");
-        setTimeout(() => box.current?.focus(), 0);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    if (!focusToken || focusToken === handledFocus) return;
+    handledFocus = focusToken;
+    setOpen(true);
+    store.set("labour.commands.open", "1");
+    setTimeout(() => box.current?.focus(), 0);
+  }, [focusToken]);
 
   const sugg = useMemo(() => (open ? suggest(text, cursor, ctx) : { from: 0, items: [] }), [open, text, cursor, ctx]);
   // The word under the cursor explains itself; otherwise the command's card.
@@ -146,7 +145,7 @@ export function CommandBar({ ctx, onApply }: Props) {
           >
             {open ? "▾" : "▸"} Commands
           </button>{" "}
-          <span className="muted small">change many entries at once by typing · Ctrl+K</span>
+          <span className="muted small">change many entries at once by typing · Ctrl+K from any tab</span>
         </h2>
         {open && (
           <button className="link small" onClick={() => setHelp((h) => !h)}>
@@ -251,9 +250,17 @@ export function CommandBar({ ctx, onApply }: Props) {
 
           {done && done.verb !== "SHOW" && (
             <p className="notice">
-              ✓ {done.summary} In the queue now: check them on the manpower sheet below, then push. (Undo works as for any
-              push.)
+              ✓ {done.summary} In the queue now. Check them on the manpower sheet of the entry screen, then push (Undo works
+              as for any push).
             </p>
+          )}
+          {waiting > 0 && (
+            <div className="actions commands-waiting">
+              <button className="primary" onClick={onReview}>
+                Check and push {waiting} waiting {waiting === 1 ? "entry" : "entries"} →
+              </button>
+              <span className="muted small">on the entry screen</span>
+            </div>
           )}
           {done?.rows && (
             <div className="command-rows">
