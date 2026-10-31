@@ -62,6 +62,32 @@ check of a project the start page asks once what each one means; the entry scree
 "Parking area" next to `03-11-00-00-P`. The empty Activity box shows the suggested code (from the
 worker's usual partners today, their last day and their trade): press Enter to take it.
 
+## Commands: many changes at once
+
+Above the entry form, **Commands** (Ctrl+K) takes a typed command and puts the result in the
+queue: nothing is written until you check it on the manpower sheet and push (one undoable batch).
+Suggestions complete each word, a card explains the word you are on (synonyms name the command:
+`insert` is ADD), and a preview says what Enter will do.
+
+| Command | Example |
+| --- | --- |
+| SET (change, update, edit…) | `set out 20 for INB-01 on 1-10` |
+| SHIFT (offset, nudge…) | `shift times -30m for INC on 5` |
+| ADD (insert, create, new…) | `add INB-01, INB-02 on 21 in 7 out 19 code 03-11-00-00-P` |
+| COPY (duplicate, clone…) | `copy INB-01, INB-02, INB-05, INB-06 from 26 to 21` |
+| FILL (only empty days) | `fill INB-01 from 1 to 2-6` |
+| MOVE (transfer, cut…) | `move INB-01, INB-02 from 26 to 21` |
+| SWAP (exchange…) | `swap INB-01 between 3 and 4` |
+| CLEAR (delete, remove…) | `clear INB-03 on 15, 16` |
+| REPLACE (substitute…) | `replace 03-11-00-00 with 03-11-00-00-P for all on 1-31` |
+| ROUND (snap) | `round times for all on 1-31` |
+| SHOW (find, list, count…) | `show all on 12 where out > 19` |
+
+Workers: names, `INB-01..INB-20`, a prefix (`INB`), `all`, `crew of INB-03`, `trade Carpenter`,
+`except …`. Days: `3`, `1-10`, `all`, `weekdays`, `saturdays`, `sundays`, `holidays`, `today`.
+`where` takes in, out, code, hours, worked, additional, remark with `= != < > <= >= like contains
+empty`, joined with `and`. *All commands* in the box lists every command with examples.
+
 ## If it is slow or seems stuck
 
 - While the start page reads the workbook through Excel it shows "Reading from Excel: sheet 12 of

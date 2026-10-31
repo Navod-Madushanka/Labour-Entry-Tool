@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from "react";
 import type { DayView, EntryInput } from "../api";
 import { formulaValue } from "../calc";
 import type { Month } from "../history";
-import { effectiveHours, fmtHours, formatClock, parseClock } from "../time";
+import { withTimes } from "../form";
+import { fmtHours, formatClock, parseClock } from "../time";
 import type { QueueItem } from "./Queue";
 import { placeName } from "../codes";
 
@@ -94,29 +95,6 @@ const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 /** The queue, live, laid out like the site's "Daily record of manpower" form: workers across (10 per
  * sheet), activity codes down, a tick where a worker did that activity. To compare with the
  * paper before anything is written. */
-/** New times; activity hours that added up to the old worked hours are scaled to the new ones
- * (quarter hours, the last line takes the rest), as the entry form does. */
-function withTimes(input: EntryInput, tin: number | null, tout: number | null): EntryInput {
-  let activities = input.activities;
-  const coded = activities.filter((a) => a.code && a.hours !== null);
-  if (input.time_in !== null && input.time_out !== null && tin !== null && tout !== null && coded.length) {
-    const before = effectiveHours(input.time_in, input.time_out, input.additional ?? 0);
-    const after = effectiveHours(tin, tout, input.additional ?? 0);
-    const total = coded.reduce((sum, a) => sum + (a.hours ?? 0), 0);
-    if (before > 0 && after > 0 && Math.abs(total - before) < 1e-9) {
-      let left = after;
-      const last = activities.lastIndexOf(coded[coded.length - 1]);
-      activities = activities.map((a, i) => {
-        if (!a.code || a.hours === null) return a;
-        const hours = i === last ? left : Math.round(((a.hours * after) / before) * 4) / 4;
-        left -= hours;
-        return { ...a, hours };
-      });
-    }
-  }
-  return { ...input, time_in: tin, time_out: tout, activities };
-}
-
 function parseOut(text: string, tin: number | null): number | null {
   const v = parseClock(text);
   if (v === null) return null;

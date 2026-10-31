@@ -552,3 +552,26 @@ textarea.drop-over { border-color: var(--accent); background: var(--row); }
 .banner.OK { background: var(--ok-bg, #e5f4e4); color: var(--ok, #1f7a35); }
 .ok-text { color: var(--ok, #1f7a35); }
 
+/* Commands */
+section.commands { border-top-color: #6d5bd0; }
+.commands-toggle { font-size: inherit; font-weight: 700; color: var(--text) !important; padding: 0; }
+.command-input { position: relative; display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
+.command-input .prompt { font-weight: 800; color: var(--accent); font-size: 18px; }
+.command-input input { flex: 1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 14px; padding: 9px 10px; }
+.command-suggest { top: 100%; left: 22px; right: 0; max-height: 260px; }
+.command-suggest code { font-weight: 600; }
+.command-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 8px; }
+@media (max-width: 860px) { .command-panels { grid-template-columns: 1fr; } }
+.command-card, .command-preview { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--row); }
+.command-card .card-head { display: flex; align-items: baseline; gap: 8px; }
+.command-card .word { font-size: 16px; letter-spacing: 0.03em; color: var(--accent); }
+.command-card .kind { font-size: 11px; text-transform: uppercase; color: var(--muted); }
+.command-card p { margin: 4px 0; }
+.command-card .syntax { display: block; white-space: pre-wrap; font-size: 12px; margin: 4px 0; }
+.command-card .examples { margin: 4px 0; padding-left: 16px; }
+.command-card .examples button { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; text-align: left; }
+.command-preview.bad { border-color: var(--block); background: var(--block-bg); }
+.command-preview p { margin: 2px 0; }
+.command-help { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; margin-top: 10px; }
+.command-rows { margin-top: 8px; }
+

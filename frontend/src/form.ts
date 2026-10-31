@@ -256,3 +256,26 @@ export function ownTimesForm(f: FormState, own: OwnTimes): FormState {
   coded.forEach((i, n) => (lines[i].hours = String(share[n] / 4)));
   return { ...g, lines };
 }
+
+/** New times; activity hours that added up to the old worked hours are scaled to the new ones
+ * (quarter hours, the last line takes the rest), as the entry form does. */
+export function withTimes(input: EntryInput, tin: number | null, tout: number | null): EntryInput {
+  let activities = input.activities;
+  const coded = activities.filter((a) => a.code && a.hours !== null);
+  if (input.time_in !== null && input.time_out !== null && tin !== null && tout !== null && coded.length) {
+    const before = effectiveHours(input.time_in, input.time_out, input.additional ?? 0);
+    const after = effectiveHours(tin, tout, input.additional ?? 0);
+    const total = coded.reduce((sum, a) => sum + (a.hours ?? 0), 0);
+    if (before > 0 && after > 0 && Math.abs(total - before) < 1e-9) {
+      let left = after;
+      const last = activities.lastIndexOf(coded[coded.length - 1]);
+      activities = activities.map((a, i) => {
+        if (!a.code || a.hours === null) return a;
+        const hours = i === last ? left : Math.round(((a.hours * after) / before) * 4) / 4;
+        left -= hours;
+        return { ...a, hours };
+      });
+    }
+  }
+  return { ...input, time_in: tin, time_out: tout, activities };
+}

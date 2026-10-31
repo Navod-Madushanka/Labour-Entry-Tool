@@ -1,5 +1,28 @@
 # Changelog
 
+## Commands: change many entries at once by typing (31 Oct 2026)
+
+Asked for: a programmable way to do bulk changes ("out 19 to 20 on 10 days", "copy these four
+workers' day 26 to day 21"), with as many control words as possible, good suggestions and a box
+that explains each word (typing `insert` explains ADD).
+
+- **Commands** above the entry form (Ctrl+K). Eleven commands, each with plain-English synonyms
+  (about 70 words in all): SET, SHIFT, ADD, COPY, FILL, MOVE, SWAP, CLEAR, REPLACE, ROUND, SHOW.
+  Workers by name, range, prefix, all, crew of, trade, except; days by number, range, weekdays,
+  saturdays, sundays, holidays, today/yesterday; WHERE with =, !=, <, >, <=, >=, like, contains,
+  empty, joined with and. Times as 7, 7.30, 19:00; amounts as +1, -0.5, +30m, 1:30.
+- While typing: suggestions complete the word (Tab), a card explains the word under the cursor
+  (a synonym names its command; a number after a time field reads as a time, after FROM as a
+  day), and a preview says what Enter will do or what is wrong ("Did you mean set?"). ↑ recalls
+  earlier commands; *All commands* lists every command with clickable examples.
+- Safe by design: a command only puts ordinary entries in the queue (the queue counts as the
+  current state, so commands build on each other). They get the usual checks, show on the
+  manpower sheet where each can be changed or removed, and are written only by Push, as one
+  undoable batch. Hours follow new times. Copying onto entries already in Excel asks for Replace
+  in the queue unless OVERWRITE is added. No AI: a strict parser.
+- Tests on made-up data only: `npm test` (the command engine, `frontend/tests/commands.test.cjs`)
+  and `frontend/e2e/commands.cjs` (the box, down to what a push writes).
+
 ## Add activity codes from the tool (31 Oct 2026)
 
 Asked for: add new activity codes to Labour Detail without switching to Excel.

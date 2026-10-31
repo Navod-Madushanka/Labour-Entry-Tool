@@ -6,6 +6,8 @@ import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
 import { ActivityAdder } from "./components/ActivityAdder";
+import { CommandBar } from "./components/CommandBar";
+import type { CommandContext, CommandResult } from "./commands";
 import { MasterTools } from "./components/MasterTools";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
@@ -17,7 +19,7 @@ import { StatusBar } from "./components/StatusBar";
 import { StoryNote, StoryReader } from "./components/StoryCorner";
 import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
 import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
-import { topActivities, type Month } from "./history";
+import { topActivities, usualPartners, type Month } from "./history";
 import { store } from "./store";
 import { formatShift, parseClock } from "./time";
 
@@ -305,6 +307,30 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     }
   };
 
+  // Commands: the month as loaded plus the queue are the current state; results only go to the queue.
+  const commandCtx = useMemo((): CommandContext | null => {
+    if (!master) return null;
+    const byName = new Map(master.workers.map((w) => [w.calling_name, w]));
+    return {
+      workers: master.workers,
+      month,
+      sheets: master.sheets,
+      monthIso: master.month,
+      queued: queue.map((q) => q.input),
+      withActivities: master.check_activities,
+      activities: master.activities,
+      partners: (name) => {
+        const w = byName.get(name);
+        return w ? [...usualPartners(month, Number(sheet), w).partners] : [];
+      },
+    };
+  }, [master, month, queue, sheet]);
+  const applyCommand = (res: CommandResult) => {
+    const drop = new Set(res.removeQueued.map((r) => `${r.sheet}|${r.name}`));
+    if (drop.size) setQueue((items) => items.filter((it) => !drop.has(`${it.input.sheet}|${it.input.calling_name}`)));
+    if (res.inputs.length) addToQueue(res.inputs);
+  };
+
   // A waiting entry back into the form (it leaves the queue until added again), or dropped.
   const editQueued = (id: number) => {
     const it = queue.find((q) => q.id === id);
@@ -494,6 +520,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))).catch(fail);
               }}
             />
+            {commandCtx && <CommandBar ctx={commandCtx} onApply={applyCommand} />}
             <EntryForm
               master={master}
               sheet={sheet}
