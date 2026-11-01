@@ -18,7 +18,9 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.keyboard.type("19"); await p.keyboard.press("Enter");
   await p.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Activity 1" || document.activeElement?.id === "worker");
   if (await p.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Activity 1")) {
-    await p.keyboard.press("Enter"); // take the suggested code
+    await p.keyboard.press("ArrowDown"); // take the first suggested code (Enter if the box is filled)
+    await p.waitForFunction(() => document.querySelector('input[aria-label="Activity 1"]').value !== "");
+    await p.keyboard.press("Enter");
     await p.waitForSelector('input[aria-label="Activity 2"]:focus');
     await p.keyboard.press("Enter"); // add
   }

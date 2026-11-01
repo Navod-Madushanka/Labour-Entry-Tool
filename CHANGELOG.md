@@ -1,5 +1,49 @@
 # Changelog
 
+## Suggestions measured and tuned (1 Nov 2026)
+
+Asked for: measure the suggestions continuously, then try a list of accuracy and fewer-keys
+changes, keeping only what the replay shows is better.
+
+**Measuring**
+- `cd backend && python ../scripts/replay.py` replays every workbook in `fixtures/private` (in sheet
+  order and crew by crew) and reports per book: codes (first guess, top 3, per rule, filled boxes
+  and how often a fill is wrong), times (per rule), whole record, worker search keys, the "probably
+  next" list, chips, the crew warning (false alarms and planted misreads caught), and the day
+  builder (ticks right, carried exactly, actions to finish a day). A baseline per book is kept next
+  to the workbooks; the run fails if any book gets worse (`--update` accepts new numbers).
+- Suggestion log on the office PC (`Labour Entry Tool/logs/suggestions-YYYY-MM.jsonl`, no names):
+  which rule offered the times and the code, kept or typed over, keys and seconds per entry.
+  Analysis → Suggestions shows it.
+
+**Kept (October replay: INDIAN / SUB CONTRACT)**
+- Previous month carry-over: the last 7 days of last month's workbook (found next to this one) are
+  days 0, -1, … for the suggestions and the day builder. First week: codes right 63.5 -> 70.9%,
+  times 70 -> 73.9% / 35 -> 56.8% (tested by splitting October in two).
+- Crews for workbooks without codes (same In and Out): SUB CONTRACT times right 36.6 -> 51.7%.
+- The worker's own times weigh recent days most (0.8 per day back): 71.1 -> 71.4% / +0.5.
+- Day builder: gaps counted in working days, a working day's entry carried over a Sunday's, and
+  holidays run like Sundays: INDIAN actions to finish a day 164.6 -> 159.0, workers left to type
+  19.8 -> 16.0 a day. (Holidays could not be measured: no holiday entries in the data.)
+- A code fills the box only when 2+ partners agree and they are at least 75% of the crew entered
+  today ("3/3 crew today"); other suggestions are chips and ↓ steps through them. Silent wrong
+  codes (accepted with Enter) 24.3 -> 3.9% of entries; the box is filled for 51% of entries.
+- A crew's record of several lines (with the hour split) fills every line when the crew agrees
+  (12 of 13 right); whole record right 55.4 -> 55.8%.
+- Empty worker box: "probably next" (3 of the last worker's crew, then the last day's workers in
+  sheet order). The next worker is in the list 4% -> 75% of the time (crew order, top 12); ↓ and
+  Enter picks, a plain Enter never does.
+- Worker search: `inb3` finds INB-03 (leading zeros optional).
+- "⚠ crew" on the manpower sheet when the code differs from 3+ of the worker's usual partners in
+  that day: fires on 3-4% of correct entries, catches 41% of planted misread codes.
+
+**Tried and rolled back**
+- Partners with Out within ±1 h (or 2 h): times worse (SUB CONTRACT 51.7 -> 44.6%), codes no better.
+- Working-day distance in the browser suggestions: within ±0.3 points, so left out.
+- Day builder crews for workbooks without codes: SUB CONTRACT 56 -> 83 actions a day.
+- Companion chips: fewer chips (8) find fewer crew members (2.3 vs 2.8 right per entry); lowering
+  recently absent workers changed nothing.
+
 ## Analysis tab (1 Nov 2026)
 
 Asked for: an analysis part with everything the data can give; the QS will say what to drop.

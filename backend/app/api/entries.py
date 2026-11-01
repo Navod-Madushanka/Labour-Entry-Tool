@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from app.audit.store import Batch
 from app.domain.daybuilder import DayBuild
@@ -27,6 +28,7 @@ from app.service import (
     MedicalPlan,
     MedicalRequest,
     MedicalResult,
+    PreviousMonth,
     Status,
     UndoResult,
 )
@@ -106,6 +108,16 @@ WITHOUT_CACHED = {"entries": {"__all__": {"entry": {"cached"}}}}
 async def day(sheet: str, request: Request, fresh: bool = False) -> DayView:
     """One day sheet: header with its checks, and every entry with computed values and issues."""
     return await run_service(request, lambda s: s.day_view(sheet, fresh))
+
+
+@router.get("/previous-month", response_model=PreviousMonth)
+async def previous_month(request: Request) -> PreviousMonth:
+    """The previous month's last day sheets (0, -1, …) for the suggestions on the first days.
+    Only the file's path comes from the Excel thread; the file is read beside it."""
+    service: EntryService = request.app.state.get_service()
+    prev = await run_service(request, lambda s: s.previous_source())
+    await run_in_threadpool(service.load_previous, prev)
+    return service.previous_month_view()
 
 
 @router.get("/days/{sheet}/build", response_model=DayBuild)

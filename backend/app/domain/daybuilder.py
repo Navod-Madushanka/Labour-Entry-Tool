@@ -15,6 +15,7 @@ Pure: works on day sheets the service passes in.
 
 from __future__ import annotations
 
+import datetime as dt
 from collections import Counter, defaultdict
 from collections.abc import Mapping
 
@@ -26,6 +27,12 @@ from app.domain.models import DaySheet, Entry, as_number
 
 DEFAULT_WINDOW = 3
 TICK_GAP = 2  # last worked this many days ago or less: ticked by default
+# Switches tested with scripts/replay.py on the October books (actions to finish a day = wrong
+# ticks + carried workers to edit + workers to type; INDIAN 164.6 -> 159.0 with the first two):
+WORKING_GAP = True  # count the gap in working days (Sundays and holidays in between don't count)
+PREFER_WORKING_SOURCE = True  # on a working day, carry a working day's entry over a Sunday's
+OFF_DAYS = (rules.SUNDAY, rules.HOLIDAY)  # run like a Sunday (not measurable: no holiday entries)
+NO_CODE_CREWS = False  # crews for workbooks without codes: SUB CONTRACT 56 -> 83 actions, so off
 
 
 class CrewActivity(BaseModel):
@@ -65,7 +72,7 @@ def _shift(e: Entry) -> tuple[float, float] | None:
 def _activities(e: Entry) -> list[CrewActivity] | None:
     lines = [a for a in e.activities if normalise_activity(a.code)]
     if not lines:
-        return None
+        return [] if NO_CODE_CREWS else None
     if len(lines) == 1:
         return [CrewActivity(code=normalise_activity(lines[0].code))]
     acts = []
@@ -94,26 +101,59 @@ def build_day(
     sheet = target.header.sheet
     n = int(sheet)
     day_type = rules.canonical_day_type(target.header.day_type)
-    sunday = day_type == rules.SUNDAY
+    sunday = day_type in OFF_DAYS
     out = DayBuild(sheet=sheet, day_type=day_type, window=window)
     entered = {e.calling_name for e in target.entries}
     out.already_entered = len(entered)
     on_target = set(target.block_names) - {None}
 
-    # Each worker's most recent usable entry within the window.
+    def off(s: int) -> bool:
+        """A Sunday or holiday sheet: by its header, or by its date (headers get mistyped)."""
+        d = days.get(str(s))
+        if d is None:
+            return False
+        date = d.header.date
+        return rules.canonical_day_type(d.header.day_type) in OFF_DAYS or (
+            isinstance(date, dt.date) and date.weekday() == 6
+        )
+
+    def gap_of(g: int) -> int:
+        """Days back, in working days when WORKING_GAP (Sundays/holidays in between skipped)."""
+        if not WORKING_GAP:
+            return g
+        return 1 + sum(1 for s in range(n - g + 1, n) if not off(s))
+
+    # Each worker's most recent usable entry within the window (on a working day, a working
+    # day's entry wins over a Sunday's: the skeleton crew's shift is not the usual one).
     last: dict[str, tuple[int, Entry]] = {}
-    for gap in range(window, 0, -1):  # oldest first, so newer entries overwrite
-        day = days.get(str(n - gap))
+    seen: dict[str, int] = {}  # days back the worker last worked (any day): for the tick
+    for g in range(window, 0, -1):  # oldest first, so newer entries overwrite
+        day = days.get(str(n - g))
+        source_off = off(n - g)
         for e in day.entries if day else []:
-            if e.calling_name and _shift(e) and _activities(e):
-                last[e.calling_name] = (gap, e)
-    previous_sunday = days.get(str(n - 7)) if sunday else None
-    sunday_names = {e.calling_name for e in previous_sunday.entries} if previous_sunday else set()
+            if e.calling_name and _shift(e) and _activities(e) is not None:
+                seen[e.calling_name] = g
+                if PREFER_WORKING_SOURCE and not sunday and source_off and e.calling_name in last:
+                    continue
+                last[e.calling_name] = (g, e)
+    previous_off = None
+    if sunday:  # the last Sunday or holiday before this one
+        for g in range(1, 15):
+            if off(n - g) and days.get(str(n - g)) and days[str(n - g)].entries:
+                previous_off = days[str(n - g)]
+                break
+    sunday_names = {e.calling_name for e in previous_off.entries} if previous_off else set()
     if sunday:
         out.sunday_shift = typical_shift(days, rules.SUNDAY)
-        for e in previous_sunday.entries if previous_sunday else []:
-            if e.calling_name and e.calling_name not in last and _shift(e) and _activities(e):
-                last[e.calling_name] = (7, e)
+        prev_n = int(previous_off.header.sheet) if previous_off else None
+        for e in previous_off.entries if previous_off else []:
+            if (
+                e.calling_name
+                and e.calling_name not in last
+                and _shift(e)
+                and _activities(e) is not None
+            ):
+                last[e.calling_name] = (n - prev_n, e)
 
     groups: dict[tuple, list[CrewMember]] = defaultdict(list)
     shape: dict[tuple, tuple[tuple[float, float], list[CrewActivity]]] = {}
@@ -122,7 +162,7 @@ def build_day(
             continue
         shift = out.sunday_shift if sunday and out.sunday_shift else _shift(e)
         acts = _activities(e)
-        ticked = name in sunday_names if sunday else gap <= TICK_GAP
+        ticked = name in sunday_names if sunday else gap_of(seen.get(name, gap)) <= TICK_GAP
         key = (shift, tuple((a.code, a.hours) for a in acts))
         groups[key].append(CrewMember(calling_name=name, from_sheet=str(n - gap), ticked=ticked))
         shape[key] = (shift, acts)

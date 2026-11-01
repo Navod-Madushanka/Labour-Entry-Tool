@@ -84,17 +84,18 @@ function measureBook(month, master, opts = {}) {
         }
         // --- whole record as it would stand after Enter, Enter, Enter
         inc(P + "record.n");
-        const rec = H.suggestRecord ? H.suggestRecord(before, sheet, w, workers, today) : null;
+        // As the form does it: times from suggestTimes; every line from the crew's record when it
+        // fills lines, else the first code suggestion for a one-line entry.
+        const rec = H.suggestRecord ? H.suggestRecord(before, sheet, w, today) : null;
+        const timesOk = ts && ts.time_in === ctx.time_in && ts.time_out === ctx.time_out;
         let exact;
-        if (rec) {
-          exact = rec.time_in === ctx.time_in && rec.time_out === ctx.time_out &&
-            rec.activities.map((a) => `${a.code}:${a.hours ?? ""}`).sort().join(",") === lines(e);
+        if (H.fillsLines && H.fillsLines(rec)) {
           inc(P + "record.copied");
+          exact = timesOk && rec.activities.map((a) => `${a.code}:${a.hours ?? ""}`).sort().join(",") === lines(e);
         } else {
           const s = withActs ? H.suggestCodes(before, sheet, w, workers, today, ctx) : [];
           const coded = e.activities.filter((a) => str(a.code));
-          exact = ts && ts.time_in === ctx.time_in && ts.time_out === ctx.time_out &&
-            (!withActs || (coded.length === 1 && s[0]?.code === code));
+          exact = timesOk && (!withActs || (coded.length === 1 && s[0]?.code === code));
         }
         if (exact) inc(P + "record.exact");
         // --- empty worker box: is the next worker in the list?
@@ -108,7 +109,13 @@ function measureBook(month, master, opts = {}) {
         // --- crew mismatch warning
         if (H.crewMismatch) {
           inc(P + "mismatch.checked");
-          if (H.crewMismatch(before, sheet, w, workers, today, todayRow(e))) inc(P + "mismatch.fired");
+          if (H.crewMismatch(before, sheet, w, today, todayRow(e))) inc(P + "mismatch.fired");
+          // a planted misread: another code used on this day (the next different one on the sheet)
+          const other = code && month[String(sheet)].entries.map((v) => firstCode(v.entry)).find((c) => c && c !== code);
+          if (other) {
+            inc(P + "mismatch.planted");
+            if (H.crewMismatch(before, sheet, w, today, { ...todayRow(e), code: other })) inc(P + "mismatch.caught");
+          }
         }
         // --- "same entry also for" chips, for the first of a record typed today
         if (order === "crew" && !today.some((x) => recordKey(x._e) === recordKey(e))) {
@@ -145,6 +152,7 @@ function measureBook(month, master, opts = {}) {
     r[P + "next.top5"] = pct(t.get(P + "next.top5") ?? 0, t.get(P + "next.n") ?? 0);
     r[P + "next.top12"] = pct(t.get(P + "next.top12") ?? 0, t.get(P + "next.n") ?? 0);
     if (t.get(P + "mismatch.checked")) r[P + "mismatch.fires"] = pct(t.get(P + "mismatch.fired") ?? 0, t.get(P + "mismatch.checked"));
+    if (t.get(P + "mismatch.planted")) r[P + "mismatch.catches"] = pct(t.get(P + "mismatch.caught") ?? 0, t.get(P + "mismatch.planted"));
   }
   for (const [k, v] of t) {
     const m = k.match(/^(crew\.)?tier\.(code|time)\.(\w+)\.fired$/);
@@ -205,9 +213,9 @@ for (const book of files) {
   const prev = files.filter((b) => b.kind === book.kind && b.master.month < book.master.month).sort((a, b) => (a.master.month < b.master.month ? 1 : -1))[0];
   const split = splitMonth(book.days);
   if (split) {
-    const withCarry = H.carryOver ? H.carryOver(split.next, split.prev) : split.next;
+    const withCarry = H.carryOver && !process.env.NO_CARRY ? H.carryOver(split.next, split.prev) : split.next;
     const s = measureBook(withCarry, book.master, { days: [1, 2, 3, 4, 5, 6, 7] });
-    for (const k of ["codes.top1", "codes.top3", "times.right", "record.exact", "crew.codes.top1", "crew.times.right"]) if (k in s) r[`split.first7.${k}`] = s[k];
+    for (const k of Object.keys(s)) if (process.env.SPLIT_ALL || ["codes.top1", "codes.top3", "times.right", "record.exact", "crew.codes.top1", "crew.times.right"].includes(k)) r[`split.first7.${k}`] = s[k];
   }
   if (prev && H.carryOver) r["carry.used"] = 1;
   results[book.workbook] = r;

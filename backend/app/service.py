@@ -13,12 +13,14 @@ import logging
 import re
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore, Batch, Change
+from app.carryover import previous_days, previous_workbook
 from app.config import Config
 from app.domain.codes import (
     EmployeeCodeStatus,
@@ -234,6 +236,13 @@ class DayView(BaseModel):
     entries: list[EntryView] = Field(default_factory=list)
 
 
+class PreviousMonth(BaseModel):
+    """The previous month's last days (sheets 0, -1, …) and the file they come from."""
+
+    source: str | None = None
+    days: dict[str, DayView] = Field(default_factory=dict)
+
+
 class EntryService:
     def __init__(
         self,
@@ -248,6 +257,8 @@ class EntryService:
         self.config = config
         self.template = config.template
         self.progress: dict | None = None  # {"done", "total", "step"} while snapshot() reads
+        self.source_path: Path | None = None  # the workbook's file, when known (carry-over)
+        self._previous: tuple[Path | None, list[DaySheet]] | None = None
         self.audit = audit
         self.backups = backups
         self._workbook: LiveWorkbook | None = None
@@ -863,6 +874,46 @@ class EntryService:
         return ActivityAddResult(status="written", batch_id=batch_id, added=added,
                                  mismatches=mismatches)  # fmt: skip
 
+    # --- the previous month's last days (suggestions and the day builder on the 1st) ---
+
+    def previous_source(self) -> Path | None:
+        """The previous month's workbook next to this one (asks Excel for the path: Excel thread)."""  # noqa: E501
+        try:
+            path = self.source_path or getattr(self.workbook, "full_path", None)
+        except WorkbookError:
+            return None
+        return previous_workbook(path)
+
+    def load_previous(self, prev: Path | None) -> list[DaySheet]:
+        """Read ``prev``'s last days (a file read: no need for the Excel thread); cached."""
+        if self._previous is not None and self._previous[0] == prev:
+            return self._previous[1]
+        days: list[DaySheet] = []
+        if prev is not None:
+            try:
+                days = previous_days(prev, self.template)
+            except Exception as exc:  # damaged, open elsewhere, other layout: go without
+                log.warning("previous month %s not read: %s", prev.name, exc)
+        self._previous = (prev, days)
+        return days
+
+    def previous_month_days(self) -> list[DaySheet]:
+        """The previous month's workbook's last day sheets with entries, as sheets 0, -1, …;
+        empty when there is no such file next to this one or it cannot be read."""
+        return self.load_previous(self.previous_source())
+
+    def previous_month_view(self) -> PreviousMonth:
+        days = self.previous_month_days()
+        source = self._previous[0].name if self._previous and self._previous[0] else None
+        return PreviousMonth(
+            source=source,
+            days={d.header.sheet: DayView(
+                header=d.header, expected_date=None, expected_day_type=None, header_issues=[],
+                entries=[EntryView(entry=e, computed=compute_entry(e, d.header.day_type), issues=[])
+                         for e in d.entries],
+            ) for d in days},
+        )  # fmt: skip
+
     # --- day builder: start a sheet from the previous days (crews of identical entries) ---
 
     def day_build(self, sheet: str, window: int = DEFAULT_WINDOW) -> DayBuild:
@@ -871,8 +922,11 @@ class EntryService:
         if not sheet.isdigit():
             raise KeyError(f"sheet {sheet!r} is not a day number")
         n = int(sheet)
-        wanted = {str(n - g) for g in range(1, window + 1)} | {str(n - 7), str(n - 14)}
+        # the window plus the Sundays/holidays in it, and the last two weeks for the last Sunday
+        wanted = {str(n - g) for g in range(1, 15)}
         days = {s: self.day(s) for s in sorted(wanted & names, key=int)}
+        if n <= 14:  # the previous month's last days as sheets 0, -1, …
+            days.update({d.header.sheet: d for d in self.previous_month_days()})
         return build_day(target, days, window)
 
     # --- medical leave (office practice): a "<base> M" line with N days, Sundays skipped ---

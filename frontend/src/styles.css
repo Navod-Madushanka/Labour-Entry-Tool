@@ -646,3 +646,4 @@ details.card > summary .badge { margin-left: 6px; }
   .analysis .filters select { min-width: 0; width: 100%; }
   .analysis .filters label { flex: 1 1 40%; }
 }
+.dropdown .dropdown-head { padding: 4px 10px; cursor: default; pointer-events: none; }

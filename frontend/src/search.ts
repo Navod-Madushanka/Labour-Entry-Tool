@@ -2,6 +2,8 @@
 import type { Worker } from "./api";
 
 export const normCode = (s: unknown) => String(s ?? "").toUpperCase().replace(/[\s-]/g, "");
+/** Code form without leading zeros in its numbers: "INB-03" and "inb3" both give "INB3". */
+const noZeros = (code: string) => code.replace(/(^|\D)0+(?=\d)/g, "$1");
 const normText = (s: unknown) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 
 /** Rank workers for a query; best first. Empty query keeps Labour Detail order. */
@@ -17,6 +19,7 @@ export function searchWorkers(workers: Worker[], query: string, limit = 12): Wor
     const name = normText(w.name);
     let score = 0;
     if (code === qc) score = 100;
+    else if (noZeros(code) === noZeros(qc)) score = 95; // "inb3" finds INB-03
     else if (code.startsWith(qc)) score = 80 - (code.length - qc.length);
     else if (emp && emp === qc) score = 75;
     else if (code.includes(qc)) score = 50;

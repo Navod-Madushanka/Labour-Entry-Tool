@@ -462,6 +462,7 @@ export interface SuggestLogSummary {
 }
 
 export const api = {
+  previousMonth: () => call<{ source: string | null; days: Record<string, DayView> }>("GET", "/api/previous-month"),
   logSuggestion: (line: SuggestLogLine) => call<{ ok: boolean }>("POST", "/api/suggest-log", line),
   suggestLogSummary: (days = 30) => call<SuggestLogSummary>("GET", `/api/suggest-log/summary?days=${days}`),
   /** The Analysis tables as an .xlsx file. */

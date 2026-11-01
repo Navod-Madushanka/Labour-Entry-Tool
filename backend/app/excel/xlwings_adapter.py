@@ -231,6 +231,12 @@ class XlwingsWorkbook:
     def name(self) -> str:
         return self._com(lambda: self.book.name)
 
+    @property
+    def full_path(self) -> Path | None:
+        """Where the workbook is saved (None for a new, unsaved one)."""
+        full = self._com(lambda: self.book.fullname)
+        return Path(full) if full and ("\\" in full or "/" in full) else None
+
     # --- reads ---
 
     def _sheet(self, sheet: str) -> Any:

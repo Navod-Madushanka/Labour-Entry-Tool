@@ -20,7 +20,7 @@ import { StatusBar } from "./components/StatusBar";
 import { StoryNote, StoryReader } from "./components/StoryCorner";
 import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
 import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
-import { topActivities, usualPartners, type Month } from "./history";
+import { carryOver, crewMismatch, topActivities, usualPartners, type Month, type TodayEntry } from "./history";
 import { loadQueue, pruneOldDays, saveQueue, store } from "./store";
 import { formatShift, parseClock } from "./time";
 
@@ -51,6 +51,9 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [master, setMaster] = useState<Master | null>(null);
   const [sheet, setSheetState] = useState("1");
   const [month, setMonth] = useState<Month>({});
+  // The previous month's last days (sheets 0, -1, …): only for the suggestions on the first days.
+  const [prevMonth, setPrevMonth] = useState<Month>({});
+  const suggestMonth = useMemo(() => carryOver(month, prevMonth), [month, prevMonth]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [focusToken, setFocusToken] = useState(0);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -126,6 +129,12 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       })
       .catch(fail);
   }, [status?.connected, master, refreshBatches]);
+
+  useEffect(() => {
+    setPrevMonth({});
+    if (!master) return;
+    api.previousMonth().then((p) => setPrevMonth(p.days), () => undefined); // none: fine
+  }, [master?.workbook]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!master) return;
@@ -324,10 +333,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       places: master.places,
       partners: (name) => {
         const w = byName.get(name);
-        return w ? [...usualPartners(month, Number(sheet), w).partners] : [];
+        return w ? [...usualPartners(suggestMonth, Number(sheet), w).partners] : [];
       },
     };
-  }, [master, month, queue, sheet]);
+  }, [master, month, suggestMonth, queue, sheet]);
   // Ctrl+K from any tab: the command box (on Codes & registration).
   const [commandFocus, setCommandFocus] = useState(0);
   useEffect(() => {
@@ -431,6 +440,33 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     return out;
   }, [batches, sheet, master]);
 
+  // Waiting entries whose code differs from every one of the worker's usual partners in that day
+  // (3 or more of them): a soft mark on the manpower sheet, often a misread line of the paper.
+  const mismatches = useMemo(() => {
+    const out = new Map<number, string>();
+    if (!master?.check_activities) return out;
+    const byName = new Map(master.workers.map((w) => [w.calling_name, w]));
+    const first = (acts: { code: unknown }[]) => acts.map((a) => (typeof a.code === "string" ? a.code.trim() : "")).find(Boolean) ?? null;
+    for (const q of queue) {
+      const w = byName.get(q.input.calling_name);
+      if (!w) continue;
+      const s = q.input.sheet;
+      const queuedHere = queue.filter((x) => x.input.sheet === s && x.id !== q.id);
+      const names = new Set(queuedHere.map((x) => x.input.calling_name));
+      const today: TodayEntry[] = [
+        ...(month[s]?.entries ?? [])
+          .filter((v) => v.entry.calling_name && !names.has(v.entry.calling_name))
+          .map((v) => ({ calling_name: v.entry.calling_name!, code: first(v.entry.activities),
+                         time_in: typeof v.entry.time_in === "number" ? v.entry.time_in : null,
+                         time_out: typeof v.entry.time_out === "number" ? v.entry.time_out : null })),
+        ...queuedHere.map((x) => ({ calling_name: x.input.calling_name, code: first(x.input.activities), time_in: x.input.time_in, time_out: x.input.time_out })),
+      ]; // prettier-ignore
+      const hit = crewMismatch(suggestMonth, Number(s), w, today, { code: first(q.input.activities), time_in: q.input.time_in, time_out: q.input.time_out });
+      if (hit) out.set(q.id, `Check the code: ${w.calling_name}'s usual crew has ${hit.slice(0, 4).map((h) => `${h.calling_name} ${h.code ?? "no code"}`).join(", ")}${hit.length > 4 ? " …" : ""} today.`);
+    }
+    return out;
+  }, [queue, month, suggestMonth, master]);
+
   // Entries waiting for this sheet: what workers are doing today counts for the code suggestions.
   const queuedToday = useMemo(
     () =>
@@ -441,6 +477,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           code: q.input.activities.find((a) => a.code?.trim())?.code?.trim() ?? null,
           time_in: q.input.time_in,
           time_out: q.input.time_out,
+          activities: q.input.activities.filter((a) => a.code?.trim()).map((a) => ({ code: a.code!.trim(), hours: a.hours })),
         })),
     [queue, sheet],
   );
@@ -582,7 +619,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               master={master}
               sheet={sheet}
               day={day}
-              month={month}
+              month={suggestMonth}
               form={form}
               setForm={setForm}
               headerAcks={headerAcks}
@@ -598,6 +635,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
             />
             <ManpowerSheet
               items={queue}
+              mismatch={mismatches}
               activities={master.check_activities}
               places={master.places}
               month={month}
@@ -690,7 +728,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 master={master}
                 sheet={sheet}
                 day={day}
-                month={month}
+                month={suggestMonth}
                 formSummary={formSummary}
                 onSameAsForm={(workers: Worker[]) => {
                   addToQueue(workers.map((w) => toInput(forWorker(form, w), sheet)!));

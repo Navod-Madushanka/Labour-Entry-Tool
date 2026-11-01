@@ -117,6 +117,8 @@ def main() -> None:
     folder = Path(tempfile.mkdtemp(prefix="labour_two_books_"))
     a_name = "Labour Entry Sheet October 2026 - DEMO A.json"
     a = big_book(folder, a_name, "AAA") if big else book(folder, a_name, "AAA", codes=True)
+    if big:  # the month before, next to it (its last days carry over into the 1st)
+        big_book(folder, "Labour Entry Sheet September 2026 - DEMO A.json", "AAA", filled=30)
     b = book(folder, "Labour Entry Sheet October 2026 - DEMO B.json", "BBB", codes=False)
     c = book(folder, "Labour Entry Sheet October 2026 - DEMO C.json", "CCC", codes=True)
     app = create_app(Config(month="2026-10", backups={"dir": folder / "backups"},

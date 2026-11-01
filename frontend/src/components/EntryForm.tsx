@@ -11,11 +11,12 @@ import {
   isOvernight,
   dinnerFix,
   LINES,
+  emptyLines,
   toInput,
   type FormState,
   type OwnTimes,
 } from "../form";
-import { companions, crewToday, entriesOf, suggestCodes, suggestTimes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
+import { companions, crewToday, entriesOf, fillsLines, nextWorkers, suggestCodes, suggestRecord, suggestTimes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
 import { placeName } from "../codes";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
@@ -70,7 +71,6 @@ export function EntryForm(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.focusToken, props.dialogOpen]);
 
-  const matches = useMemo(() => searchWorkers(master.workers, form.query), [master.workers, form.query]);
   const problems = formProblems(form);
   const input = useMemo(() => toInput(form, sheet, headerAcks), [form, sheet, headerAcks]);
   const auto = autoHours(form); // blank Hours boxes share the worked hours
@@ -111,9 +111,25 @@ export function EntryForm(props: Props) {
         code: v.entry.activities.map((a) => (typeof a.code === "string" ? a.code.trim() : "")).find(Boolean) ?? null,
         time_in: typeof v.entry.time_in === "number" ? v.entry.time_in : null,
         time_out: typeof v.entry.time_out === "number" ? v.entry.time_out : null,
+        activities: v.entry.activities
+          .filter((a) => typeof a.code === "string" && a.code.trim())
+          .map((a) => ({ code: String(a.code).trim(), hours: typeof a.hours === "number" ? a.hours : null })),
       }));
     return [...inExcel, ...props.queuedToday];
   }, [day, props.queuedToday]);
+  // The worker list: matches for what is typed; with an empty box, who is probably next (the last
+  // worker's crew not yet entered, then the last day's workers in sheet order). From the empty
+  // list only ArrowDown + Enter picks, so a plain Enter never enters a guess.
+  const lastWorker = useRef<Worker | null>(null);
+  const nextMode = !form.query.trim();
+  const matches = useMemo(
+    () =>
+      nextMode
+        ? nextWorkers(month, Number(sheet), lastWorker.current, master.workers, today)
+        : searchWorkers(master.workers, form.query),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [master.workers, form.query, nextMode, month, sheet, today],
+  );
   const suggested = useMemo(
     () =>
       worker && withActs
@@ -125,6 +141,9 @@ export function EntryForm(props: Props) {
     () => (worker ? suggestTimes(month, Number(sheet), worker, master.workers, today) : null),
     [worker, month, sheet, master.workers, today],
   );
+  // Only a code the crew agrees on fills the box (Enter takes it); weaker ones are chips and
+  // ArrowDown in the box steps through them, so a guess never goes in by a plain Enter.
+  const boxCode = suggested[0]?.confident ? suggested[0] : null;
   // With a suggested code the second box is already there, so Enter taking the code moves on at
   // once (a fast second Enter must not land on the first box again).
   const visibleLines = Math.min(LINES, Math.max(suggested[0] ? 2 : 1, lastFilled + 2));
@@ -140,10 +159,19 @@ export function EntryForm(props: Props) {
   // Time In takes focus with the time selected: right -> Enter, wrong -> just type over it.
   const [autoTimes, setAutoTimes] = useState(false);
   /** Picked worker -> form update that also fills empty times with their suggested times. */
+  // Lines filled from the crew's whole record (several lines, the crew agreeing), for the log.
+  const linesFrom = useRef<string | null>(null);
+  const picked = useRef<string | null>(null); // the code ↓ put in the first box, until it renders
   const timesFor = (w: Worker): Partial<FormState> => {
     if (form.timeIn.trim() || form.timeOut.trim()) return {};
     const t = suggestTimes(month, Number(sheet), w, master.workers, today);
-    return t ? { timeIn: formatClock(t.time_in), timeOut: formatClock(t.time_out), overnight: t.time_out >= 24 } : {};
+    const times = t ? { timeIn: formatClock(t.time_in), timeOut: formatClock(t.time_out), overnight: t.time_out >= 24 } : {};
+    const rec = withActs && !form.lines.some((l) => l.code.trim()) ? suggestRecord(month, Number(sheet), w, today) : null;
+    if (!fillsLines(rec)) return times;
+    linesFrom.current = rec.activities.map((a) => `${a.code}:${a.hours ?? ""}`).sort().join(",");
+    const lines = emptyLines();
+    rec.activities.slice(0, LINES).forEach((a, i) => (lines[i] = { code: a.code, hours: a.hours === null ? "" : String(a.hours) }));
+    return { ...times, lines };
   };
   useEffect(() => {
     if (!form.timeIn && !form.timeOut) setAutoTimes(false); // cleared (next worker, Esc)
@@ -180,6 +208,9 @@ export function EntryForm(props: Props) {
   const queue = () => {
     if (!input || hasProblems(problems)) return;
     logEntry(input);
+    lastWorker.current = form.worker;
+    picked.current = null;
+    setHighlight(-1);
     onQueue(inputsFor(form, input, sheet, headerAcks));
   };
 
@@ -210,11 +241,15 @@ export function EntryForm(props: Props) {
         time: ts ? { tier: ts.tier, prefilled: true, kept: ts.time_in === inp.time_in && ts.time_out === inp.time_out } : undefined,
         code:
           withActs && suggested[0]
-            ? { tier: suggested[0].tier, prefilled: true, kept: suggested[0].code === first, rank: suggested.findIndex((s) => s.code === first) }
+            ? { tier: suggested[0].tier, prefilled: Boolean(suggested[0].confident), kept: suggested[0].code === first, rank: suggested.findIndex((s) => s.code === first) }
             : undefined,
+        record: linesFrom.current
+          ? { tier: "crew", prefilled: true, kept: linesFrom.current === inp.activities.map((a) => `${a.code}:${a.hours ?? ""}`).sort().join(",") }
+          : undefined,
       })
       .catch(() => undefined); // the log never gets in the way of entering
     keys.current = { all: 0, worker: 0, start: 0 };
+    linesFrom.current = null;
   };
 
   /** "INB-01, INB-02, INC-05": the first becomes the worker, the rest get the same entry. */
@@ -247,6 +282,7 @@ export function EntryForm(props: Props) {
     if (e.key === "Escape") {
       setForm(emptyForm());
       setPlan(null);
+      setHighlight(-1);
       focus("worker");
     } else if (e.key === "Enter") {
       e.preventDefault();
@@ -307,9 +343,12 @@ export function EntryForm(props: Props) {
               setForm((f) => ({ ...f, query: e.target.value, worker: null, ...(autoTimes ? { timeIn: "", timeOut: "", overnight: null } : {}) }));
               setAutoTimes(false);
               setOpen(true);
-              setHighlight(0);
+              setHighlight(e.target.value.trim() ? 0 : -1);
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={() => {
+              setOpen(true);
+              if (!form.query.trim()) setHighlight(-1);
+            }}
             onPaste={(e) => {
               // A pasted column of names becomes "INB-01, INB-02, …" (Enter picks them all).
               const text = e.clipboardData.getData("text");
@@ -325,10 +364,17 @@ export function EntryForm(props: Props) {
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
+                setOpen(true);
                 setHighlight((h) => Math.min(h + 1, matches.length - 1));
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
-                setHighlight((h) => Math.max(h - 1, 0));
+                setHighlight((h) => Math.max(h - 1, nextMode ? -1 : 0));
+              } else if (e.key === "Enter" && nextMode && !form.worker && open && highlight >= 0 && matches[highlight]) {
+                e.preventDefault(); // chosen from the "probably next" list with the arrows
+                pick(matches[highlight]);
+              } else if (e.key === "Enter" && nextMode && !form.worker) {
+                e.preventDefault(); // nothing typed, nothing chosen: stay (the list stays open)
+                setOpen(true);
               } else if (e.key === "Enter" && /[,;]/.test(form.query)) {
                 e.preventDefault();
                 pickMany(form.query);
@@ -341,6 +387,7 @@ export function EntryForm(props: Props) {
           />
           {open && !form.worker && matches.length > 0 && (
             <ul className="dropdown" id="worker-list" role="listbox">
+              {nextMode && <li className="dropdown-head muted small" aria-hidden>Probably next (↓ then Enter)</li>}
               {matches.map((w, i) => {
                 const done = day?.entries.some((v) => v.entry.calling_name === w.calling_name);
                 return (
@@ -518,28 +565,42 @@ export function EntryForm(props: Props) {
                       list="activity-codes"
                       aria-label={`Activity ${i + 1}`}
                       value={line.code}
-                      onChange={(e) => setLine(i, { code: e.target.value })}
+                      onChange={(e) => {
+                        if (i === 0) picked.current = null;
+                        setLine(i, { code: e.target.value });
+                      }}
                       onFocus={(e) => e.target.select()} // typing replaces the kept code
-                      className={i === 0 && !line.code && suggested[0] ? "suggested-code" : undefined}
+                      className={i === 0 && !line.code && boxCode ? "suggested-code" : undefined}
                       placeholder={
-                        i === 0 && suggested[0]
-                          ? `${suggested[0].code} (Enter to use)`
-                          : i === 0
-                            ? "e.g. 03-11-00-00"
-                            : "another activity (optional)"
+                        i === 0 && boxCode
+                          ? `${boxCode.code} (Enter to use)`
+                          : i === 0 && suggested[0]
+                            ? "type, or ↓ for the suggestions below"
+                            : i === 0
+                              ? "e.g. 03-11-00-00"
+                              : "another activity (optional)"
                       }
-                      title={i === 0 && !line.code && suggested[0] ? `Suggested: ${suggested[0].why}` : undefined}
+                      title={i === 0 && !line.code && boxCode ? `Suggested: ${boxCode.why}` : undefined}
                       onKeyDown={(e) => {
                         // Enter: a code -> the next activity (hours fill themselves); empty -> add the worker.
                         // On an empty first box, Enter takes the suggested code shown in it.
-                        if (e.key === "Enter" && !e.ctrlKey && i === 0 && !line.code.trim() && suggested[0]) {
+                        if (e.key === "Enter" && !e.ctrlKey && i === 0 && !line.code.trim() && boxCode) {
                           e.preventDefault();
-                          setLine(0, { code: suggested[0].code });
+                          setLine(0, { code: boxCode.code });
                           focus("code1");
+                        } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && i === 0 && suggested.length && !e.altKey) {
+                          // Step through the suggestions (a deliberate pick, never a silent one).
+                          e.preventDefault();
+                          const at = suggested.findIndex((x) => x.code === line.code.trim());
+                          const next = e.key === "ArrowDown" ? (at + 1) % suggested.length : (at <= 0 ? suggested.length : at) - 1;
+                          picked.current = suggested[next].code; // for an Enter before the next render
+                          setLine(0, { code: suggested[next].code });
+                          requestAnimationFrame(() => refs.current.code0?.select());
                         } else if (e.key === "Enter" && !e.ctrlKey) {
                           e.preventDefault();
-                          if (line.code.trim() && i < LINES - 1) focus(`code${i + 1}`);
-                          else if (line.code.trim() || i > 0) queue();
+                          const code = line.code.trim() || (i === 0 ? picked.current ?? "" : "");
+                          if (code && i < LINES - 1) focus(`code${i + 1}`);
+                          else if (code || i > 0) queue();
                         } else onKey(e, `hours${i}`);
                       }}
                     />

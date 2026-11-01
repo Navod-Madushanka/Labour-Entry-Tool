@@ -36,6 +36,7 @@ interface Props {
   onDiscardSheet: (sheet: string) => void; // drop every waiting entry of that sheet
   allSheets: string[]; // the workbook's day sheets, for "Move to"
   onMoveSheet: (from: string, to: string) => void; // entered on the wrong day: move them all
+  mismatch?: Map<number, string>; // queue id -> "the usual crew has another code today"
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
@@ -152,7 +153,8 @@ function EditCell({ shown, start, parse, onSave, label }: {
   );
 }
 
-export function ManpowerSheet({ items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet }: Props) {
+export function ManpowerSheet(props: Props) {
+  const { items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet } = props;
   const [withExcel, setWithExcel] = useState(false);
   // Re-rendered with every queue change, so this is the time of the latest entry.
   const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -241,6 +243,11 @@ export function ManpowerSheet({ items, month, places, activities, ready, busy, o
                           render={(c) => (
                             <>
                               <b>{c.name}</b>
+                              {c.id !== undefined && props.mismatch?.get(c.id) && (
+                                <span className="badge warn small crew-mismatch" title={props.mismatch.get(c.id)}>
+                                  ⚠ crew
+                                </span>
+                              )}
                               {c.id !== undefined && !busy && (
                                 <span className="mp-actions">
                                   <button className="link" title={`Edit ${c.name} in the form`} aria-label={`Edit ${c.name}`} onClick={() => onEdit(c.id!)}>

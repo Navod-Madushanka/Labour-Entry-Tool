@@ -304,6 +304,8 @@ def choose(app, path: Path | None, name: str, practice: bool, real_file: bool) -
         book.service = live_named_service(config, name, path if real_file else None)
     else:
         book.service = practice_service(config, snapshot, session.work)
+    if path is not None:
+        book.service.source_path = path  # its folder may hold the previous month (carry-over)
     old = session.books.get(name)
     session.books[name] = book
     if old is not None:

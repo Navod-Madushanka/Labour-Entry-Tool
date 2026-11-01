@@ -36,8 +36,15 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForFunction(() => document.activeElement?.id === "out");
   await p.keyboard.press('Enter'); // Out is right -> activity
   await p.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Activity 1");
-  console.log("Activity suggests:", await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder"));
-  await p.keyboard.press('Enter'); // takes the code
+  // One partner entered: not enough to fill the box, so Enter alone takes nothing; ↓ picks the
+  // first suggestion on purpose.
+  console.log("Activity box says:", await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder"),
+    "| chips:", (await p.locator('.code-chips').innerText()).replace(/\s+/g, " ").slice(0, 90));
+  await p.keyboard.press('Enter');
+  if (await p.locator('input[aria-label="Activity 1"]').inputValue()) throw new Error("a plain Enter took an unsure code");
+  await p.keyboard.press('ArrowDown');
+  await p.waitForFunction(() => document.querySelector('input[aria-label="Activity 1"]').value !== "");
+  await p.keyboard.press('Enter'); // the code -> next box
   await p.waitForSelector('input[aria-label="Activity 2"]:focus');
   await p.keyboard.press('Enter'); // adds the worker
   await p.waitForFunction(() => document.querySelector('.queue tbody').innerText.includes("AAA-02"));
@@ -79,12 +86,14 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   console.log("night-shift suggestion typed over: 11 hours");
   await p.keyboard.press('Escape');
 
-  // Full speed: name and Enter x5 without waiting (pick, In, Out, code, add) adds the worker.
+  // Full speed: name, Enter x3 (pick, In, Out), ↓ (code), Enter x2 (next box, add) without waiting.
   await p.locator('#worker').fill("AAA-07");
-  for (let i = 0; i < 5; i++) await p.keyboard.press('Enter');
+  for (let i = 0; i < 3; i++) await p.keyboard.press('Enter');
+  await p.keyboard.press('ArrowDown');
+  for (let i = 0; i < 2; i++) await p.keyboard.press('Enter');
   await p.waitForFunction(() => document.querySelector('.queue tbody').innerText.includes("AAA-07"), null, { timeout: 5000 })
-    .catch(() => { throw new Error("Enter x5 at full speed did not add AAA-07"); });
-  console.log("Enter x5 at full speed adds the worker");
+    .catch(async () => { throw new Error("full-speed keys did not add AAA-07: " + JSON.stringify(await p.evaluate(() => ({ focus: document.activeElement?.id || document.activeElement?.getAttribute("aria-label"), a1: document.querySelector(`input[aria-label="Activity 1"]`)?.value, ph: document.querySelector(`input[aria-label="Activity 1"]`)?.placeholder, w: document.querySelector("#worker").value, q: document.querySelector(".queue tbody")?.innerText })))); });
+  console.log("Enter x3, down, Enter x2 at full speed adds the worker");
 
   // Push: the form is left clean (no worker was being typed).
   await p.locator('#worker').fill("");

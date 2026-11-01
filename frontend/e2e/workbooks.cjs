@@ -61,8 +61,10 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
     await p.keyboard.type('19'); await p.keyboard.press('Enter');
     const hint = await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder");
     console.log(name, "suggested:", hint);
-    await p.keyboard.press('Enter'); // takes the suggestion
+    // a filled box (the crew agrees): Enter takes it; otherwise ↓ picks the first suggestion
+    if (!hint.includes("Enter to use")) await p.keyboard.press('ArrowDown');
     await p.waitForSelector("text=Parking area");
+    await p.keyboard.press('Enter'); // the code -> the second activity box
     await p.keyboard.press('Enter'); // empty second activity: adds the worker
     await p.waitForFunction((n) => [...document.querySelectorAll('.queue tbody tr')].some((r) => r.textContent.includes(n)), name);
   }

@@ -26,7 +26,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import re
 import subprocess
 import sys
 from collections import Counter
@@ -35,6 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from app.carryover import kind_of, month_of  # noqa: E402
 from app.config import load_config  # noqa: E402
 from app.domain.codes import employee_code_status, normalise_activity, person_key  # noqa: E402
 from app.domain.daybuilder import build_day  # noqa: E402
@@ -47,25 +47,6 @@ PRIVATE = ROOT / "fixtures" / "private"
 CACHE = PRIVATE / "replay"
 BASELINE = CACHE / "baseline.json"
 TOLERANCE = 0.3  # percentage points a metric may move down before the run fails
-MONTHS = (
-    ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]  # noqa: E501
-)
-
-
-def month_of(name: str) -> dt.date | None:
-    low = name.lower()
-    for i, m in enumerate(MONTHS):
-        if m in low and (y := re.search(r"20\d\d", low)):
-            return dt.date(int(y.group()), i + 1, 1)
-    return None
-
-
-def kind_of(name: str) -> str:
-    """The workbook without its month: books of one kind follow each other month to month."""
-    low = Path(name).stem.lower()
-    low = re.sub("|".join(MONTHS), "", low)
-    low = re.sub(r"20\d\d|\(\d+\)|[^a-z]+", " ", low)
-    return " ".join(low.split())
 
 
 def snapshot_of(xlsb: Path):
@@ -155,6 +136,7 @@ def day_builder_metrics(snap, prev=None) -> dict:
             came = name in real
             tot["ticks"] += 1
             tot["tick_right"] += mbr.ticked == came
+            tot["tick_wrong"] += mbr.ticked != came
             if mbr.ticked and came:
                 e = real[name]
                 acts = tuple((normalise_activity(a.code), a.hours) for a in e.activities if a.code)
@@ -165,6 +147,7 @@ def day_builder_metrics(snap, prev=None) -> dict:
                 tot["exact"] += same_times and same_codes
                 tot["edit_times"] += not same_times
                 tot["edit_codes"] += not same_codes
+                tot["edit_workers"] += not (same_times and same_codes)
         tot["to_type"] += len(set(real) - {n for n, (_, m) in proposed.items() if m.ticked})
         tot["entries"] += len(real)
     d = max(tot["days"], 1)
@@ -174,6 +157,10 @@ def day_builder_metrics(snap, prev=None) -> dict:
         "builder.edit_times_per_day": round(tot["edit_times"] / d, 1),
         "builder.edit_codes_per_day": round(tot["edit_codes"] / d, 1),
         "builder.to_type_per_day": round(tot["to_type"] / d, 1),
+        # what the user does to finish the day: fix wrong ticks, edit carried workers, type the rest
+        "builder.actions_per_day": round(
+            (tot["tick_wrong"] + tot["edit_workers"] + tot["to_type"]) / d, 1
+        ),
         "builder.days": tot["days"],
     }
 
@@ -182,10 +169,21 @@ def pct(a: int, b: int) -> float | None:
     return round(100 * a / b, 1) if b else None
 
 
-# Metrics where lower is better (the rest: higher is better). Counts are information only.
-LOWER = {"builder.edit_times_per_day", "builder.edit_codes_per_day", "builder.to_type_per_day",
-         "search.keys", "chips.shown", "mismatch.fires", "codes.prefill_wrong"}  # fmt: skip
-INFO = {"builder.days", "codes.n", "times.n", "chips.entries", "record.n"}
+# Metrics where lower is better (the rest: higher is better). INFO: counts and trade-off parts
+# that are not judged on their own (the day builder is judged by its actions per day; how often a
+# code fills the box is a choice, judged by how often a fill is wrong).
+LOWER = {"builder.actions_per_day", "search.keys", "mismatch.fires", "codes.prefill_wrong"}
+INFO = {"builder.days", "codes.n", "times.n", "chips.entries", "record.n", "chips.shown",
+        "builder.edit_times_per_day", "builder.edit_codes_per_day", "builder.to_type_per_day",
+        "codes.prefill_rate", "codes.prefill_right", "carry.used", "mismatch.catches"}  # fmt: skip
+
+
+def base_key(k: str) -> str:
+    """The metric without its order / test prefix: crew.codes.top1 -> codes.top1."""
+    for prefix in ("split.first7.", "crew."):
+        if k.startswith(prefix):
+            k = k[len(prefix) :]
+    return k
 
 
 def compare(results: dict, baseline: dict) -> list[str]:
@@ -194,14 +192,15 @@ def compare(results: dict, baseline: dict) -> list[str]:
         base = baseline.get(book, {})
         for k, v in metrics.items():
             b = base.get(k)
+            key = base_key(k)
             if (
-                k in INFO
-                or k.startswith("tier.")
+                key in INFO
+                or key.startswith("tier.")
                 or not isinstance(v, (int, float))
                 or not isinstance(b, (int, float))
             ):
                 continue
-            worse = (v - b) if k in LOWER else (b - v)
+            worse = (v - b) if key in LOWER else (b - v)
             if worse > TOLERANCE:
                 drops.append(f"{book}: {k} {b} -> {v}")
     return drops
@@ -247,15 +246,25 @@ def main(argv=None) -> int:
         prev = snaps[max(same, key=lambda x: month_of(x.name))] if same else None
         results.setdefault(b.name, {}).update(day_builder_metrics(snap, prev))
 
-    if args.json:
+    if args.json:  # numbers only, no baseline check (for experiments)
         print(json.dumps(results, indent=1))
-    else:
-        print_table(results)
+        return 0
+    print_table(results)
     if args.update or not BASELINE.exists():
         BASELINE.write_text(json.dumps(results, indent=1))
         print(f"\nbaseline written: {BASELINE.relative_to(ROOT)}")
         return 0
-    drops = compare(results, json.loads(BASELINE.read_text()))
+    base = json.loads(BASELINE.read_text())
+    changes = [
+        f"{book[:40]:40} {k:34} {base[book][k]!s:>8} -> {v!s:<8}"
+        for book, metrics in results.items()
+        for k, v in metrics.items()
+        if isinstance(v, (int, float)) and isinstance(base.get(book, {}).get(k), (int, float))
+        and abs(v - base[book][k]) >= 0.1 and base_key(k) not in INFO
+    ]  # fmt: skip
+    if changes:
+        print("\nChanged against the baseline:\n  " + "\n  ".join(changes))
+    drops = compare(results, base)
     if drops:
         print("\nWORSE THAN THE BASELINE:\n  " + "\n  ".join(drops))
         return 1

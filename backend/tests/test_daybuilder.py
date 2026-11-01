@@ -105,3 +105,33 @@ def test_replay_october():
         all_ticks += len(names)
     assert proposed / came > 0.97  # 98%: almost nobody to type from scratch
     assert right_ticks / all_ticks > 0.75  # 78% of attendance ticks right by default
+
+
+def test_monday_counts_working_days_and_carries_saturday():
+    """Fri 9, Sat 10, Sun 11 -> Mon 12. A-01 last worked Friday: 2 working days back -> ticked.
+    A-02 worked Saturday (crew shift) and Sunday (skeleton shift): Saturday's entry is carried."""
+    days = {
+        "9": day(9, [e(9, 0, 7.0, 19.0)]),
+        "10": day(10, [e(10, 1, 7.0, 21.0)]),
+        "11": day(11, [e(11, 1, 7.0, 16.0, "SUN")]),
+    }
+    b = build_day(day(12, []), days)
+    got = {
+        m.calling_name: (m.ticked, m.from_sheet, c.time_out, c.activities[0].code)
+        for c in b.crews
+        for m in c.members
+    }
+    assert got["A-01"] == (True, "9", 19.0, "03-11-00-00")
+    assert got["A-02"] == (True, "10", 21.0, "03-11-00-00")
+
+
+def test_holiday_runs_like_a_sunday():
+    """A holiday (Poya) uses the last Sunday's workers, like a Sunday."""
+    days = {
+        "11": day(11, [e(11, 2, 7.0, 16.0)]),  # Sunday: A-03 only
+        "13": day(13, [e(13, 0, 7.0, 19.0), e(13, 2, 7.0, 19.0)]),
+    }
+    b = build_day(day(14, [], "Holiday"), days)
+    ticks = {m.calling_name: m.ticked for c in b.crews for m in c.members}
+    assert ticks == {"A-01": False, "A-03": True}
+    assert b.sunday_shift == (7.0, 16.0)
