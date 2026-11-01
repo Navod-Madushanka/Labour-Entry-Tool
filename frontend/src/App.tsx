@@ -319,6 +319,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       queued: queue.map((q) => q.input),
       withActivities: master.check_activities,
       activities: master.activities,
+      places: master.places,
       partners: (name) => {
         const w = byName.get(name);
         return w ? [...usualPartners(month, Number(sheet), w).partners] : [];

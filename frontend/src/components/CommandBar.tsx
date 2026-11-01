@@ -11,6 +11,7 @@ import {
   type CommandResult,
   type WordInfo,
 } from "../commands";
+import { explainSql, looksSql, parseSql, runSql, sqlTokens, suggestSql, SQL_TABLES } from "../sql";
 import { fmtHours } from "../time";
 import { store } from "../store";
 
@@ -44,7 +45,8 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
   const [done, setDone] = useState<CommandResult | null>(null);
   const [help, setHelp] = useState(false);
   const [hist, setHist] = useState<number | null>(null);
-  const box = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const sqlMode = looksSql(text); // SELECT … FROM, INSERT INTO, UPDATE … SET, DELETE FROM (or on its way)
 
   // Ctrl+K (handled by the app, from any tab): open the box and put the cursor in it, once per press
   useEffect(() => {
@@ -55,28 +57,37 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
     setTimeout(() => box.current?.focus(), 0);
   }, [focusToken]);
 
-  const sugg = useMemo(() => (open ? suggest(text, cursor, ctx) : { from: 0, items: [] }), [open, text, cursor, ctx]);
+  const sugg = useMemo(
+    () => (!open ? { from: 0, items: [] } : sqlMode ? suggestSql(text, cursor, ctx) : suggest(text, cursor, ctx)),
+    [open, text, cursor, ctx, sqlMode],
+  );
   // The word under the cursor explains itself; otherwise the command's card.
   const card: WordInfo | null = useMemo(() => {
+    if (sqlMode) {
+      const tokens = sqlTokens(text);
+      const at = tokens.find((t) => cursor >= t.start && cursor <= t.end) ?? tokens[tokens.length - 1];
+      return (at && explainSql(at.text, text, ctx)) || explainSql(tokens[0]?.text ?? "", text, ctx);
+    }
     const tokens = tokenize(text);
     const at = tokens.find((t) => cursor >= t.start && cursor <= t.end) ?? tokens[tokens.length - 1];
     const prev = at ? tokens.slice(0, tokens.indexOf(at)).map((t) => t.text) : [];
     return (at && explain(at.text, ctx, prev)) || (tokens[0] && explain(tokens[0].text, ctx)) || null;
   }, [text, cursor, ctx]);
   const verbCard = useMemo(() => {
+    if (sqlMode) return null;
     const first = tokenize(text)[0];
     const e = first ? explain(first.text, ctx) : null;
     return e?.kind === "command" ? e : null;
-  }, [text, ctx]);
+  }, [text, ctx, sqlMode]);
   // A dry run while typing: what Enter would do, or what is wrong.
   const preview = useMemo((): { result?: CommandResult; error?: string; at?: number } => {
     if (!text.trim()) return {};
     try {
-      return { result: run(parse(text, ctx), ctx) };
+      return { result: sqlMode ? runSql(parseSql(text, ctx), ctx) : run(parse(text, ctx), ctx) };
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e), at: e instanceof CommandError ? e.at?.start : undefined };
     }
-  }, [text, ctx]);
+  }, [text, ctx, sqlMode]);
 
   const accept = (insert: string) => {
     const before = text.slice(0, sugg.from);
@@ -92,15 +103,16 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
   const execute = () => {
     if (!preview.result) return;
     const res = preview.result;
-    if (res.verb !== "SHOW") onApply(res);
+    if (res.verb !== "SHOW" && res.verb !== "SELECT") onApply(res);
     setDone(res);
     const h = [text.trim(), ...readHistory().filter((x) => x !== text.trim())].slice(0, 30);
     store.set(HISTORY, JSON.stringify(h));
     setHist(null);
-    if (res.verb !== "SHOW") setText("");
+    setShowList(false); // the suggestions would cover the result (and the button to the queue)
+    if (res.verb !== "SHOW" && res.verb !== "SELECT") setText("");
   };
 
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const items = showList ? sugg.items : [];
     if (e.key === "ArrowDown" && items.length) {
       e.preventDefault();
@@ -108,7 +120,7 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
     } else if (e.key === "ArrowUp" && items.length && pick >= 0) {
       e.preventDefault();
       setPick((p) => p - 1);
-    } else if (e.key === "ArrowUp" && (!text || hist !== null)) {
+    } else if (e.key === "ArrowUp" && (!text || hist !== null) && !text.includes("\n")) {
       // history
       e.preventDefault();
       const h = readHistory();
@@ -121,7 +133,8 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
     } else if (e.key === "Tab" && items.length) {
       e.preventDefault();
       accept(items[Math.max(pick, 0)].insert);
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      // Enter runs; Shift+Enter starts a new line (SQL over several lines)
       e.preventDefault();
       if (items.length && pick >= 0) accept(items[pick].insert);
       else execute();
@@ -157,13 +170,14 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
         <>
           <div className="command-input">
             <span className="prompt">›</span>
-            <input
+            <textarea
               ref={box}
               aria-label="Command"
               spellCheck={false}
               autoComplete="off"
+              rows={Math.min(8, Math.max(1, text.split("\n").length))}
               value={text}
-              placeholder="e.g. set out 20 for INB-01 on 1-10   ·   copy INB-01, INB-02 from 26 to 21   ·   show all on 12 where out > 19"
+              placeholder="e.g. set out 20 for INB-01 on 1-10   ·   copy INB-01, INB-02 from 26 to 21   ·   SELECT calling_name, hours FROM entries WHERE hours > 8"
               onChange={(e) => {
                 setText(e.target.value);
                 setCursor(e.target.selectionStart ?? e.target.value.length);
@@ -248,7 +262,7 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
             )}
           </div>
 
-          {done && done.verb !== "SHOW" && (
+          {done && done.verb !== "SHOW" && done.verb !== "SELECT" && (
             <p className="notice">
               ✓ {done.summary} In the queue now. Check them on the manpower sheet of the entry screen, then push (Undo works
               as for any push).
@@ -260,6 +274,36 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
                 Check and push {waiting} waiting {waiting === 1 ? "entry" : "entries"} →
               </button>
               <span className="muted small">on the entry screen</span>
+            </div>
+          )}
+          {done?.table && (
+            <div className="command-rows">
+              <p>
+                <b>{done.summary}</b>
+              </p>
+              <div className="table-wrap daylist-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      {done.table.columns.map((c, n) => (
+                        <th key={`${c}-${n}`}>{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {done.table.rows.slice(0, 1000).map((r, i) => (
+                      <tr key={i}>
+                        {r.map((v, n) => (
+                          <td key={n} className={typeof v === "number" ? "num" : undefined}>
+                            {v === null ? "" : String(v)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {done.table.rows.length > 1000 && <p className="muted small">First 1000 of {done.table.rows.length} rows shown.</p>}
             </div>
           )}
           {done?.rows && (
@@ -319,6 +363,39 @@ export function CommandBar({ ctx, onApply, waiting, onReview, focusToken }: Prop
                   </ul>
                 </div>
               ))}
+              <div className="command-card sql-help">
+                <div className="card-head">
+                  <b className="word">SQL</b> <span className="muted small">for those who know it</span>
+                </div>
+                <p>
+                  SELECT, INSERT, UPDATE and DELETE work too, on these tables (column names are forgiving: `in times`, InTime and
+                  in_time are all <code>in</code>; ZIDAL is the employee code). INSERT, UPDATE and DELETE only fill the queue;
+                  UPDATE and DELETE need a WHERE.
+                </p>
+                <ul className="examples">
+                  {SQL_TABLES.map((t) => (
+                    <li key={t.name}>
+                      <b>{t.name}</b>
+                      {t.aliases.length ? <span className="muted small"> (also {t.aliases.slice(0, 3).join(", ")})</span> : null}: <span className="small">{t.cols.join(", ")}</span>
+                    </li>
+                  ))}
+                </ul>
+                <ul className="examples">
+                  {[
+                    "SELECT calling_name FROM workers WHERE calling_name LIKE 'B%' OR calling_name LIKE '%S'",
+                    "SELECT calling_name, hours, ot FROM entries WHERE hours > 8 ORDER BY hours DESC",
+                    "SELECT code, SUM(hours) AS total_hours, SUM(ot) AS total_ot FROM entries GROUP BY code",
+                    "UPDATE entries SET out = '20:00' WHERE calling_name = 'INB-01' AND day BETWEEN 1 AND 10",
+                    "DELETE FROM entries WHERE calling_name LIKE 'INB%' AND day = 15",
+                  ].map((x) => (
+                    <li key={x}>
+                      <button className="link" onClick={() => { setText(x); setCursor(x.length); setHelp(false); box.current?.focus(); }}>
+                        {x}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <p className="muted small">
                 Workers: names, INB-01..INB-20, a prefix (INB), all, crew of INB-03, trade Carpenter, except …. Days: 3, 1-10,
                 all, weekdays, saturdays, sundays, holidays, today, yesterday. WHERE: in, out, code, hours, worked, additional,

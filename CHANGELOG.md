@@ -1,5 +1,35 @@
 # Changelog
 
+## SQL in the command box (1 Nov 2026)
+
+Asked for: full SQL in the command feature (names starting with B or ending with S, SELECT …
+WHERE ZIDAL = …, GROUP BY with SUM, INSERT, UPDATE, DELETE).
+
+- The command box takes **SELECT** (DISTINCT, expressions, COUNT/SUM/AVG/MIN/MAX with DISTINCT,
+  GROUP BY, HAVING, ORDER BY by column, alias or number, LIMIT/OFFSET; WHERE with AND/OR/NOT,
+  = != <> < > <= >=, LIKE with % and _, IN, BETWEEN, IS NULL, + - * /, ROUND, UPPER, LOWER,
+  LENGTH, TRIM, ABS, COALESCE), **INSERT … VALUES** (several rows), **UPDATE … SET … WHERE**
+  (values may use columns: `SET out = out + 1`) and **DELETE … WHERE**.
+- Tables: `entries` (also labor, labour, work, timesheet: worker-days from Excel plus the queue,
+  with worked, OT and normal hours), `activities` (one row per activity line), `workers` (Labour
+  Detail), `codes` (the activity list) and `days`.
+- Column names are forgiving: case, spaces, underscores and a final s do not matter, and common
+  other names work (`` `in times` `` = in, `` `ot hours` `` = ot, `` `activity codes` `` = code,
+  ZIDAL = employee_code). Dates with times pick the day and the time; LIKE '2026-10-01%' works on
+  In and Out.
+- Same safety as the commands: SELECT changes nothing; INSERT, UPDATE and DELETE only fill the
+  queue (checked, on the manpower sheet, one undoable push). UPDATE and DELETE without WHERE are
+  refused; OT, worked and normal hours cannot be set (Excel works them out from the times), and
+  the message says what to change instead. Workers, codes and days cannot be changed with SQL.
+- While typing: SQL is recognised from the first word in capitals, suggestions offer tables (by
+  any of their names), columns, functions and keywords, and the card explains each keyword,
+  table and column ("ZIDAL" means employee_code). The box is now several lines: Enter runs,
+  Shift+Enter adds a line. The help lists the tables and their columns.
+- Fixed while testing: the suggestions stayed open after running and covered the button to the
+  queue; a SELECT showed "in the queue now".
+- Tests on made-up data: `frontend/tests/sql.test.cjs` (14 tests, the examples asked for) in
+  `npm test`, and `frontend/e2e/sql.cjs`.
+
 ## All day without a restart: reliability and data cleaning (1 Nov 2026)
 
 Asked for: the tool must work all day without crashing or slowing down, safely, with the

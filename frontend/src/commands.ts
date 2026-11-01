@@ -200,10 +200,11 @@ export interface CommandContext {
   withActivities: boolean;
   activities: string[];
   partners?: (name: string) => string[]; // usual partners, for "crew of"
+  places?: Record<string, string>; // place names of code endings (SQL: the place column)
   today?: Date;
 }
 
-interface Current {
+export interface Current {
   input: EntryInput;
   source: "excel" | "queue";
   inExcel: boolean; // the block has input in Excel (overwrite needed to replace it)
@@ -211,7 +212,7 @@ interface Current {
 
 const num = (v: unknown) => (typeof v === "number" ? v : null);
 
-function current(ctx: CommandContext, name: string, sheet: string): Current | null {
+export function current(ctx: CommandContext, name: string, sheet: string): Current | null {
   const excel = ctx.month[sheet]?.entries.find((v) => v.entry.calling_name === name)?.entry;
   const queued = ctx.queued.find((q) => q.sheet === sheet && q.calling_name === name);
   if (queued) {
@@ -238,7 +239,7 @@ function current(ctx: CommandContext, name: string, sheet: string): Current | nu
   };
 }
 
-const dateOf = (ctx: CommandContext, sheet: string): Date | null => {
+export const dateOf = (ctx: CommandContext, sheet: string): Date | null => {
   const iso = ctx.month[sheet]?.header.date;
   if (iso) return new Date(`${iso}T00:00:00`);
   const [y, m] = ctx.monthIso.split("-").map(Number);
@@ -584,10 +585,11 @@ export interface ShowRow {
 }
 
 export interface CommandResult {
-  verb: Verb;
+  verb: Verb | "SELECT" | "INSERT" | "UPDATE" | "DELETE"; // the last four: SQL (sql.ts)
   inputs: EntryInput[]; // for the queue
   removeQueued: { sheet: string; name: string }[]; // waiting entries to drop (clear/move of queue-only)
   rows: ShowRow[] | null; // SHOW
+  table?: { columns: string[]; rows: (string | number | null)[][] }; // SQL SELECT
   summary: string;
   notes: string[];
 }
@@ -821,7 +823,7 @@ export function run(cmd: Command, ctx: CommandContext): CommandResult {
   return res;
 }
 
-function whoOnAll(ctx: CommandContext, sheet: string): string[] {
+export function whoOnAll(ctx: CommandContext, sheet: string): string[] {
   const names = new Set<string>();
   for (const e of ctx.month[sheet]?.entries ?? []) if (e.entry.calling_name) names.add(e.entry.calling_name);
   for (const q of ctx.queued) if (q.sheet === sheet) names.add(q.calling_name);

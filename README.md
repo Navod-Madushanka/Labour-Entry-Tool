@@ -88,6 +88,30 @@ Workers: names, `INB-01..INB-20`, a prefix (`INB`), `all`, `crew of INB-03`, `tr
 `where` takes in, out, code, hours, worked, additional, remark with `= != < > <= >= like contains
 empty`, joined with `and`. *All commands* in the box lists every command with examples.
 
+### SQL
+
+The same box takes SQL (SELECT, INSERT, UPDATE, DELETE) on these tables. Column names are
+forgiving: `` `in times` ``, `InTime` and `in_time` are all `in`; `ZIDAL` is the employee code.
+Dates with times (`'2026-10-01 07:00:00'`) pick the day. INSERT, UPDATE and DELETE only fill the
+queue, like the commands; UPDATE and DELETE need a WHERE (`WHERE 1 = 1` for everything); OT,
+worked and normal hours are worked out from the times and cannot be set.
+
+| Table | Rows | Columns |
+| --- | --- | --- |
+| `entries` (labor, labour, work, timesheet) | worker-days, Excel + queue | day, date, calling_name, full_name, trade, employee_code, in, out, code, place, hours, worked, ot, normal, total, additional, remark, day_type, source |
+| `activities` | activity lines | day, date, calling_name, full_name, employee_code, code, place, hours, source |
+| `workers` (Labour Detail) | calling names | calling_name, full_name, trade, employee_code, code_status, row, days_worked |
+| `codes` | the activity list | code, place, lines |
+| `days` | day sheets | day, date, weekday, day_type, workers |
+
+```sql
+SELECT calling_name FROM workers WHERE calling_name LIKE 'B%' OR calling_name LIKE '%S';
+SELECT ZIDAL, `activity codes`, Hours FROM labor WHERE Hours > 8 ORDER BY Hours DESC;
+SELECT code, SUM(hours) AS total_hours, SUM(ot) AS total_ot FROM entries GROUP BY code;
+UPDATE entries SET out = '20:00' WHERE calling_name = 'INB-01' AND day BETWEEN 1 AND 10;
+DELETE FROM entries WHERE calling_name LIKE 'INB%' AND day = 15;
+```
+
 ## If it is slow or seems stuck
 
 - While the start page reads the workbook through Excel it shows "Reading from Excel: sheet 12 of
