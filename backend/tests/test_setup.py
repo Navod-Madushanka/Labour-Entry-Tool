@@ -388,9 +388,11 @@ def test_dropped_copies_are_deleted(app, small_snapshot, tmp_path):
     second = session.save_upload("Labour Entry Sheet October 2026.json", data)
     setup_api.choose(app, second, second.name, practice=True, real_file=False)
     assert not first.exists() and second.exists()  # the replaced copy is gone
+    practice = session.books[second.name].service.audit.path.parent
     with TestClient(app) as c:
         c.post("/api/setup/close", json={"name": second.name})
     assert not second.exists()  # closing deletes its copy
+    assert not practice.exists()  # and its practice folder, change log closed first (Windows)
     work = session.work
     session.cleanup()
     assert not work.exists()

@@ -138,6 +138,16 @@ class Session:
         if folder.parent == self.work and folder.name.isdigit():
             shutil.rmtree(folder, ignore_errors=True)
 
+    def dispose(self, book: Book) -> None:
+        """A workbook leaves the session (replaced or closed): close its change log and delete its
+        dropped copy and practice folder. Live change logs are in the data folder: kept."""
+        with contextlib.suppress(Exception):
+            book.service.audit.close()
+        self.discard_upload(book.path)
+        log_file = getattr(book.service.audit, "path", None)
+        if book.mode == "demo" and log_file and log_file.parent.parent == self.work:
+            shutil.rmtree(log_file.parent, ignore_errors=True)
+
     def cleanup(self) -> None:
         """The session folder (dropped copies, practice files) when the tool stops. Open files
         are closed first: Windows does not delete a file that is still open (a practice copy's
@@ -294,9 +304,12 @@ def choose(app, path: Path | None, name: str, practice: bool, real_file: bool) -
         book.service = live_named_service(config, name, path if real_file else None)
     else:
         book.service = practice_service(config, snapshot, session.work)
-    if (old := session.books.get(name)) is not None and old.path != book.path:
-        session.discard_upload(old.path)  # the copy of the workbook it replaces
+    old = session.books.get(name)
     session.books[name] = book
+    if old is not None:
+        if old.path == book.path:
+            old.path = None  # the new copy is the same file: keep it
+        session.dispose(old)  # the workbook it replaces
     _activate(app, session, name)
     return session.state
 
@@ -438,12 +451,10 @@ def switch(body: NameRequest, request: Request) -> SetupState:
 
 
 @router.post("/close", response_model=SetupState)
-def close(body: NameRequest, request: Request) -> SetupState:
+async def close(body: NameRequest, request: Request) -> SetupState:
     """Take a workbook off this session's list (the file and Excel are not touched)."""
     session = _session(request)
     closed = session.books.pop(body.name, None)
-    if closed is not None:
-        session.discard_upload(closed.path)
     if closed is None:
         raise HTTPException(404, f"{body.name} is not open here.")
     if session.active == body.name:
@@ -453,6 +464,8 @@ def close(body: NameRequest, request: Request) -> SetupState:
         else:
             session.active = None
             request.app.state.set_service(None, session.config())
+    # after anything it still had running on the Excel thread
+    await request.app.state.get_worker().run(session.dispose, closed)
     return session.sync()
 
 
