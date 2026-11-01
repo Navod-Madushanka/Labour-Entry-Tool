@@ -2,7 +2,7 @@
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type ExportTable, type Master } from "../api";
+import { api, type ExportTable, type Master, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
   applyFilter,
@@ -28,7 +28,7 @@ import {
 import { store } from "../store";
 import { formatShift } from "../time";
 
-type View = "overview" | "activities" | "places" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare";
+type View = "overview" | "activities" | "places" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["activities", "Activities"],
@@ -39,6 +39,7 @@ const VIEWS: [View, string][] = [
   ["attendance", "Attendance"],
   ["quality", "Data quality"],
   ["compare", "Compare months"],
+  ["suggestions", "Suggestions"],
 ];
 const SUMMARY_PREFIX = "labour.summary.";
 const RUN_FLAG = 14; // days in a row without a day off that are flagged
@@ -162,7 +163,9 @@ export function Analysis({ master, month, loaded, total }: Props) {
         ))}
       </nav>
 
-      {!slices.length && view !== "compare" ? (
+      {view === "suggestions" ? (
+        <SuggestionLog />
+      ) : !slices.length && view !== "compare" ? (
         <p className="muted">{data.slices.length ? "Nothing matches these filters." : "No entries with worked hours yet."}</p>
       ) : view === "overview" ? (
         <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} />
@@ -679,6 +682,80 @@ function Compare({ current }: { current: string }) {
         </table>
       </div>
     </div>
+  );
+}
+
+const TIER_NAMES: Record<string, string> = {
+  partners: "Usual partners today",
+  sametimes: "Same trade, same times today",
+  last: "Worker's last day",
+  trade: "Trade today",
+  month: "Trade this month",
+  usual: "Worker's usual times",
+  crew: "Whole record from the crew",
+};
+
+/** How the suggestions do as people really use the screen (the log on this PC). */
+function SuggestionLog() {
+  const [days, setDays] = useState(30);
+  const [s, setS] = useState<SuggestLogSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.suggestLogSummary(days).then(setS, (e) => setError(String(e.message ?? e)));
+  }, [days]);
+  if (error) return <p className="error-text">{error}</p>;
+  if (!s) return <p className="muted">Loading…</p>;
+  const block = (title: string, o: SuggestOfferSummary) => (
+    <div className="card">
+      <h3>{title}</h3>
+      {o.shown ? (
+        <>
+          <p className="small">
+            Kept as suggested: <b>{pct(o.kept / o.shown)}</b> of {o.shown}
+            {o.prefilled > 0 && <> · filled in the box: {o.prefilled}, of them kept {pct(o.prefill_kept / o.prefilled)}</>}
+          </p>
+          <SortTable
+            cols={[
+              { key: "tier", label: "Rule", value: (r: [string, { shown: number; kept: number }]) => TIER_NAMES[r[0]] ?? r[0] },
+              { key: "shown", label: "Offered", value: (r) => r[1].shown, num: true },
+              { key: "kept", label: "Kept", value: (r) => r[1].kept, num: true },
+              { key: "rate", label: "Kept %", value: (r) => (r[1].shown ? r[1].kept / r[1].shown : 0), num: true, fmt: (v) => <span className="share-cell">{pct(v as number)}<Bar frac={v as number} /></span> },
+            ]}
+            rows={Object.entries(o.tiers)}
+            rowKey={(r) => r[0]}
+            initial={{ key: "shown", desc: true }}
+          />
+        </>
+      ) : (
+        <p className="muted small">Nothing logged yet.</p>
+      )}
+    </div>
+  );
+  return (
+    <>
+      <div className="card-head">
+        <p className="muted small">
+          Logged on this PC each time an entry is added (no names): which rule made the suggestion, whether the entry kept it, and the
+          keys it took. File: {s.file}
+        </p>
+        <label className="small">
+          Last{" "}
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            {[7, 30, 90, 365].map((d) => <option key={d}>{d}</option>)}
+          </select>{" "}
+          days
+        </label>
+      </div>
+      <div className="kpis">
+        <Kpi label="entries added" value={String(s.entries)} note={`${s.workers} workers`} />
+        <Kpi label="keys per worker" value={s.keys_per_worker === null ? "—" : String(s.keys_per_worker)} note={s.keys_per_entry === null ? undefined : `${s.keys_per_entry} per entry`} />
+        <Kpi label="keys in the worker box" value={s.worker_keys === null ? "—" : String(s.worker_keys)} note="per entry" />
+        <Kpi label="seconds per entry" value={s.seconds_per_entry === null ? "—" : String(s.seconds_per_entry)} />
+      </div>
+      {block("Times", s.time)}
+      {block("Activity code", s.code)}
+      {s.record.shown > 0 && block("Whole record", s.record)}
+    </>
   );
 }
 

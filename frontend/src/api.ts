@@ -417,7 +417,53 @@ export interface ExportTable {
   rows: (string | number | null)[][];
 }
 
+export interface SuggestOffer {
+  tier: string | null;
+  prefilled: boolean;
+  kept: boolean;
+  rank?: number;
+}
+
+export interface SuggestLogLine {
+  workbook: string;
+  sheet: string;
+  keys: number;
+  worker_keys: number;
+  ms: number;
+  also: number;
+  lines: number;
+  time?: SuggestOffer;
+  code?: SuggestOffer;
+  record?: SuggestOffer;
+}
+
+export interface SuggestOfferSummary {
+  shown: number;
+  kept: number;
+  prefilled: number;
+  prefill_kept: number;
+  tiers: Record<string, { shown: number; kept: number }>;
+}
+
+export interface SuggestLogSummary {
+  days: number;
+  file: string;
+  entries: number;
+  workers: number;
+  keys_per_entry: number | null;
+  keys_per_worker: number | null;
+  worker_keys: number | null;
+  seconds_per_entry: number | null;
+  time: SuggestOfferSummary;
+  code: SuggestOfferSummary;
+  record: SuggestOfferSummary;
+  first: string | null;
+  last: string | null;
+}
+
 export const api = {
+  logSuggestion: (line: SuggestLogLine) => call<{ ok: boolean }>("POST", "/api/suggest-log", line),
+  suggestLogSummary: (days = 30) => call<SuggestLogSummary>("GET", `/api/suggest-log/summary?days=${days}`),
   /** The Analysis tables as an .xlsx file. */
   exportAnalysis: async (title: string, sheets: ExportTable[]): Promise<Blob> => {
     const res = await fetch("/api/analysis/export", {

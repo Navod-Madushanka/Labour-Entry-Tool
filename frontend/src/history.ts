@@ -147,9 +147,12 @@ export function companions(month: Month, names: string[], sheet: number, exclude
     .map(([name]) => ({ name, days: days.get(name) ?? 0 }));
 }
 
+export type CodeTier = "partners" | "sametimes" | "last" | "trade" | "month";
+
 export interface CodeSuggestion {
   code: string;
   why: string; // "INB-03, INB-04 today", "yesterday", "Carpenters today"
+  tier: CodeTier; // which rule gave it (for the replay and the suggestion log)
 }
 
 export interface TodayEntry {
@@ -195,6 +198,7 @@ export interface TimeSuggestion {
   time_in: number;
   time_out: number;
   why: string;
+  tier: "partners" | "usual" | "trade";
 }
 
 /** Times to suggest for a worker on `sheet`: the times most of their usual partners have today,
@@ -216,12 +220,12 @@ export function suggestTimes(month: Month, sheet: number, worker: Worker, worker
   const withPartners = commonest(others.filter((t) => partners.has(t.calling_name)));
   if (withPartners)
     return { time_in: withPartners.t.time_in!, time_out: withPartners.t.time_out!,
-             why: `${withPartners.names.slice(0, 2).join(", ")}${withPartners.names.length > 2 ? " …" : ""} today` };  // prettier-ignore
+             why: `${withPartners.names.slice(0, 2).join(", ")}${withPartners.names.length > 2 ? " …" : ""} today`, tier: "partners" };  // prettier-ignore
   const usual = usualTimes(entriesOf(month, worker.calling_name, sheet));
-  if (usual) return { time_in: usual.time_in, time_out: usual.time_out, why: `usual (${usual.count}×)` };
+  if (usual) return { time_in: usual.time_in, time_out: usual.time_out, why: `usual (${usual.count}×)`, tier: "usual" };
   const trade = new Map(workers.map((w) => [w.calling_name, w.trade_group]));
   const crew = commonest(others.filter((t) => trade.get(t.calling_name) === worker.trade_group));
-  return crew ? { time_in: crew.t.time_in!, time_out: crew.t.time_out!, why: `${String(worker.trade_group ?? "trade")} today` } : null;
+  return crew ? { time_in: crew.t.time_in!, time_out: crew.t.time_out!, why: `${String(worker.trade_group ?? "trade")} today`, tier: "trade" } : null;
 }
 
 export function suggestCodes(
@@ -236,8 +240,8 @@ export function suggestCodes(
   const trade = new Map(workers.map((w) => [w.calling_name, w.trade_group]));
   const sameTrade = (name: string) => trade.get(name) === worker.trade_group && name !== worker.calling_name;
   const out: CodeSuggestion[] = [];
-  const add = (code: string | null | undefined, why: string) => {
-    if (code && !out.some((s) => s.code === code)) out.push({ code, why });
+  const add = (code: string | null | undefined, why: string, tier: CodeTier) => {
+    if (code && !out.some((s) => s.code === code)) out.push({ code, why, tier });
   };
   const top = (counts: Map<string, number>) => [...counts].sort((a, b) => b[1] - a[1]).map(([c]) => c);
   const count = (codes: (string | null)[]) => {
@@ -251,21 +255,21 @@ export function suggestCodes(
   const withPartners = others.filter((t) => partners.has(t.calling_name));
   for (const code of top(count(withPartners.map((t) => t.code))).slice(0, 1)) {
     const names = withPartners.filter((t) => t.code === code).map((t) => t.calling_name);
-    add(code, `${names.slice(0, 2).join(", ")}${names.length > 2 ? " …" : ""} today`);
+    add(code, `${names.slice(0, 2).join(", ")}${names.length > 2 ? " …" : ""} today`, "partners");
   }
 
   // The trade with the same times today.
   if (times.time_in !== null && times.time_out !== null) {
     const same = others.filter((t) => sameTrade(t.calling_name) && t.time_in === times.time_in && t.time_out === times.time_out);
-    add(top(count(same.map((t) => t.code)))[0], "same times today");
+    add(top(count(same.map((t) => t.code)))[0], "same times today", "sametimes");
   }
-  if (last) add(firstCode(last), "last day");
+  if (last) add(firstCode(last), "last day", "last");
   const tradeName = String(worker.trade_group ?? "trade");
   for (const code of top(count(others.filter((t) => sameTrade(t.calling_name)).map((t) => t.code))).slice(0, 2))
-    add(code, `${tradeName} today`);
+    add(code, `${tradeName} today`, "trade");
   const monthCodes: (string | null)[] = [];
   for (const day of Object.values(month))
     for (const v of day.entries) if (v.entry.calling_name && sameTrade(v.entry.calling_name)) monthCodes.push(firstCode(v.entry));
-  for (const code of top(count(monthCodes)).slice(0, 3)) add(code, `${tradeName} this month`);
+  for (const code of top(count(monthCodes)).slice(0, 3)) add(code, `${tradeName} this month`, "month");
   return out.slice(0, 5);
 }

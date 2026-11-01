@@ -178,7 +178,43 @@ export function EntryForm(props: Props) {
   // Queue what the form holds now (not the last preview, which may predate the last keystroke);
   // the queue re-checks it on the server.
   const queue = () => {
-    if (input && !hasProblems(problems)) onQueue(inputsFor(form, input, sheet, headerAcks));
+    if (!input || hasProblems(problems)) return;
+    logEntry(input);
+    onQueue(inputsFor(form, input, sheet, headerAcks));
+  };
+
+  // Suggestion log (stays on this PC): which rule offered the times and the code, whether the
+  // entry kept them, and the keys it took. Counted from the first key after the last Add.
+  const keys = useRef({ all: 0, worker: 0, start: 0 });
+  const countKey = (e: React.KeyboardEvent) => {
+    if (e.key.length !== 1 && !["Enter", "Tab", "Backspace", "Delete", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    const k = keys.current;
+    if (!k.all) k.start = Date.now();
+    k.all += 1;
+    if ((e.target as HTMLElement).id === "worker") k.worker += 1;
+  };
+  const logEntry = (inp: EntryInput) => {
+    const k = keys.current;
+    const coded = inp.activities.filter((a) => a.code);
+    const first = coded[0]?.code ?? null;
+    const ts = suggestedTimes;
+    api
+      .logSuggestion({
+        workbook: master.workbook,
+        sheet,
+        keys: k.all,
+        worker_keys: k.worker,
+        ms: k.start ? Date.now() - k.start : 0,
+        also: form.also.length,
+        lines: coded.length,
+        time: ts ? { tier: ts.tier, prefilled: true, kept: ts.time_in === inp.time_in && ts.time_out === inp.time_out } : undefined,
+        code:
+          withActs && suggested[0]
+            ? { tier: suggested[0].tier, prefilled: true, kept: suggested[0].code === first, rank: suggested.findIndex((s) => s.code === first) }
+            : undefined,
+      })
+      .catch(() => undefined); // the log never gets in the way of entering
+    keys.current = { all: 0, worker: 0, start: 0 };
   };
 
   /** "INB-01, INB-02, INC-05": the first becomes the worker, the rest get the same entry. */
@@ -228,7 +264,7 @@ export function EntryForm(props: Props) {
   };
 
   return (
-    <section className="entry">
+    <section className="entry" onKeyDownCapture={countKey}>
       <div className="entry-main">
         <div className="entry-head">
           <h2>
