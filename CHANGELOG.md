@@ -1,5 +1,35 @@
 # Changelog
 
+## Analysis tab (1 Nov 2026)
+
+Asked for: an analysis part with everything the data can give; the QS will say what to drop.
+
+- New **Analysis** tab, worked out in the browser from the loaded month (Excel is not asked):
+  - **Overview**: hours, normal and overtime hours, OT share, worker-days, people, average and
+    peak headcount, ZIDLE hours; headcount by day; top activities and trades.
+  - **Activities**: hours, normal, OT, worker-days, people, days, first/last day and share per
+    code with its place; click a row for its trades.
+  - **Places & trades**: the same per place (from the code's place ending) and per trade.
+  - **Daily manpower**: people on site per day stacked by trade, Sundays and holidays marked,
+    with a table per day.
+  - **Task timeline**: hours per activity per day as a heat map (when each task ran).
+  - **Overtime**: by day, by trade (share, per person) and by person (late and past-midnight days).
+  - **Attendance**: days, days away, Saturdays/Sundays/holidays, longest and current run without
+    a day off (14+ flagged); one person with two calling names counts once.
+  - **Data quality**: the tool's checks by rule, workers with entries but no valid employee code,
+    ZIDLE hours, entries without a code, codes not in the activity list, codes used once or
+    twice, days over 14 hours.
+  - **Compare months**: each workbook's totals, trades and top codes side by side (kept in the
+    browser once a workbook's month has loaded).
+- Filters for trade, place, activity and day range apply to every view.
+- **Export to Excel**: all tables as sheets of one .xlsx (`POST /api/analysis/export`, openpyxl;
+  text that looks like a formula stays text).
+- Overtime and worker-days of an entry are shared over its activity lines by their hours, so every
+  table adds up to the same totals.
+- The top bar wraps below 1280 px wide so the new tab fits on laptop screens.
+- Tests: `tests/analysis.test.cjs` (in `npm test`), `backend/tests/test_analysis_export.py`,
+  `e2e/analysis.cjs`; made-up data only.
+
 ## Out at 22:00 takes off dinner (1 Nov 2026)
 
 Asked for: when Time Out is 22, 2 hours must come off (in Excel, -1 in Additional hours); it

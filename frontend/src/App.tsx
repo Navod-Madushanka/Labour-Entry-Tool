@@ -9,6 +9,7 @@ import { ActivityAdder } from "./components/ActivityAdder";
 import { CommandBar } from "./components/CommandBar";
 import type { CommandContext, CommandResult } from "./commands";
 import { MasterTools } from "./components/MasterTools";
+import { Analysis } from "./components/Analysis";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
 import { MedicalDialog } from "./components/MedicalDialog";
@@ -61,8 +62,9 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [crewOpen, setCrewOpen] = useState(false);
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
-  const pageOf = (hash: string) => (hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : "entry");
-  const [page, setPage] = useState<"entry" | "codes" | "cards">(() => pageOf(window.location.hash));
+  const pageOf = (hash: string) =>
+    hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : hash === "#analysis" ? "analysis" : "entry";
+  const [page, setPage] = useState<"entry" | "codes" | "cards" | "analysis">(() => pageOf(window.location.hash));
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
   const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
   const [storyOn, setStoryOn] = useState(storyEnabled);
@@ -522,6 +524,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         )}
         {!master ? (
           <p className="muted">{status && !status.connected ? "Open the workbook in Excel; this page retries every 10 seconds." : "Loading…"}</p>
+        ) : page === "analysis" ? (
+          <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} />
         ) : page === "cards" ? (
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (

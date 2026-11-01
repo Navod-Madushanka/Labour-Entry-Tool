@@ -410,7 +410,24 @@ async function parse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface ExportTable {
+  name: string;
+  note?: string;
+  columns: string[];
+  rows: (string | number | null)[][];
+}
+
 export const api = {
+  /** The Analysis tables as an .xlsx file. */
+  exportAnalysis: async (title: string, sheets: ExportTable[]): Promise<Blob> => {
+    const res = await fetch("/api/analysis/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, sheets }),
+    });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    return res.blob();
+  },
   status: () => call<Status>("GET", "/api/status"),
   master: (fresh = false) => call<Master>("GET", `/api/master${fresh ? "?fresh=true" : ""}`),
   day: (sheet: string, fresh = false) =>

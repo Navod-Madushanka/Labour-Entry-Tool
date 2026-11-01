@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BookInfo, Status } from "../api";
 
 interface Props {
-  page: "entry" | "codes" | "cards";
+  page: "entry" | "codes" | "cards" | "analysis";
   status: Status | null;
   user: string;
   historyLoaded: number;
@@ -34,6 +34,9 @@ export function StatusBar(props: Props) {
         </a>
         <a href="#cards" className={page === "cards" ? "active" : ""}>
           Time cards
+        </a>
+        <a href="#analysis" className={page === "analysis" ? "active" : ""}>
+          Analysis
         </a>
       </nav>
       {status?.mode === "demo" && (

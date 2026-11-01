@@ -27,6 +27,13 @@
   --row: #faf8f4;
   --shadow: 0 1px 2px #1d233014, 0 2px 8px #1d23300d;
   --focus: #e8590c40;
+  --c1: #2f6fb3;
+  --c2: #e8590c;
+  --c3: #2f9e6e;
+  --c4: #8a5cc2;
+  --c5: #c9a227;
+  --c6: #c2477a;
+  --c7: #8b93a1;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -58,6 +65,13 @@
     --row: #1f252e;
     --shadow: 0 1px 2px #0006;
     --focus: #fb8c3c55;
+    --c1: #5b9be0;
+    --c2: #fb8c3c;
+    --c3: #4fc193;
+    --c4: #a888dd;
+    --c5: #dcbc4a;
+    --c6: #e0709d;
+    --c7: #8f98a7;
     color-scheme: dark;
   }
 }
@@ -488,12 +502,16 @@ section.timecards { border-top-color: var(--brand); }
 .tc-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
 .tc-progress.done .tc-bar span { background: var(--ok); }
 /* Keep the top bar on one line on a laptop: the workbook name gives way first. */
-@media (min-width: 1000px) {
+@media (min-width: 1280px) {
   .statusbar { flex-wrap: nowrap; }
   .statusbar .workbook { flex: 0 1 auto; min-width: 0; max-width: 34ch; }
   .statusbar > * { flex-shrink: 0; }
   .statusbar .workbook, .statusbar .spacer { flex-shrink: 1; }
+  .statusbar .book-menu { flex-shrink: 1; min-width: 0; }
 }
+.book-menu { min-width: 0; max-width: 100%; }
+.book-current { max-width: 100%; min-width: 0; }
+.book-current .name { min-width: 0; }
 
 /* Place names in activity codes */
 .places-card table.places { border-collapse: collapse; margin: 6px 0 8px; }
@@ -521,7 +539,7 @@ button.danger-outline:hover:not(:disabled) { background: var(--block-bg); }
 
 /* Workbook menu in the top bar */
 .book-menu { position: relative; }
-.book-current { display: inline-flex; align-items: center; gap: 6px; max-width: 46ch; padding: 3px 8px; background: var(--panel); color: var(--text); font-weight: 500; }
+.book-current { display: inline-flex; align-items: center; gap: 6px; max-width: min(46ch, 100%); padding: 3px 8px; background: var(--panel); color: var(--text); font-weight: 500; }
 .book-current .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .book-current .count { font-size: 11px; color: var(--muted); }
 .book-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 360px; max-width: 80vw; padding: 6px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #0003; }
@@ -578,3 +596,53 @@ section.commands { border-top-color: #6d5bd0; }
 .command-rows td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .sql-help { grid-column: 1 / -1; }
 
+
+/* Analysis tab */
+.analysis .section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.analysis .filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; border-top-width: 1px; }
+.analysis .filters label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 2px; }
+.analysis .filters select { min-width: 9rem; max-width: 16rem; }
+.subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 12px; border-bottom: 1px solid var(--line); }
+.subtabs button { background: none; border: none; border-bottom: 2px solid transparent; padding: 6px 10px; color: var(--muted); border-radius: 0; }
+.subtabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.kpi-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi-label { font-size: 12px; color: var(--muted); }
+.kpi-note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.analysis .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.share-list { list-style: none; margin: 0; padding: 0; }
+.share-list li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.share-list li .bar { grid-column: 1 / -1; }
+.share-value { font-variant-numeric: tabular-nums; }
+.bar { display: block; height: 6px; background: var(--row); border-radius: 3px; overflow: hidden; min-width: 40px; }
+.bar > span { display: block; height: 100%; border-radius: 3px; }
+.share-cell { display: inline-flex; align-items: center; gap: 6px; }
+.share-cell .bar { width: 60px; }
+table.data { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.data th, table.data td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+table.data th { font-weight: 500; color: var(--muted); font-size: 12px; }
+table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.data button.sort { background: none; border: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+table.data tr.clickable { cursor: pointer; }
+table.data tr.clickable:hover, table.data tr.open { background: var(--row); }
+table.data tr.detail-row td { white-space: normal; background: var(--row); }
+table.data tr.group-row th { color: var(--text); font-weight: 600; padding-top: 12px; }
+.breakdown { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+.table-search { margin: 0 0 8px; width: min(320px, 100%); }
+.chart .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.chart .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.chart svg { display: block; }
+table.heatmap { border-collapse: separate; border-spacing: 2px; font-size: 12px; }
+table.heatmap th { font-weight: 500; color: var(--muted); text-align: center; padding: 0 2px; }
+table.heatmap tbody th { text-align: left; white-space: nowrap; }
+table.heatmap th.sun { color: var(--sun); }
+table.heatmap th.sat { color: var(--sat); }
+table.heatmap td { width: 22px; min-width: 22px; height: 20px; background: var(--row); border-radius: 3px; }
+table.heatmap td.num { background: none; width: auto; padding-left: 8px; text-align: right; }
+details.card > summary .badge { margin-left: 6px; }
+@media (max-width: 640px) {
+  .analysis .filters select { min-width: 0; width: 100%; }
+  .analysis .filters label { flex: 1 1 40%; }
+}
