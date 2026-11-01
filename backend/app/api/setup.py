@@ -18,6 +18,7 @@ one the entry screen works on. Whether activity codes are checked is set per kin
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import datetime as dt
 import shutil
 import sys
@@ -138,7 +139,12 @@ class Session:
             shutil.rmtree(folder, ignore_errors=True)
 
     def cleanup(self) -> None:
-        """The session folder (dropped copies, practice files) when the tool stops."""
+        """The session folder (dropped copies, practice files) when the tool stops. Open files
+        are closed first: Windows does not delete a file that is still open (a practice copy's
+        change log)."""
+        for book in self.books.values():
+            with contextlib.suppress(Exception):  # already closed, or never opened
+                book.service.audit.close()
         shutil.rmtree(self.work, ignore_errors=True)
 
     def save_upload(self, filename: str, data: bytes) -> Path:
