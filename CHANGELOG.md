@@ -18,8 +18,9 @@ suggestions as good as before. Measured first, on made-up data only:
   are dropped.
 - **The Excel thread restarts itself** if it stopped (e.g. Excel crashed during a call), instead
   of every request waiting until it timed out.
-- **Temporary copies are deleted**: a dropped workbook's copy (~100 MB) when it is replaced or
-  closed, the session folder when the tool stops, and leftovers of earlier runs older than a day
+- **Temporary copies are deleted**: a dropped workbook's copy (~100 MB) and its practice folder
+  when it is replaced or closed (its change log closed first: Windows keeps open files, and a
+  closed workbook no longer holds one open all day), the session folder when the tool stops, and leftovers of earlier runs older than a day
   at start (Windows' temp folder no longer fills up over the weeks).
 - **Recent batches** shows the batches of the workbook in use only (the log holds all of them;
   undo of another workbook's batch was refused anyway).
