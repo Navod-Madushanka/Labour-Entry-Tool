@@ -1,5 +1,41 @@
 # Changelog
 
+## All day without a restart: reliability and data cleaning (1 Nov 2026)
+
+Asked for: the tool must work all day without crashing or slowing down, safely, with the
+suggestions as good as before. Measured first, on made-up data only:
+
+- **A long day** (`frontend/e2e/soak.cjs`, a made-up month of 250 workers): 11 days x 60 workers
+  entered at full speed with the suggestions, a push a day, window switches, tab changes and
+  commands. Picking a worker stayed at 45-60 ms from the first day to the last, pushes 0.3 s,
+  the server at 143-148 MB, the page at 7-8 MB; the page only grows by the new rows of Recent
+  batches (kept to 200). No leak: an early reading that looked like one was the test tool
+  holding on to elements, not the app.
+- **Waiting entries are kept.** The queue is saved per workbook as it changes: a reload, a
+  browser crash, a restart of the PC or a switch to another workbook no longer loses entries
+  that were not pushed yet ("Restored 12 entries that were waiting…"). Switching workbooks no
+  longer asks; closing a workbook asks, then drops its entries. Saved entries older than 3 days
+  are dropped.
+- **The Excel thread restarts itself** if it stopped (e.g. Excel crashed during a call), instead
+  of every request waiting until it timed out.
+- **Temporary copies are deleted**: a dropped workbook's copy (~100 MB) when it is replaced or
+  closed, the session folder when the tool stops, and leftovers of earlier runs older than a day
+  at start (Windows' temp folder no longer fills up over the weeks).
+- **Recent batches** shows the batches of the workbook in use only (the log holds all of them;
+  undo of another workbook's batch was refused anyway).
+- **Data cleaning:** odd cell values (text in times, #N/A, true/false, huge numbers, dates in
+  odd places) were fed through the readers, the calculations, every check and the health check
+  (`backend/tests/test_fuzz.py`, 40 rounds) and through the suggestions and the commands
+  (`frontend/tests/fuzz.test.cjs`, 300 runs): no crash. Requests with impossible values (times
+  past 48, hours out of range, huge remarks) are refused with a 422 instead of a server error.
+- **Suggestions unchanged:** `frontend/tests/suggestions.test.cjs` compares every code, time and
+  "usually together" suggestion for a made-up month with a saved reference (916 entries,
+  identical). The "usually on the same record" chips are now worked out only when their inputs
+  change.
+- Story progress older than two weeks is dropped from the browser's storage.
+- Two health-check tests no longer depend on the current month.
+- `npm test` runs the command, suggestion and junk-value tests.
+
 ## Commands moved to Codes & registration (31 Oct 2026)
 
 - The command box is now at the top of the **Codes & registration** tab, out of the way of

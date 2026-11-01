@@ -122,8 +122,12 @@ class AuditStore:
         rows = self._batches("WHERE b.id = ?", "", (batch_id,))
         return rows[0] if rows else None
 
-    def recent(self, limit: int = 20) -> list[Batch]:
-        return self._batches("", "ORDER BY b.id DESC LIMIT ?", (limit,))
+    def recent(self, limit: int = 20, workbook: str | None = None) -> list[Batch]:
+        """The latest batches, of one workbook when given (the log is shared by all of them)."""
+        if workbook is None:
+            return self._batches("", "ORDER BY b.id DESC LIMIT ?", (limit,))
+        where, tail = "WHERE b.workbook = ?", "ORDER BY b.id DESC LIMIT ?"
+        return self._batches(where, tail, (workbook, limit))
 
     def changes(self, batch_id: int) -> list[Change]:
         with self._lock:

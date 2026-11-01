@@ -59,6 +59,7 @@ def create_app(
         yield
         if app.state.worker is not None:
             app.state.worker.stop()
+        app.state.session.cleanup()
 
     import logging
     import time
@@ -90,7 +91,12 @@ def create_app(
     app.state.session = setup.Session(config)
 
     def get_worker() -> ExcelWorker:
-        if app.state.worker is None:
+        """The Excel thread; a new one if it is gone (it died, e.g. Excel crashed during a
+        call), so requests never wait forever on a thread that is not there."""
+        worker = app.state.worker
+        if worker is None or not worker.thread.is_alive():
+            if worker is not None:
+                slow_log.warning("the Excel thread had stopped: started a new one")
             app.state.worker = excel_worker()
         return app.state.worker
 

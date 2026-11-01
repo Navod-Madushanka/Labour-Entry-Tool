@@ -363,3 +363,67 @@ def test_add_activity_codes(app, small_snapshot, tmp_path):
         undo = c.post(f"/api/batches/{res['batch_id']}/undo", json={"user": USER}).json()
         assert undo["status"] == "undone", undo
         assert "03-31-05-35-P" not in c.get("/api/master?fresh=true").json()["activities"]
+
+
+# --- reliability: all day without a restart ------------------------------------------------------
+
+
+def test_a_stopped_excel_thread_is_replaced(app, small_snapshot, tmp_path):
+    path = save_snapshot(small_snapshot, tmp_path / "Labour Entry Sheet October 2026.json")
+    setup_api.choose(app, path, path.name, practice=True, real_file=False)
+    with TestClient(app) as c:
+        assert c.get("/api/master").status_code == 200
+        app.state.worker.stop()  # the thread is gone (as if Excel crashed under it)
+        assert not app.state.worker.thread.is_alive()
+        assert c.get("/api/master?fresh=true").status_code == 200  # a new thread took over
+
+
+def test_dropped_copies_are_deleted(app, small_snapshot, tmp_path):
+    import json
+
+    session = app.state.session
+    data = json.dumps(small_snapshot.model_dump(mode="json")).encode()
+    first = session.save_upload("Labour Entry Sheet October 2026.json", data)
+    setup_api.choose(app, first, first.name, practice=True, real_file=False)
+    second = session.save_upload("Labour Entry Sheet October 2026.json", data)
+    setup_api.choose(app, second, second.name, practice=True, real_file=False)
+    assert not first.exists() and second.exists()  # the replaced copy is gone
+    with TestClient(app) as c:
+        c.post("/api/setup/close", json={"name": second.name})
+    assert not second.exists()  # closing deletes its copy
+    work = session.work
+    session.cleanup()
+    assert not work.exists()
+
+
+def test_old_temp_folders_are_swept(tmp_path, monkeypatch):
+    import os
+    import time as _time
+
+    monkeypatch.setattr(setup_api.tempfile, "gettempdir", lambda: str(tmp_path))
+    old, new = tmp_path / "labour_tool_old", tmp_path / "labour_tool_new"
+    other = tmp_path / "someone_elses"
+    for d in (old, new, other):
+        d.mkdir()
+    two_days_ago = _time.time() - 2 * 86400
+    os.utime(old, (two_days_ago, two_days_ago))
+    os.utime(other, (two_days_ago, two_days_ago))
+    assert setup_api.sweep_old_temp_folders() == 1
+    assert not old.exists() and new.exists() and other.exists()
+
+
+def test_recent_batches_are_the_workbooks_own(app, small_snapshot, tmp_path):
+    a = tmp_path / "A October 2026.json"
+    b = tmp_path / "B October 2026.json"
+    save_snapshot(_named(small_snapshot, a.name), a)
+    save_snapshot(_named(small_snapshot, b.name), b)
+    entry = {"sheet": "1", "calling_name": "INB-01 CH", "time_in": 7, "time_out": 19,
+             "activities": [{"code": "03-11-00-00", "hours": 11}], "overwrite": True,
+             "acknowledged": ["W02", "W03", "W04", "W05", "W06", "W07", "W08"]}  # fmt: skip
+    with TestClient(app) as c:
+        for p in (a, b):
+            setup_api.choose(app, p, p.name, practice=True, real_file=False)
+            res = c.post("/api/entries", json={"entries": [entry], "user": USER}).json()
+            assert res["status"] == "written", res
+        own = c.get("/api/batches").json()
+        assert [x["workbook"] for x in own] == [b.name]  # B's only, though the log holds both

@@ -65,7 +65,7 @@ async def run_service(
     service: EntryService = request.app.state.get_service()
     try:
         return await asyncio.wait_for(
-            request.app.state.worker.run(fn, service), EXCEL_WAIT if wait is None else wait
+            request.app.state.get_worker().run(fn, service), EXCEL_WAIT if wait is None else wait
         )
     except TimeoutError as exc:
         raise HTTPException(

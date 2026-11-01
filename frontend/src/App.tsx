@@ -20,7 +20,7 @@ import { StoryNote, StoryReader } from "./components/StoryCorner";
 import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
 import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
 import { topActivities, usualPartners, type Month } from "./history";
-import { store } from "./store";
+import { loadQueue, pruneOldDays, saveQueue, store } from "./store";
 import { formatShift, parseClock } from "./time";
 
 const HEADER_RULES = ["H01", "H02"];
@@ -374,11 +374,38 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   };
 
   // Entries waiting in the queue belong to this workbook: leaving drops them, so ask first.
-  const leave = (go: () => void) => {
-    const n = queue.length;
-    if (n && !window.confirm(`${n} ${n === 1 ? "entry is" : "entries are"} still waiting to go to Excel. They are dropped if you leave this workbook now. Leave anyway?`)) return;
-    go();
+  // Waiting entries are saved per workbook (below), so switching to another workbook keeps them
+  // for when you come back. Only closing a workbook drops them, after asking.
+  const leave = (go: () => void) => go();
+  const closeBook = (name: string) => {
+    const waiting = master && name === master.workbook ? queue.length : loadQueue(name)?.inputs.length ?? 0;
+    if (waiting && !window.confirm(`${waiting} ${waiting === 1 ? "entry is" : "entries are"} still waiting to go to Excel for ${name}. Closing drops ${waiting === 1 ? "it" : "them"}. Close anyway?`)) return;
+    saveQueue(name, []);
+    if (master && name === master.workbook) {
+      restored.current = false; // nothing is saved again for the closed workbook
+      setQueue([]);
+    }
+    onCloseBook(name);
   };
+
+  // The queue survives a reload, a browser crash or a switch to another workbook: saved on every
+  // change, put back when the workbook's entry screen opens.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!master || restored.current) return;
+    restored.current = true;
+    pruneOldDays();
+    const saved = loadQueue<EntryInput>(master.workbook);
+    if (saved) {
+      addToQueue(saved.inputs);
+      const at = new Date(saved.saved).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      setMessage(`Restored ${saved.inputs.length} ${saved.inputs.length === 1 ? "entry" : "entries"} that ${saved.inputs.length === 1 ? "was" : "were"} waiting to go to Excel (saved ${at}). Check them on the manpower sheet, then push.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [master]);
+  useEffect(() => {
+    if (master && restored.current) saveQueue(master.workbook, queue.map((q) => q.input));
+  }, [queue, master]);
 
   const activityOrder = useMemo(() => {
     if (!master) return [];
@@ -438,7 +465,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         onSwitch={(name) => leave(() => onSwitch(name))}
         onAddWorkbook={() => leave(onAddWorkbook)}
         // Closing the workbook in use drops its waiting entries (ask); another one: nothing to lose.
-        onCloseBook={(name) => (books.find((b) => b.name === name)?.active ? leave(() => onCloseBook(name)) : onCloseBook(name))}
+        onCloseBook={closeBook}
         story={{
           on: storyOn,
           unlocked: dayState().chapters,

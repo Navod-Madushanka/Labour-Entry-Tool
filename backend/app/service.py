@@ -1095,7 +1095,7 @@ class EntryService:
         self.unsaved = False
 
     def recent_batches(self, limit: int = 20) -> list[Batch]:
-        return self.audit.recent(limit)
+        return self.audit.recent(limit, workbook=self.workbook.name)
 
 
 def _range_changes(write: RangeWrite, old: dict[str, CellValue]) -> bool:

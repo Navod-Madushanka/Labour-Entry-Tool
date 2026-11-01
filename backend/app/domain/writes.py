@@ -34,22 +34,27 @@ from app.excel.refs import cell_ref, col_to_index, parse_range
 ACKNOWLEDGEABLE_BLOCKS = frozenset({"H01", "H02"})
 
 
+# Bounds on what a request may carry (anything outside is a typing or program error, refused with
+# a 422 before it reaches the checks): times up to 48 (an overnight Out is written past 24).
+TIME = Field(None, ge=0, le=48)
+
+
 class ActivityInput(BaseModel):
-    code: str | None = None
-    hours: float | None = None
+    code: str | None = Field(None, max_length=60)
+    hours: float | None = Field(None, ge=0, le=48)
 
 
 class EntryInput(BaseModel):
     """One worker-day as the user typed it. All blank (no times, activities, additional, remark)
     clears the block."""
 
-    sheet: str
-    calling_name: str
-    time_in: float | None = None
-    time_out: float | None = None
-    activities: list[ActivityInput] = Field(default_factory=list)
-    additional: float | None = None
-    remark: str | None = None
+    sheet: str = Field(max_length=31)
+    calling_name: str = Field(max_length=60)
+    time_in: float | None = TIME
+    time_out: float | None = TIME
+    activities: list[ActivityInput] = Field(default_factory=list, max_length=20)
+    additional: float | None = Field(None, ge=-24, le=24)
+    remark: str | None = Field(None, max_length=500)
     overwrite: bool = False  # E08: allow replacing a block that already has input
     acknowledged: list[str] = Field(default_factory=list)  # WARN rules, H01, H02 confirmed
 

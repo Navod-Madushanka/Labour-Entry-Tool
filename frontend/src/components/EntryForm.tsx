@@ -759,12 +759,20 @@ function AlsoFor({
   const crews = Object.entries(loadCrews()).filter(([, names]) => names.length);
   // Workers who usually share this record: not yet entered or waiting for this day.
   const byName = new Map(workers.map((w) => [w.calling_name, w]));
-  const suggested = companions(
-    month,
-    [...taken],
-    Number(sheet),
-    new Set(workers.filter((w) => entered(w.calling_name) || queued.has(w.calling_name)).map((w) => w.calling_name)),
-  ).filter((c) => byName.has(c.name));
+  // Worked out only when its inputs change (not on every keystroke elsewhere in the form).
+  const takenKey = [...taken].join("|");
+  const queuedKey = [...queued].join("|");
+  const suggested = useMemo(
+    () =>
+      companions(
+        month,
+        [...taken],
+        Number(sheet),
+        new Set(workers.filter((w) => entered(w.calling_name) || queued.has(w.calling_name)).map((w) => w.calling_name)),
+      ).filter((c) => byName.has(c.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [month, takenKey, sheet, workers, queuedKey],
+  );
   // Enter clears the search for the next name; a click keeps the results to click more of them.
   const add = (list: Worker[], keepSearch = false) => {
     setAlso([...also, ...list.filter((w) => !taken.has(w.calling_name))]);

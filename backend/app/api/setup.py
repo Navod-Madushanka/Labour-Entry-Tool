@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import shutil
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -116,6 +118,7 @@ class Session:
         self.books: dict[str, Book] = {}
         self.active: str | None = None
         self.settings = BookSettings(base.settings_file)
+        sweep_old_temp_folders()
         self.work = Path(tempfile.mkdtemp(prefix="labour_tool_"))
         self.lock = threading.Lock()
         self._uploads = 0
@@ -123,6 +126,20 @@ class Session:
     @property
     def book(self) -> Book | None:
         return self.books.get(self.active) if self.active else None
+
+    def discard_upload(self, path: str | Path | None) -> None:
+        """Delete a dropped file's copy (its numbered folder) once nothing uses it: a replaced or
+        closed workbook, a replaced registration file. Files outside the session folder (the real
+        workbook chosen with Browse) are never touched."""
+        if path is None:
+            return
+        folder = Path(path).parent
+        if folder.parent == self.work and folder.name.isdigit():
+            shutil.rmtree(folder, ignore_errors=True)
+
+    def cleanup(self) -> None:
+        """The session folder (dropped copies, practice files) when the tool stops."""
+        shutil.rmtree(self.work, ignore_errors=True)
 
     def save_upload(self, filename: str, data: bytes) -> Path:
         with self.lock:
@@ -179,6 +196,25 @@ class Session:
             for x in self.books.values()
         ]  # fmt: skip
         return s
+
+
+STALE_TEMP = 24 * 3600  # seconds: session folders older than this are leftovers of earlier runs
+
+
+def sweep_old_temp_folders() -> int:
+    """Delete the tool's temporary folders left by earlier runs (a closed window does not clean
+    up): dropped workbook copies are ~100 MB each and would pile up in Windows' temp folder."""
+    removed = 0
+    now = time.time()
+    for prefix in ("labour_tool_", "labour_demo_", "labour_two_books_"):
+        for folder in Path(tempfile.gettempdir()).glob(f"{prefix}*"):
+            try:
+                if folder.is_dir() and now - folder.stat().st_mtime > STALE_TEMP:
+                    shutil.rmtree(folder, ignore_errors=True)
+                    removed += 1
+            except OSError:
+                continue
+    return removed
 
 
 def live_available() -> bool:
@@ -252,6 +288,8 @@ def choose(app, path: Path | None, name: str, practice: bool, real_file: bool) -
         book.service = live_named_service(config, name, path if real_file else None)
     else:
         book.service = practice_service(config, snapshot, session.work)
+    if (old := session.books.get(name)) is not None and old.path != book.path:
+        session.discard_upload(old.path)  # the copy of the workbook it replaces
     session.books[name] = book
     _activate(app, session, name)
     return session.state
@@ -397,7 +435,10 @@ def switch(body: NameRequest, request: Request) -> SetupState:
 def close(body: NameRequest, request: Request) -> SetupState:
     """Take a workbook off this session's list (the file and Excel are not touched)."""
     session = _session(request)
-    if session.books.pop(body.name, None) is None:
+    closed = session.books.pop(body.name, None)
+    if closed is not None:
+        session.discard_upload(closed.path)
+    if closed is None:
         raise HTTPException(404, f"{body.name} is not open here.")
     if session.active == body.name:
         rest = list(session.books)
@@ -505,6 +546,8 @@ async def add_registration(request: Request, filename: str = Query(...)) -> Setu
     session = _session(request)
     name = _check_name(filename, REGISTRATION_TYPES)
     path = session.save_upload(name, await _body(request))
+    for old in [p for p in session.state.registration_files if Path(p).name == name]:
+        session.discard_upload(old)
     files = [p for p in session.state.registration_files if Path(p).name != name]
     session.state.registration_files = [*files, str(path)]
     _apply(request, session)

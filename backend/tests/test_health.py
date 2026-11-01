@@ -137,7 +137,8 @@ def snap_file(tmp_path, small_snapshot):
 
 def test_cli_writes_csv(snap_file, tmp_path, capsys):
     out = tmp_path / "report.csv"
-    assert cli.main([str(snap_file), "--csv", str(out), "--holiday", "2026-10-25"]) == 0
+    args = [str(snap_file), "--month", "2026-10", "--csv", str(out), "--holiday", "2026-10-25"]
+    assert cli.main(args) == 0  # the month given: the default is this month
     printed = capsys.readouterr().out
     assert "Holidays used for H02: 2026-10-25" in printed
     assert "Labour Detail!G5 INC-02" in printed
@@ -148,7 +149,9 @@ def test_cli_writes_csv(snap_file, tmp_path, capsys):
 
 
 def test_cli_holiday_override(snap_file, tmp_path, capsys):
-    cli.main([str(snap_file), "--csv", str(tmp_path / "a.csv"), "--no-holidays"])
+    cli.main(
+        [str(snap_file), "--month", "2026-10", "--csv", str(tmp_path / "a.csv"), "--no-holidays"]
+    )
     assert "sheet 25 H3: Day type marked Holiday, but 2026-10-25 is not in the holiday list" in (
         capsys.readouterr().out
     )
