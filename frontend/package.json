@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/commands.test.cjs && node tests/sql.test.cjs && node tests/suggestions.test.cjs && node tests/fuzz.test.cjs"
+    "test": "node tests/commands.test.cjs && node tests/sql.test.cjs && node tests/suggestions.test.cjs && node tests/fuzz.test.cjs && node tests/dinner.test.cjs"
   },
   "dependencies": {
     "preact": "10.24.3",

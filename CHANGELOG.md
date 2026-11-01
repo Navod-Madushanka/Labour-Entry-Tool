@@ -1,5 +1,17 @@
 # Changelog
 
+## Out at 22:00 takes off dinner (1 Nov 2026)
+
+Asked for: when Time Out is 22, 2 hours must come off (in Excel, -1 in Additional hours); it
+did not happen automatically.
+
+- Typing or picking Time Out exactly 22:00 now fills **-1** in Additional hours and *dinner* in
+  Remarks (an existing remark is kept). Worked hours and the activity hours update at once.
+- Changing Out away from 22:00 takes the automatic values out again. Clearing Additional by hand
+  (no dinner taken) is left alone; a value typed in Additional is never replaced.
+- Not for 22:00 the next morning (Excel already takes off 2 h after 22:00).
+- Tests: `tests/dinner.test.cjs` (in `npm test`) and `e2e/dinner.cjs`, on made-up data.
+
 ## SQL in the command box (1 Nov 2026)
 
 Asked for: full SQL in the command feature (names starting with B or ending with S, SELECT …

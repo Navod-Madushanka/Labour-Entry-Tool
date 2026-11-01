@@ -279,3 +279,20 @@ export function withTimes(input: EntryInput, tin: number | null, tout: number | 
   }
   return { ...input, time_in: tin, time_out: tout, activities };
 }
+
+/** Excel takes off only lunch when Out is exactly 22:00, so staff put -1 in Additional hours
+ * (remark "dinner") to take off dinner too. Returns the form with that filled in when Out becomes
+ * 22:00 and Additional is blank, or taken out again when Out changes away from 22:00 and the
+ * values are still the ones filled in automatically (`wasAuto`). Null = nothing to change. */
+export function dinnerFix(f: FormState, wasAuto: boolean): { form: FormState; auto: boolean } | null {
+  const tout = parseClock(f.timeOut);
+  const at22 = tout === 22 && !isOvernight(f);
+  if (at22 && !f.additional.trim()) {
+    return { form: { ...f, additional: "-1", remark: f.remark.trim() ? f.remark : "dinner" }, auto: true };
+  }
+  if (!at22 && wasAuto) {
+    if (f.additional.trim() !== "-1") return { form: f, auto: false };
+    return { form: { ...f, additional: "", remark: f.remark.trim() === "dinner" ? "" : f.remark }, auto: false };
+  }
+  return null;
+}

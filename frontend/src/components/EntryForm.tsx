@@ -9,6 +9,7 @@ import {
   fromEntry,
   hasProblems,
   isOvernight,
+  dinnerFix,
   LINES,
   toInput,
   type FormState,
@@ -147,6 +148,16 @@ export function EntryForm(props: Props) {
   useEffect(() => {
     if (!form.timeIn && !form.timeOut) setAutoTimes(false); // cleared (next worker, Esc)
   }, [form.timeIn, form.timeOut]);
+  // Out exactly 22:00: put -1 (dinner) in Additional hours, as staff do in Excel. Runs only when
+  // Out or Next day changes, so clearing Additional by hand (no dinner) is left alone.
+  const dinnerAuto = useRef(false);
+  useLayoutEffect(() => {
+    const fix = dinnerFix(form, dinnerAuto.current);
+    if (!fix) return;
+    dinnerAuto.current = fix.auto;
+    if (fix.form !== form) setForm(fix.form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.timeOut, form.timeIn, form.overnight]);
   const focusIn = () => focus("in");
   // The suggested time lands in the box after the focus: select it right then (before the next key),
   // so typing replaces it.
