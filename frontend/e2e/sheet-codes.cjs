@@ -51,6 +51,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   // rename 03-11-00-00 (AAA-02) to 03-11-00-00-P from the code cell
   await p.getByRole("button", { name: "Change code 03-11-00-00", exact: true }).click();
   await p.keyboard.press("Control+a"); await p.keyboard.type("03-11-00-00-P"); await p.keyboard.press("Enter");
+  await p.waitForFunction(() => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.innerText.includes("AAA-02") && r.innerText.includes("03-11-00-00-P")));
   await settle();
   const q3 = (await p.locator(".queue tbody tr", { hasText: "AAA-02" }).innerText()).replace(/\s+/g, " ");
   console.log("renamed:", q3.slice(0, 120));
