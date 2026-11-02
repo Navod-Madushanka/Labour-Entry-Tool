@@ -14,7 +14,7 @@ from app.setup import guess_month, month_from_name, next_sheet
 from .conftest import FIXTURES
 
 REAL = FIXTURES / "private" / "Labour Entry Sheet October 2026 - INDIAN (2).xlsb"
-USER = "Navod"
+USER = "Clerk"
 
 
 def test_month_from_name():

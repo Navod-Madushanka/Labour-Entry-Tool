@@ -858,7 +858,7 @@ one batch after 2 bulk confirmations.
 
 ## Medical leave (27 Oct 2026)
 
-Office practice (from Navod): a worker on medical leave gets a medical line `<base> M` (e.g.
+Office practice (from the site office): a worker on medical leave gets a medical line `<base> M` (e.g.
 `INC-08 M`) with 10 days, Sundays skipped, In 7 Out 16, activity `00-00-10-00`.
 
 - `domain/medical.py`: medical name and working-day planning (Sundays skipped, holidays optional,

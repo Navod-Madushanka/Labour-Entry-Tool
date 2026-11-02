@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
   global.P = p;
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type()==='error' && errs.push(m.text()));
   p.on('dialog', d => d.accept());
-  await p.addInitScript(() => localStorage.setItem('labour.user', 'Navod'));
+  await p.addInitScript(() => localStorage.setItem('labour.user', 'Clerk'));
   await p.goto((process.env.BASE_URL || 'http://127.0.0.1:8000') + '/');
   await p.getByRole('tab', { name: '26', exact: true }).click();
   await p.getByRole('button', { name: /Medical leave/ }).click();

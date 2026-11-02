@@ -1,7 +1,7 @@
 # Labour Entry Tool — Build Plan
 
 > **Audience:** the coding agent building this tool. Read this whole file before writing code.
-> **Owner:** Navod (data entry, Mäga Engineering, KMTT site / project 525M).
+> **Owner:** site data entry (Mäga Engineering, KMTT site / project 525M).
 > **Status:** v1 plan, 26 Oct 2026. Every workbook fact in §5 was checked against the real files listed in §5.1.
 
 ---

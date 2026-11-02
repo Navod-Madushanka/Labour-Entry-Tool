@@ -45,14 +45,14 @@ def test_preview_writes_nothing(client, fake):
 
 
 def test_commit_undo_save(client, fake):
-    res = client.post("/api/entries", json={"user": "Navod", "entries": [ENTRY]}).json()
+    res = client.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]}).json()
     assert res["status"] == "written" and res["readback"][0]["ok"]
     assert fake.read_range("1", "G16:H16") == [[7.0, 19.0]]
     [batch] = client.get("/api/batches").json()
-    assert (batch["id"], batch["user"], batch["cells"]) == (res["batch_id"], "Navod", 4)
+    assert (batch["id"], batch["user"], batch["cells"]) == (res["batch_id"], "Clerk", 4)
     assert client.get("/api/status").json()["unsaved_changes"] is True
 
-    undo = client.post(f"/api/batches/{res['batch_id']}/undo", json={"user": "Navod"}).json()
+    undo = client.post(f"/api/batches/{res['batch_id']}/undo", json={"user": "Clerk"}).json()
     assert undo["status"] == "undone"
     assert fake.read_range("1", "G16:H16") == [[None, None]]
 
@@ -62,9 +62,9 @@ def test_commit_undo_save(client, fake):
 
 def test_rejected_and_dry_run(client, fake):
     bad = {**ENTRY, "calling_name": "INB-01"}  # has input already: E08
-    res = client.post("/api/entries", json={"user": "Navod", "entries": [bad]}).json()
+    res = client.post("/api/entries", json={"user": "Clerk", "entries": [bad]}).json()
     assert res["status"] == "rejected" and res["plans"][0]["blocking"][0]["rule"] == "E08"
-    res = client.post("/api/entries", json={"user": "Navod", "entries": [ENTRY], "dry_run": True})
+    res = client.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY], "dry_run": True})
     assert res.json()["status"] == "dry_run" and fake.batches == []
 
 
@@ -99,7 +99,7 @@ def test_excel_switched_off():
 
 def test_busy_excel_is_a_conflict(client, fake):
     fake.busy_failures = 1
-    res = client.post("/api/entries", json={"user": "Navod", "entries": [ENTRY]}).json()
+    res = client.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]}).json()
     assert res["status"] == "failed" and "busy" in res["error"]
 
 
@@ -123,7 +123,7 @@ def test_master_and_day(client, fake):
 
 def test_day_view_refreshes_after_a_write(client):
     assert len(client.get("/api/days/1").json()["entries"]) == 2
-    client.post("/api/entries", json={"user": "Navod", "entries": [ENTRY]})
+    client.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]})
     assert len(client.get("/api/days/1").json()["entries"]) == 3
 
 
@@ -134,7 +134,7 @@ def test_preview_has_day_counts(client):
 
 def test_header_fix_needs_approval(client, fake):
     fake.grids["1"][(3, 8)] = "Sunday"
-    body = {"user": "Navod", "fields": ["day_type"]}
+    body = {"user": "Clerk", "fields": ["day_type"]}
     assert client.post("/api/days/1/header-fix", json=body).status_code == 422
     res = client.post("/api/days/1/header-fix", json={**body, "approve": True}).json()
     assert res["status"] == "written" and res["changes"] == {"H3": ["Sunday", "Normal Day"]}
@@ -150,6 +150,6 @@ def test_demo_mode(tmp_path, small_snapshot):
     config = Config(month="2026-10")
     with TestClient(create_app(config, lambda cfg: demo_service(cfg, path))) as c:
         assert c.get("/api/status").json()["mode"] == "demo"
-        res = c.post("/api/entries", json={"user": "Navod", "entries": [ENTRY]}).json()
+        res = c.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]}).json()
         assert res["status"] == "written"
     assert path.read_text() == save_snapshot(small_snapshot, tmp_path / "again.json").read_text()

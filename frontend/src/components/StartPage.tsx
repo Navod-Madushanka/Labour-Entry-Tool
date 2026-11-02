@@ -404,7 +404,7 @@ function ChooseStep(props: ChooseProps) {
           id="start-user"
           value={user}
           onChange={(e) => setUser(e.target.value)}
-          placeholder="e.g. Navod"
+          placeholder="e.g. Site clerk"
           autoFocus={nameMissing}
         />
       </div>

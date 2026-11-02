@@ -65,7 +65,7 @@ def test_print_job_in_practice_mode(small_snapshot, tmp_path, monkeypatch):
         assert sheets[0] == {"sheet": "Time Card (Internal)", "cell": "E8", "current": None,
                              "practice": True, "note": None}  # fmt: skip
         body = {"sheet": "Time Card (Internal)", "cell": "E8", "names": ["INB-01", "INC-02"],
-                "user": "Navod"}  # fmt: skip
+                "user": "Clerk"}  # fmt: skip
         job = c.post("/api/timecards/print", json=body).json()
         assert job["running"] and job["total"] == 2 and job["practice"]
         job = wait_done(c)
@@ -80,7 +80,7 @@ def test_print_job_in_practice_mode(small_snapshot, tmp_path, monkeypatch):
 def test_print_job_refuses_bad_requests(small_snapshot, tmp_path):
     app = practice_app(small_snapshot, tmp_path)
     with TestClient(app) as c:
-        base = {"sheet": "Time Card (Internal)", "cell": "E8", "user": "Navod"}
+        base = {"sheet": "Time Card (Internal)", "cell": "E8", "user": "Clerk"}
         res = c.post("/api/timecards/print", json={**base, "names": ["INB-01", "XYZ-99"]})
         assert res.status_code == 422 and "XYZ-99" in res.json()["detail"]
         res = c.post("/api/timecards/print", json={**base, "sheet": "1", "names": ["INB-01"]})
@@ -93,7 +93,7 @@ def test_print_job_stops_between_cards(small_snapshot, tmp_path):
     app = practice_app(small_snapshot, tmp_path)
     with TestClient(app) as c:
         names = ["INB-01", "INC-02", "INH-03", "INB-01 CH"] * 5
-        body = {"sheet": "Time Card (Internal)", "cell": "E8", "names": names, "user": "Navod"}
+        body = {"sheet": "Time Card (Internal)", "cell": "E8", "names": names, "user": "Clerk"}
         c.post("/api/timecards/print", json=body)
         c.post("/api/timecards/stop")
         job = wait_done(c)

@@ -74,7 +74,7 @@ def test_preview_adds_row_and_flags(setup):
 def test_write_reads_back_and_undo_order(setup):
     svc, fake = setup
     req = MedicalRequest(base="INB-01", start="2", days=3, acknowledged={"3": ["W09"]})
-    res = svc.medical_leave(req, "Navod")
+    res = svc.medical_leave(req, "Clerk")
     assert (
         res.status == "written" and res.row.status == "written" and res.entries.status == "written"
     )
@@ -89,22 +89,22 @@ def test_write_reads_back_and_undo_order(setup):
         8.0,
     )
     assert e.cached.upload[0].employee == "X10001"
-    assert svc.undo(res.row.batch_id, "Navod").status == "conflict"  # entries still there
-    assert svc.undo(res.entries.batch_id, "Navod").status == "undone"
-    assert svc.undo(res.row.batch_id, "Navod").status == "undone"
+    assert svc.undo(res.row.batch_id, "Clerk").status == "conflict"  # entries still there
+    assert svc.undo(res.entries.batch_id, "Clerk").status == "undone"
+    assert svc.undo(res.row.batch_id, "Clerk").status == "undone"
     assert fake.read_range("Labour Detail", "A7:G7") == [[None] * 7]
 
 
 def test_existing_medical_line_is_reused(setup):
     svc, _ = setup
-    svc.medical_leave(MedicalRequest(base="INB-01", start="2", days=1), "Navod")
+    svc.medical_leave(MedicalRequest(base="INB-01", start="2", days=1), "Clerk")
     plan = svc.medical_preview(MedicalRequest(base="INB-01", start="5", days=1))
     assert (plan.row, plan.new_row) == (7, False)
 
 
 def test_unconfirmed_warning_writes_nothing(setup):
     svc, fake = setup
-    res = svc.medical_leave(MedicalRequest(base="INB-01", start="2", days=3), "Navod")  # W09 on 3
+    res = svc.medical_leave(MedicalRequest(base="INB-01", start="2", days=3), "Clerk")  # W09 on 3
     assert res.status == "rejected" and fake.batches == []
     assert not any(w.calling_name == "INB-01 M" for w in fake.read_master().workers)
 
@@ -115,8 +115,8 @@ def test_api(setup):
         body = {"base": "INB-01", "start": "5", "days": 1}
         plan = c.post("/api/medical/preview", json=body).json()
         assert plan["name"] == "INB-01 M" and plan["plans"][0]["ok"]
-        assert c.post("/api/medical", json={**body, "user": "Navod"}).status_code == 422  # approve
-        res = c.post("/api/medical", json={**body, "user": "Navod", "approve": True}).json()
+        assert c.post("/api/medical", json={**body, "user": "Clerk"}).status_code == 422  # approve
+        res = c.post("/api/medical", json={**body, "user": "Clerk", "approve": True}).json()
         assert res["status"] == "written" and res["row"]["written"]["A7"] == [None, "INB-01 M"]
 
 

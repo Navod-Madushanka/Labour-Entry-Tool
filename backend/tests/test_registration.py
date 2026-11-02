@@ -282,7 +282,7 @@ def service(small_snapshot, tmp_path):
 
 def test_write_codes_and_undo(service):
     svc, fake = service
-    res = svc.write_codes([CodeWrite(row=5, calling_name="INC-02", code="xin090")], "Navod")
+    res = svc.write_codes([CodeWrite(row=5, calling_name="INC-02", code="xin090")], "Clerk")
     assert res.status == "written" and res.mismatches == []
     assert res.written == {"G5": ("#N/A", "XIN090")}
     assert fake.read_range("Labour Detail", "G5") == [["XIN090"]]
@@ -290,7 +290,7 @@ def test_write_codes_and_undo(service):
     assert fake.read_day("1").entries[1].cached.upload[6].employee == "XIN090"
     assert svc.master_view().workers[2].code_status == "valid"
     assert svc.audit.batch(res.batch_id).note == "employee codes" and fake.copies
-    undo = svc.undo(res.batch_id, "Navod")
+    undo = svc.undo(res.batch_id, "Clerk")
     assert undo.status == "undone" and "blank now" in undo.note
     assert fake.read_range("Labour Detail", "G5") == [[None]]  # formula result cannot come back
 
@@ -303,7 +303,7 @@ def test_write_codes_refusals(service):
         CodeWrite(row=6, calling_name="INH-03", code="X1"),  # malformed
         # INH-03 shares INB-01's ID and name but not its base code: X10001 stays INB-01's.
         CodeWrite(row=6, calling_name="INH-03", code="X10001"),
-    ], "Navod")  # fmt: skip
+    ], "Clerk")  # fmt: skip
     assert res.status == "rejected"
     assert res.problems == ["Row 5 is INC-02 now, not INB-01.", "INB-01 already has X10001.",
                             "'X1' for INH-03 is not X##### or XIN###.",
@@ -338,7 +338,7 @@ def test_api(small_snapshot, indian_file, supply_file, tmp_path):
         assert len(codes["conflicts"]) == 3
         assert "one character" in c.get("/api/codes/conflicts.csv").text
         item = {"row": 5, "calling_name": "INC-02", "code": "XIN090"}
-        body = {"user": "Navod", "items": [item]}
+        body = {"user": "Clerk", "items": [item]}
         assert c.post("/api/codes/write", json=body).status_code == 422  # not approved
         res = c.post("/api/codes/write", json={**body, "approve": True}).json()
         assert res["status"] == "written" and res["written"] == {"G5": ["#N/A", "XIN090"]}

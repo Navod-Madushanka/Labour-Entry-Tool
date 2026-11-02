@@ -16,7 +16,7 @@ from app.excel.fake_adapter import FakeWorkbook
 from app.excel.worker import ExcelWorker
 from app.service import EntryService
 
-USER = "Navod"
+USER = "Clerk"
 
 
 def acts(hours, code="03-11-00-00"):
