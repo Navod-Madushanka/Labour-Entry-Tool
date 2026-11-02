@@ -126,4 +126,15 @@ t("explain and suggest", () => {
   assert.ok(s("SELECT * FROM labor WHERE ").includes("calling_name"));
   assert.ok(s("SELECT calling_name FROM labor ").includes("WHERE"));
 });
+t("split statements, comments, quotes", () => {
+  const parts = S.splitSql("SELECT 1 FROM days; -- a note\nSELECT calling_name FROM workers WHERE calling_name = 'A;B' ;\n\n");
+  assert.equal(parts.length, 2);
+  assert.equal(parts[1].text, "SELECT calling_name FROM workers WHERE calling_name = 'A;B'");
+  assert.ok(parts[0].end < parts[1].start);
+  assert.equal(S.splitSql("-- only a comment").length, 0);
+  assert.equal(sql(S.splitSql("-- headcount\nSELECT COUNT(*) FROM entries WHERE day = 1")[0].text).table.rows[0][0], 9);
+  const counts = S.sqlRowCounts(ctx());
+  assert.equal(counts.workers, 9); assert.equal(counts.days, 31); assert.equal(counts.entries, 45);
+  assert.ok(S.SQL_SCHEMA.find((x) => x.name === "entries").cols.find((c) => c.name === "out").writable);
+});
 console.log(`sql: ${n} tests passed`);

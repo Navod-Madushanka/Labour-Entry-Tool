@@ -653,3 +653,74 @@ details.card > summary .badge { margin-left: 6px; }
 .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+/* SQL panel (Codes & registration) */
+.sqlws { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--info); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; box-shadow: var(--shadow); }
+.sqlws.closed { border-top-width: 1px; padding: 8px 14px; }
+.sqlws-head h2 { margin-bottom: 8px; }
+.sqlws-body { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 12px; }
+@media (max-width: 860px) { .sqlws-body { grid-template-columns: 1fr; } .sqlws-tree { max-height: 220px; } }
+.sqlws-tree { border: 1px solid var(--line); border-radius: 6px; padding: 6px; max-height: 640px; overflow: auto; font-size: 13px; background: var(--row); }
+.tree-title { font-weight: 600; padding: 2px 4px 6px; }
+.tree-row { display: flex; align-items: center; gap: 2px; }
+.tree-toggle, .tree-name, .tree-col { background: none; border: none; padding: 2px 4px; color: var(--text); font: inherit; cursor: pointer; text-align: left; border-radius: 4px; }
+.tree-name { flex: 1; font-weight: 600; }
+.tree-name:hover, .tree-col:hover { background: var(--info-bg); }
+.tree-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; padding-right: 4px; }
+.tree-cols { list-style: none; margin: 0 0 4px 18px; padding: 0; }
+.tree-col { width: 100%; font-size: 12.5px; }
+.tree-col .type { display: inline-block; width: 16px; text-align: center; font-size: 11px; color: var(--muted); }
+.tree-col .t-number { color: var(--c3); } .tree-col .t-time { color: var(--c2); } .tree-col .t-text { color: var(--c1); }
+.tree-w { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.sqlws-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.sqlws-tabs button { background: none; border: 1px solid transparent; border-bottom: none; padding: 5px 12px; border-radius: 6px 6px 0 0; color: var(--muted); }
+.sqlws-tabs button.active { border-color: var(--line); background: var(--panel); color: var(--text); font-weight: 600; margin-bottom: -1px; }
+.sqlws-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+.sqlws-toolbar select { max-width: 260px; }
+.sqlws-toolbar.data-filter input { flex: 1; min-width: 200px; font-family: Consolas, "Cascadia Mono", Menlo, monospace; }
+.sqlws-editor, .sqlws-probe { font: 13px/20px Consolas, "Cascadia Mono", Menlo, monospace; }
+.sqlws-probe { position: absolute; visibility: hidden; white-space: pre; }
+.sqlws-editor { display: flex; height: 190px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); resize: vertical; }
+.sqlws-editor:focus-within { border-color: var(--info); box-shadow: 0 0 0 2px var(--info-bg); }
+.sqlws-editor .gutter { width: 40px; padding: 8px 6px 8px 0; text-align: right; color: var(--muted); background: var(--row); border-right: 1px solid var(--line); overflow: hidden; user-select: none; }
+.sqlws-editor .code { position: relative; flex: 1; min-width: 0; }
+.sqlws-editor .hl, .sqlws-editor textarea { position: absolute; inset: 0; margin: 0; padding: 8px; font: inherit; white-space: pre; overflow: auto; tab-size: 2; border: none; border-radius: 0; }
+.sqlws-editor .hl { overflow: hidden; color: var(--text); pointer-events: none; }
+.sqlws-editor textarea { background: transparent; color: transparent; caret-color: var(--text); resize: none; outline: none; width: 100%; height: 100%; }
+.sqlws-editor textarea::selection { background: color-mix(in srgb, var(--info) 30%, transparent); color: transparent; }
+.hl .k { color: var(--info); font-weight: 700; }
+.hl .s { color: var(--ok); }
+.hl .n { color: var(--c2); }
+.hl .tb { color: var(--c4); font-weight: 600; }
+.hl .col { color: var(--c3); }
+.hl .c { color: var(--muted); font-style: italic; }
+.hl .err { text-decoration: underline wavy var(--block); }
+.sqlws-pop { position: absolute; z-index: 6; list-style: none; margin: 0; padding: 4px 0; min-width: 240px; max-width: 420px; max-height: 240px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); font: 13px system-ui, sans-serif; }
+.sqlws-pop li { padding: 3px 10px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sqlws-pop li.active, .sqlws-pop li:hover { background: var(--info-bg); }
+.sqlws-help { margin: 6px 0 8px; min-height: 18px; }
+.sqlws-error { background: var(--block-bg); color: var(--block); border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+.sqlws-status { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 6px 0; }
+.sqlws-grid-wrap { max-height: 440px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+.sqlws-grid { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.sqlws-grid th, .sqlws-grid td { padding: 3px 8px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); white-space: nowrap; text-align: left; }
+.sqlws-grid th { position: sticky; top: 0; background: var(--row); font-weight: 600; z-index: 1; }
+.sqlws-grid th .sort { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.sqlws-grid .num { text-align: right; }
+.sqlws-grid .rn { color: var(--muted); background: var(--row); text-align: right; position: sticky; left: 0; }
+.sqlws-grid tbody tr:nth-child(even) td:not(.rn) { background: color-mix(in srgb, var(--row) 60%, transparent); }
+.sqlws-grid tbody tr:hover td:not(.rn) { background: var(--info-bg); }
+.sqlws-grid td.null { color: var(--muted); font-style: italic; }
+.sqlws-grid td.editable { cursor: cell; }
+.sqlws-grid td input { width: 100%; min-width: 8ch; padding: 1px 4px; font: inherit; }
+.sqlws-pending { margin-top: 12px; border: 1px solid var(--warn); border-radius: 8px; padding: 8px 10px; background: color-mix(in srgb, var(--warn-bg) 50%, var(--panel)); }
+.pending-block { margin: 6px 0 10px; }
+.pending-sql { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.pending-sql code { font-size: 12px; background: var(--row); padding: 2px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+.sqlws-grid.changes td.before { color: var(--muted); }
+.sqlws-grid.changes tr.ch-update td.before:not(:empty) { text-decoration: line-through; }
+.sqlws-grid.changes td.after { font-weight: 600; }
+.ch-badge.ch-insert { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.ch-badge.ch-update { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.ch-badge.ch-delete, .ch-badge.ch-unqueue { background: var(--block-bg); color: var(--block); border-color: transparent; }
+.sqlws-grid td.changed { background: var(--warn-bg) !important; font-weight: 600; }

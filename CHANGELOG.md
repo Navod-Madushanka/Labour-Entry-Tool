@@ -1,5 +1,25 @@
 # Changelog
 
+## SQL panel like a database browser (2 Nov 2026)
+
+Asked for: the SQL part was hard to work with; a HeidiSQL-like view under the command box.
+
+- New **SQL panel** on Codes & registration, under the command box:
+  - **Tables tree**: entries, activities, workers, codes, days with their row counts; each column
+    with its type (✎ = can be changed with UPDATE). Click a column to put it in the query; click a
+    table to browse it.
+  - **Query editor**: line numbers, colours (keywords, tables, columns, text, numbers), completion
+    as you type (Ctrl+Space, Tab/Enter), the word under the cursor explained, several statements
+    with `;` (Run takes the one under the cursor or the selection), `--` comments, examples and
+    history. Ctrl+Enter or F9 runs. Errors are shown and the wrong word is underlined.
+  - **Result grid**: row numbers, click a header to sort, (NULL) shown, time taken, Copy (CSV) and
+    Export to Excel; the first 1,000 rows are shown.
+  - **Data tab**: `SELECT * FROM <table> WHERE …` with a filter box; on entries, double-click In,
+    Out, code, hours, additional or remark to change it (the cell shows the new value in yellow).
+  - **Changes waiting for you**: INSERT / UPDATE / DELETE and grid edits are listed old -> new per
+    worker and day before anything happens; "Add N changes to the waiting list" or Discard.
+- Test: `e2e/sql-panel.cjs`; `splitSql`, row counts and schema in `tests/sql.test.cjs`.
+
 ## Reload from Excel shows what it did (2 Nov 2026)
 
 Asked for: the "Reload from Excel" button gave no sign it was clicked and did not refresh the page.

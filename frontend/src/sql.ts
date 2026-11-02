@@ -701,3 +701,45 @@ export function suggestSql(src: string, cursor: number, ctx: CommandContext, lim
 }
 
 export const SQL_TABLES = TABLES.map((t) => ({ name: t.name, help: t.help, cols: t.cols.map((c) => c.name), aliases: t.aliases }));
+
+/** The tables with their columns and types, for the SQL panel's tree. */
+export const SQL_SCHEMA = TABLES.map((t) => ({
+  name: t.name,
+  help: t.help,
+  writable: Boolean(t.writable),
+  aliases: t.aliases,
+  cols: t.cols.map((c) => ({ name: c.name, type: c.type, help: c.help, writable: Boolean(t.writable) && WRITABLE.has(c.name) })),
+}));
+
+/** Rows per table now (the tree shows them, like a database browser). */
+export function sqlRowCounts(ctx: CommandContext): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const t of TABLES) out[t.name] = tableRows(t, ctx).length;
+  return out;
+}
+
+/** Split a script into statements on ";" outside quotes, with "--" comments removed; each with
+ * its start and end in the text (the panel runs the one under the cursor). */
+export function splitSql(src: string): { text: string; start: number; end: number }[] {
+  const out: { text: string; start: number; end: number }[] = [];
+  let quote: string | null = null, start = 0, buf = "";
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quote) {
+      buf += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+      buf += ch;
+    } else if (ch === "-" && src[i + 1] === "-") {
+      while (i < src.length && src[i] !== "\n") i++;
+      buf += "\n";
+    } else if (ch === ";") {
+      if (buf.trim()) out.push({ text: buf.trim(), start, end: i });
+      buf = "";
+      start = i + 1;
+    } else buf += ch;
+  }
+  if (buf.trim()) out.push({ text: buf.trim(), start, end: src.length });
+  return out;
+}

@@ -10,6 +10,7 @@ import { CommandBar } from "./components/CommandBar";
 import type { CommandContext, CommandResult } from "./commands";
 import { MasterTools } from "./components/MasterTools";
 import { Analysis } from "./components/Analysis";
+import { SqlWorkspace } from "./components/SqlWorkspace";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
 import { MedicalDialog } from "./components/MedicalDialog";
@@ -627,6 +628,17 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                   window.scrollTo({ top: 0 });
                 }}
                 focusToken={commandFocus}
+              />
+            )}
+            {commandCtx && (
+              <SqlWorkspace
+                ctx={commandCtx}
+                onApply={applyCommand}
+                waiting={queue.length}
+                onReview={() => {
+                  window.location.hash = "";
+                  window.scrollTo({ top: 0 });
+                }}
               />
             )}
             <ActivityAdder
