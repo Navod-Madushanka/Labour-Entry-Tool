@@ -6,7 +6,6 @@ import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
 import { ActivityAdder } from "./components/ActivityAdder";
-import { CommandBar } from "./components/CommandBar";
 import type { CommandContext, CommandResult } from "./commands";
 import { MasterTools } from "./components/MasterTools";
 import { Analysis } from "./components/Analysis";
@@ -619,18 +618,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         ) : page === "codes" ? (
           <>
             {commandCtx && (
-              <CommandBar
-                ctx={commandCtx}
-                onApply={applyCommand}
-                waiting={queue.length}
-                onReview={() => {
-                  window.location.hash = "";
-                  window.scrollTo({ top: 0 });
-                }}
-                focusToken={commandFocus}
-              />
-            )}
-            {commandCtx && (
               <SqlWorkspace
                 ctx={commandCtx}
                 onApply={applyCommand}
@@ -639,6 +626,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                   window.location.hash = "";
                   window.scrollTo({ top: 0 });
                 }}
+                focusToken={commandFocus}
               />
             )}
             <ActivityAdder

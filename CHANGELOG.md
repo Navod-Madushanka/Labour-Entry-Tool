@@ -1,5 +1,16 @@
 # Changelog
 
+## One query window for SQL and commands (2 Nov 2026)
+
+Asked for: the command box above the SQL panel is no longer needed.
+
+- The command box is gone from Codes & registration. The SQL panel's editor takes SQL **and** the
+  plain commands (copy, fill, move, swap, set, shift, clear, replace, round, show), with
+  suggestions and explanations for both; SHOW gives a grid, and every change (SQL or command)
+  waits under "Changes waiting for you" old -> new before it goes to the waiting list.
+- Ctrl+K from any tab opens the SQL panel with the cursor in the editor. Command examples are in
+  the Examples list.
+
 ## SQL panel like a database browser (2 Nov 2026)
 
 Asked for: the SQL part was hard to work with; a HeidiSQL-like view under the command box.

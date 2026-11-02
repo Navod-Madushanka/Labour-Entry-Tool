@@ -13,8 +13,12 @@ const SHOTS = process.argv[2];
   await p.evaluate(() => { localStorage.clear(); localStorage.setItem("labour.user", "Tester"); });
   await p.reload(); await p.waitForSelector("#worker");
   await p.waitForFunction(() => !document.querySelector(".statusbar")?.innerText.includes("Loading month"), null, { timeout: 60000 });
-  await p.getByRole("link", { name: "Codes & registration" }).click();
+  if (await p.locator(".commands").count()) throw new Error("the old command box is still there");
+  await p.keyboard.press("Control+k");
+  await p.waitForFunction(() => location.hash === "#codes" && document.activeElement?.getAttribute("aria-label") === "SQL query");
+  console.log("Ctrl+K: query window focused");
   await p.waitForSelector(".sqlws-tree");
+  if (await p.locator(".commands").count()) throw new Error("the old command box is still on Codes & registration");
   const tree = (await p.locator(".sqlws-tree").innerText()).replace(/\s+/g, " ");
   console.log("tree:", tree.slice(0, 160));
 
@@ -34,6 +38,12 @@ const SHOTS = process.argv[2];
   console.log("rows:", rows, "| first:", (await p.locator(".sqlws-result .sqlws-grid tbody tr").first().innerText()).replace(/\s+/g, " "));
   if (!rows) throw new Error("no result rows");
   if (SHOTS) await p.locator(".sqlws").screenshot({ path: `${SHOTS}/sql-query.png` });
+
+  // a plain command in the same editor: SHOW gives a grid
+  await ed.click(); await p.keyboard.press("Control+a"); await p.keyboard.type("show all on 2 where out > 18");
+  await p.keyboard.press("Escape"); await p.keyboard.press("Control+Enter");
+  await p.waitForFunction(() => document.querySelector(".sqlws-status")?.innerText.length > 0);
+  console.log("command SHOW:", (await p.locator(".sqlws-status").first().innerText()).split("\n")[0], "| rows:", await p.locator(".sqlws-result .sqlws-grid tbody tr").count());
 
   // an error is shown and marked
   await ed.click(); await p.keyboard.press("Control+a"); await p.keyboard.type("SELECT nme FROM workers");
@@ -71,6 +81,12 @@ const SHOTS = process.argv[2];
   await p.keyboard.type("UPDATE entries SET remark = 'rain' WHERE calling_name LIKE 'AAA-0%' AND day = 3");
   await p.keyboard.press("Escape"); await p.keyboard.press("Control+Enter");
   await p.waitForFunction(() => document.querySelectorAll(".pending-block").length === 2);
+  // and a command that writes: copy, shown old -> new too
+  await ed.click(); await p.keyboard.press("Control+a");
+  await p.keyboard.type("copy AAA-01, AAA-02 from 2 to 8");
+  await p.keyboard.press("Escape"); await p.keyboard.press("Control+Enter");
+  await p.waitForFunction(() => document.querySelectorAll(".pending-block").length === 3);
+  console.log("command COPY waits:", (await p.locator(".pending-block").nth(2).innerText()).replace(/\s+/g, " ").slice(0, 140));
   const btn = p.locator(".sqlws-pending .actions button.primary");
   console.log("button:", await btn.innerText());
   await btn.click();

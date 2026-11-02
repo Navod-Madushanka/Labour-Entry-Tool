@@ -4,8 +4,8 @@
 // month as loaded (src/sql.ts); nothing is written to Excel from here.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type EntryInput } from "../api";
-import { CommandError, current, type CommandContext, type CommandResult } from "../commands";
-import { explainSql, parseSql, runSql, splitSql, sqlRowCounts, SQL_SCHEMA, suggestSql } from "../sql";
+import { CommandError, current, explain, parse, run as runCommand, suggest, tokenize, type CommandContext, type CommandResult } from "../commands";
+import { explainSql, isSql, looksSql, parseSql, runSql, splitSql, sqlRowCounts, SQL_SCHEMA, suggestSql } from "../sql";
 import { formatClock } from "../time";
 import { store } from "../store";
 
@@ -18,8 +18,15 @@ const EXAMPLES: [string, string][] = [
   ["Who worked past 22:00", "SELECT day, calling_name, in, out\nFROM entries\nWHERE out > '22:00'\nORDER BY day"],
   ["Workers without a valid employee code", "SELECT calling_name, full_name, code_status\nFROM workers\nWHERE code_status <> 'valid'"],
   ["Change Time Out to 20:00 for one worker on days 1-10", "UPDATE entries SET out = '20:00'\nWHERE calling_name = 'INB-01' AND day BETWEEN 1 AND 10"],
+  ["Command: copy two workers from day 26 to day 21", "copy INB-01, INB-02 from 26 to 21"],
+  ["Command: fill a crew from day 20 into days 21-24", "fill crew of INB-03 from 20 to 21-24"],
+  ["Command: move everyone from day 8 to day 9", "move all from 8 to 9"],
+  ["Command: show who left after 19:00 on day 12", "show all on 12 where out > 19"],
 ];
-const KEYWORDS = /^(select|distinct|from|where|group|by|having|order|asc|desc|limit|offset|insert|into|values|update|set|delete|and|or|not|like|in|between|is|null|as|true|false|count|sum|avg|min|max|round|upper|lower|length|len|coalesce|ifnull|abs|trim)$/i;
+/** SQL, or one of the plain commands (set, copy, fill, move, swap, clear, …) that share some words. */
+const sqlStatement = (src: string) => isSql(src) || /^\s*update\b[\s\S]*\b(set|from)\b/i.test(src);
+const sqlTyping = (src: string) => sqlStatement(src) || looksSql(src);
+const KEYWORDS = /^(shift|copy|fill|move|swap|clear|replace|show|for|on|to|except|crew|of|trade|code|all|select|distinct|from|where|group|by|having|order|asc|desc|limit|offset|insert|into|values|update|set|delete|and|or|not|like|in|between|is|null|as|true|false|count|sum|avg|min|max|round|upper|lower|length|len|coalesce|ifnull|abs|trim)$/i;
 const TABLE_NAMES = new Set(SQL_SCHEMA.flatMap((t) => [t.name, ...t.aliases]).map((n) => n.toLowerCase()));
 const COL_NAMES = new Set(SQL_SCHEMA.flatMap((t) => t.cols.map((c) => c.name.toLowerCase())));
 
@@ -73,9 +80,12 @@ interface Props {
   onApply: (result: CommandResult) => void;
   waiting: number;
   onReview: () => void;
+  focusToken: number; // Ctrl+K from any tab: open the panel, cursor in the editor
 }
 
-export function SqlWorkspace({ ctx, onApply, waiting, onReview }: Props) {
+let handledFocus = 0;
+
+export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Props) {
   const [open, setOpen] = useState(() => store.get("labour.sql.open") !== "0");
   const [tab, setTab] = useState<"query" | "data">("query");
   const [text, setText] = useState(() => store.get("labour.sql.text") ?? EXAMPLES[0][1]);
@@ -89,6 +99,16 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview }: Props) {
   const [applied, setApplied] = useState<string | null>(null);
   const editor = useRef<HTMLTextAreaElement>(null);
   useEffect(() => store.set("labour.sql.text", text), [text]);
+  useEffect(() => {
+    if (!focusToken || focusToken === handledFocus) return;
+    handledFocus = focusToken;
+    setOpen(true);
+    setTab("query");
+    setTimeout(() => {
+      editor.current?.focus();
+      editor.current?.scrollIntoView({ block: "center" });
+    }, 0);
+  }, [focusToken]);
   useEffect(() => store.set("labour.sql.open", open ? "1" : "0"), [open]);
   const counts = useMemo(() => (open ? sqlRowCounts(ctx) : {}), [ctx, open]);
 
@@ -112,10 +132,14 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview }: Props) {
   const runOne = (sql: string, cell?: string): boolean => {
     const started = performance.now();
     try {
-      const res = runSql(parseSql(sql, ctx), ctx);
+      const res = sqlStatement(sql) ? runSql(parseSql(sql, ctx), ctx) : runCommand(parse(sql, ctx), ctx);
       const ms = Math.round(performance.now() - started);
-      if (res.verb === "SELECT") {
-        setResult({ grid: res.table ?? null, summary: res.summary, notes: res.notes, ms, sql });
+      if (res.verb === "SELECT" || res.verb === "SHOW") {
+        const grid = res.table ?? (res.rows
+          ? { columns: ["day", "worker", "times", "codes", "hours", "worked", "source"],
+              rows: res.rows.map((r) => [Number(r.sheet), r.name, r.times, r.codes, r.hours, r.worked, r.source]) }
+          : null); // prettier-ignore
+        setResult({ grid, summary: res.summary, notes: res.notes, ms, sql });
       } else {
         const changes = changesOf(res, ctx);
         setPending((p) => [...p.filter((x) => !cell || x.cell !== cell), { sql, result: res, changes, cell }]);
@@ -190,7 +214,7 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview }: Props) {
     return (
       <section className="sqlws closed">
         <button className="link" onClick={() => setOpen(true)}>▸ SQL panel</button>{" "}
-        <span className="muted small">tables, query editor and result grid</span>
+        <span className="muted small">SQL and commands: tables, query editor and result grid</span>
       </section>
     );
 
@@ -199,7 +223,7 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview }: Props) {
       <div className="sqlws-head">
         <h2>
           <button className="link" onClick={() => setOpen(false)} aria-expanded="true">▾ SQL panel</button>{" "}
-          <span className="muted small">Ctrl+Enter or F9 runs · SELECT only shows · INSERT / UPDATE / DELETE wait for you below</span>
+          <span className="muted small">SQL or a command (copy, fill, move, set, …) · Ctrl+Enter or F9 runs · Ctrl+K from any tab · changes wait for you below</span>
         </h2>
       </div>
       <div className="sqlws-body">
@@ -344,7 +368,10 @@ function Editor({ taRef: ref, text, setText, cursor, setCursor, ctx, errorAt, on
     probe.remove();
   }, []);
   const lines = text.split("\n").length;
-  const sugg = useMemo(() => (pop ? suggestSql(text, cursor, ctx, 12) : { from: cursor, items: [] }), [pop, text, cursor, ctx]);
+  const sugg = useMemo(
+    () => (!pop ? { from: cursor, items: [] } : sqlTyping(text) ? suggestSql(text, cursor, ctx, 12) : suggest(text, cursor, ctx, 12)),
+    [pop, text, cursor, ctx],
+  );
   const lineNo = text.slice(0, sugg.from).split("\n").length - 1;
   const col = sugg.from - (text.lastIndexOf("\n", sugg.from - 1) + 1);
 
@@ -445,7 +472,11 @@ function WordHelp({ text, cursor, ctx }: { text: string; cursor: number; ctx: Co
     const right = text.slice(cursor).match(/^[\w`'"]*/)?.[0] ?? "";
     return left + right;
   }, [text, cursor]);
-  const info = word ? explainSql(word, text, ctx) : null;
+  const info = !word
+    ? null
+    : sqlTyping(text)
+      ? explainSql(word, text, ctx)
+      : explain(word, ctx, tokenize(text.slice(0, cursor)).map((t) => t.text).slice(0, -1));
   return (
     <div className="sqlws-help small">
       {info ? (
@@ -453,7 +484,7 @@ function WordHelp({ text, cursor, ctx }: { text: string; cursor: number; ctx: Co
           <b>{info.name}</b> <span className="muted">{info.kind}</span> · {info.text}
         </>
       ) : (
-        <span className="muted">Ctrl+Space: suggestions · Tab or Enter takes one · statements end with ; and Run takes the one under the cursor · -- starts a comment</span>
+        <span className="muted">SQL (SELECT … FROM entries) or a command (copy INB-01 from 26 to 21) · Ctrl+Space: suggestions · statements end with ; and Run takes the one under the cursor · -- starts a comment</span>
       )}
     </div>
   );
