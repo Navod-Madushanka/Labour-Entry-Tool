@@ -304,7 +304,19 @@ function parseStatement(src: string): Statement {
     st = { kind: "insert", table, cols, rows };
   } else if (first === "update") {
     i++;
+    // "UPDATE code = 'X' FROM entries WHERE …" (or without SET): say the right order with their words
+    const fromAt = src.search(/\bfrom\s+[`"\w]+/i);
+    if (!/^\s*update\s+[`"\w]+\s+set\b/i.test(src) && fromAt > 0) {
+      const table = src.slice(fromAt).match(/^from\s+([`"\w]+)/i)![1];
+      const setPart = src.replace(/^\s*update\s+(set\s+)?/i, "").slice(0, src.slice(0, fromAt).replace(/^\s*update\s+(set\s+)?/i, "").length).trim();
+      const rest = src.slice(fromAt).replace(/^from\s+[`"\w]+\s*/i, "").trim();
+      throw new CommandError(`UPDATE has no FROM: the table comes right after UPDATE, then SET. Write: UPDATE ${table} SET ${setPart}${rest ? ` ${rest}` : ""}`);
+    }
     const table = ident();
+    if (low() !== "set") {
+      const name = src.match(/^\s*update\s+([`"\w]+)/i)?.[1] ?? table;
+      throw new CommandError(`After UPDATE ${name} comes SET, e.g. UPDATE ${name} SET out = '20:00' WHERE calling_name = 'INB-01'.`);
+    }
     eat("set");
     const sets: Update["sets"] = [];
     do { const c = ident(); if (!accept("=")) eat("="); sets.push({ col: c, e: expr() }); } while (accept(","));

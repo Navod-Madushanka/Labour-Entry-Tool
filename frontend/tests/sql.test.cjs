@@ -137,4 +137,9 @@ t("split statements, comments, quotes", () => {
   assert.equal(counts.workers, 9); assert.equal(counts.days, 31); assert.equal(counts.entries, 45);
   assert.ok(S.SQL_SCHEMA.find((x) => x.name === "entries").cols.find((c) => c.name === "out").writable);
 });
+t("UPDATE written with FROM: the error gives the right order", () => {
+  assert.match(err("UPDATE code = 'ACT-002' FROM entries WHERE code = 'ACT-001'"), /Write: UPDATE entries SET code = 'ACT-002' WHERE code = 'ACT-001'/);
+  assert.match(err("UPDATE entries out = 20"), /After UPDATE entries comes SET/);
+  assert.equal(sql("UPDATE entries SET code = 'ACT-002' WHERE code = 'ACT-001' AND day = 1").inputs.length, 4);
+});
 console.log(`sql: ${n} tests passed`);
