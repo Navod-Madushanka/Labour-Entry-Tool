@@ -1,5 +1,16 @@
 # Changelog
 
+## Reload from Excel shows what it did (2 Nov 2026)
+
+Asked for: the "Reload from Excel" button gave no sign it was clicked and did not refresh the page.
+
+- While it runs the button shows a spinner and what it is reading; at the end a message says what
+  changed: "sheet 9: 1 new, 2 changed; Labour Detail: +1 activity codes" or "no changes".
+- It now also checks the waiting entries again against the fresh sheet (an entry now in Excel
+  shows as such), and reads the other days of the month in the background (suggestions, the day
+  list and Analysis use them).
+- Test: `e2e/reload.cjs` (a worker written behind the page shows up after Reload).
+
 ## Missing activity code warns; codes editable on the manpower sheet (2 Nov 2026)
 
 Asked for: an entry without an activity code (where codes are needed) went to Excel without any

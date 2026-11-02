@@ -650,3 +650,6 @@ details.card > summary .badge { margin-left: 6px; }
 .mp-check { margin: 0 4px 0 0; vertical-align: middle; cursor: pointer; }
 .mp-input.mp-new-code { width: 100%; min-width: 9ch; font-size: 12px; }
 @media print { .mp-check, .mp-new-code { display: none; } }
+.spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

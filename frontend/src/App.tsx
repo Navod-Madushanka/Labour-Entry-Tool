@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type BookInfo, type Batch, type CommitResult, type EntryInput, type EntryPlan, type Issue, type Master, type Status, type Worker } from "./api";
+import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Master, type Status, type Worker } from "./api";
 import { Batches } from "./components/Batches";
 import { CrewDialog } from "./components/CrewDialog";
 import { DayBar } from "./components/DayBar";
@@ -189,8 +189,58 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   );
   const headerAcks = headerAck[sheet] ? HEADER_RULES : [];
 
+  // "Reload from Excel": Labour Detail and this day read again, the waiting entries checked again
+  // against them, then the other days read in the background; a message says what changed.
+  const [reloading, setReloading] = useState<string | null>(null);
+  const [recheck, setRecheck] = useState(0);
+  const reloadFromExcel = async () => {
+    if (!master || reloading) return;
+    const before = month[sheet];
+    const beforeMaster = master;
+    const at = sheet;
+    setReloading("Reading Excel…");
+    try {
+      const [m, d] = await Promise.all([api.master(true), api.day(at, true)]);
+      setMaster(m);
+      setMonth((mm) => ({ ...mm, [at]: d }));
+      setRecheck((x) => x + 1);
+      const sig = (v: DayView | undefined) =>
+        new Map((v?.entries ?? []).filter((e) => e.entry.calling_name).map((e) => [e.entry.calling_name!,
+          JSON.stringify([e.entry.time_in, e.entry.time_out, e.entry.additional, e.entry.remark, e.entry.activities.map((a) => [a.code, a.hours])])])); // prettier-ignore
+      const a = sig(before), b = sig(d);
+      const added = [...b.keys()].filter((k) => !a.has(k)).length;
+      const gone = [...a.keys()].filter((k) => !b.has(k)).length;
+      const changed = [...b].filter(([k, v]) => a.has(k) && a.get(k) !== v).length;
+      const dCodes = m.activities.length - beforeMaster.activities.length;
+      const dWorkers = m.workers.length - beforeMaster.workers.length;
+      const time = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      const sheetPart = added || gone || changed
+        ? `sheet ${at}: ${[added && `${added} new`, changed && `${changed} changed`, gone && `${gone} gone`].filter(Boolean).join(", ")}`
+        : `sheet ${at}: no changes (${b.size} workers)`;
+      const masterPart = dCodes || dWorkers
+        ? `Labour Detail: ${[dWorkers && `${dWorkers > 0 ? "+" : ""}${dWorkers} workers`, dCodes && `${dCodes > 0 ? "+" : ""}${dCodes} activity codes`].filter(Boolean).join(", ")}`
+        : "Labour Detail: no changes";
+      setMessage(`Reloaded from Excel at ${time}. ${sheetPart}; ${masterPart}.`);
+      // the other days (suggestions, the day list, Analysis), one by one
+      const others = Object.keys(month).filter((s) => s !== at && Number(s) >= 1);
+      for (let i = 0; i < others.length; i++) {
+        setReloading(`Reading the other days ${i + 1}/${others.length}…`);
+        try {
+          const od = await api.day(others[i], true);
+          setMonth((mm) => ({ ...mm, [others[i]]: od }));
+        } catch {
+          /* a day that can't be read now keeps what was there */
+        }
+      }
+    } catch (e) {
+      fail(e);
+    } finally {
+      setReloading(null);
+    }
+  };
+
   // Re-check the whole queue on the server whenever it changes (batch entries see each other).
-  const queueKey = JSON.stringify(queue.map((q) => withHeaderAck(q.input)));
+  const queueKey = JSON.stringify(queue.map((q) => withHeaderAck(q.input))) + `#${recheck}`;
   useEffect(() => {
     if (!queue.length) return;
     let stale = false;
@@ -610,10 +660,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               onPick={setSheet}
               onAcknowledge={() => setHeaderAck((a) => ({ ...a, [sheet]: true }))}
               onFix={fixHeader}
-              onReload={() => {
-                api.master(true).then(setMaster).catch(fail);
-                api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))).catch(fail);
-              }}
+              onReload={reloadFromExcel}
+              reloading={reloading}
             />
             <EntryForm
               master={master}

@@ -11,6 +11,7 @@ interface Props {
   onAcknowledge: () => void;
   onFix: (issues: Issue[]) => void;
   onReload: () => void;
+  reloading: string | null; // progress while "Reload from Excel" runs
 }
 
 const longDate = (iso: string | null | undefined) =>
@@ -25,7 +26,7 @@ const kind = (type: unknown) => {
 
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
-export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick, onAcknowledge, onFix, onReload }: Props) {
+export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading }: Props) {
   const h = day?.header;
   const issues = day?.header_issues ?? [];
   const blocking = issues.some((i) => i.severity === "BLOCK");
@@ -62,8 +63,14 @@ export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick
         ) : (
           <strong className="day-date">Sheet {sheet}</strong>
         )}
-        <button className="link small" onClick={onReload} title="Read this sheet and Labour Detail again (after editing Excel directly)">
-          Reload from Excel
+        <button
+          className="link small"
+          onClick={onReload}
+          disabled={Boolean(reloading)}
+          aria-busy={Boolean(reloading)}
+          title="Read this sheet, Labour Detail and the other days again (after editing Excel directly)"
+        >
+          {reloading ? <><span className="spinner" aria-hidden /> {reloading}</> : "⟳ Reload from Excel"}
         </button>
       </div>
       {issues.length > 0 && (
