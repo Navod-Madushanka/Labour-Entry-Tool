@@ -28,7 +28,7 @@ def test_names_and_folders():
     assert (
         default_name("Labour Entry Sheet October 2026 - INDIAN (2).xlsb", nov)
         == "Labour Entry Sheet November 2026 - INDIAN.xlsb"
-    )  # noqa: E501
+    )
     assert default_name("LABOUR OCTOBER 2026.xlsb", nov) == "LABOUR NOVEMBER 2026.xlsb"
     assert default_name("Book1.xlsb", nov) == "Book1 - November 2026.xlsb"
     assert next_month(dt.date(2026, 12, 1)) == dt.date(2027, 1, 1)
@@ -107,7 +107,7 @@ def test_endpoint_makes_the_next_month(small_snapshot, tmp_path):
     again = client.post(
         "/api/setup/new-month",
         json={"month": "2026-11", "name": "Nov labour - DEMO", "folder": str(new.parent)},
-    )  # noqa: E501
+    )
     assert again.status_code == 409 and "already exists" in again.json()["detail"]
 
 
