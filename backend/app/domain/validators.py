@@ -60,6 +60,7 @@ RULES: dict[str, Rule] = {
         Rule("W07", "WARN", "No valid employee code: ERP upload lines go out blank"),
         Rule("W08", "INFO", "Unallocated hours go to ZIDLE"),
         Rule("W09", "WARN", "Medical day with OT (Saturday or holiday rule)"),
+        Rule("W10", "WARN", "No activity code: all the hours go to ZIDLE"),
         Rule("H01", "BLOCK", "Sheet date does not match the sheet number"),
         Rule("H02", "BLOCK", "Day type does not match the calendar"),
         Rule("H03", "WARN", "Sheet number (F4) does not match the sheet"),
@@ -81,7 +82,7 @@ RULES: dict[str, Rule] = {
 
 # The rules about activity codes and their hours. A workbook kept without activity codes (all the
 # hours go to ZIDLE, e.g. the sub-contract workbook) switches them off: see ``check_activities``.
-ACTIVITY_RULES = frozenset({"E04", "E05", "E06", "M05", "M06", "W08"})
+ACTIVITY_RULES = frozenset({"E04", "E05", "E06", "M05", "M06", "W08", "W10"})
 
 
 def is_activity_issue(issue: Issue, template: TemplateConfig | None = None) -> bool:
@@ -251,6 +252,12 @@ def _check_computed(entry: Entry, c: Computed, issue) -> list[Issue]:
                 f"Excel books ZIDLE {fmt_hours(c.zidle or 0)} h.",
                 "hours",
             )
+        )
+    elif c.effective > rules.EPS and not entry.activity_lines:  # (hours without a code: E04)
+        # Worked hours but no activity at all (in a workbook kept with codes): a warning to
+        # confirm, not a note, so a forgotten code does not go to Excel unnoticed.
+        out.append(
+            issue("W10", f"No activity code: all {eff} effective hours go to ZIDLE.", "activity")
         )
     elif c.zidle is not None and c.zidle > rules.EPS:
         out.append(

@@ -282,7 +282,7 @@ def test_entry_without_activities_has_no_activity_issues():
     from .conftest import make_entry
 
     e = make_entry("1", 0, "INB-01", 7.0, 19.0, [])
-    assert "W08" in {i.rule for i in check_entry(e, "Normal Day", set())}
+    assert "W10" in {i.rule for i in check_entry(e, "Normal Day", set())}
     assert check_entry(e, "Normal Day", set(), check_activities=False) == []
     bad = make_entry("1", 0, "INB-01", 7.0, 19.0, [("NOPE", "x")])
     assert {i.rule for i in check_entry(bad, "Normal Day", set(), check_activities=False)} == set()

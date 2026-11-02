@@ -413,6 +413,14 @@ def _words(issue: Issue) -> tuple[str, str, str]:
                 "Drop the registration files on this page to fill in the code, or type it in "
                 "column G of Labour Detail.",
             )
+    if rule == "W10":
+        if g := m(r"^No activity code: all (\S+) effective"):
+            return (
+                "No activity code",
+                f"This entry has no activity code, so all {g.group(1)} worked hours go to idle "
+                "time (ZIDLE) in Excel.",
+                "Type the activity code. If the worker really had no job, tick to confirm.",
+            )
     if rule == "W08":
         if g := m(r"^(\S+) of (\S+) effective hours"):
             return (

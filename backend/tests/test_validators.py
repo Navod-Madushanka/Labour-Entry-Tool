@@ -37,8 +37,8 @@ def test_issue_fields_point_at_the_cell():
         (7.0, None, ["E01"]),
         ("7", 19.0, ["E03"]),
         (19.0, 7.0, ["E02", "W06"]),
-        (7.0, 31.5, ["E02", "W01", "W08"]),  # no activities: all effective hours go to ZIDLE
-        (7.1, 19.0, ["E03", "W08"]),
+        (7.0, 31.5, ["E02", "W01", "W10"]),  # no activity code: a warning (all hours to ZIDLE)
+        (7.1, 19.0, ["E03", "W10"]),
     ],
 )
 def test_time_checks(time_in, time_out, expected):

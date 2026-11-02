@@ -296,3 +296,32 @@ export function dinnerFix(f: FormState, wasAuto: boolean): { form: FormState; au
   }
   return null;
 }
+
+// --- quick code changes on the manpower sheet -------------------------------------------------
+
+const sameCode = (a: string | null | undefined, b: string) => (a ?? "").trim().toUpperCase() === b.trim().toUpperCase();
+
+/** Every line with code `from` gets code `to` (a line already on `to` takes the hours). */
+export function renameCode(input: EntryInput, from: string, to: string): EntryInput {
+  const lines: EntryInput["activities"] = [];
+  for (const a of input.activities) {
+    const code = sameCode(a.code, from) ? to : a.code;
+    const twin = lines.find((l) => code && sameCode(l.code, code));
+    if (twin) twin.hours = twin.hours === null || a.hours === null ? null : twin.hours + a.hours;
+    else lines.push({ ...a, code });
+  }
+  return { ...input, activities: lines };
+}
+
+/** Ticked on a code: the worker's whole day goes to that code (one line, all worked hours). A
+ * split over several codes is made in the form (✎). */
+export function tickCode(input: EntryInput, code: string): EntryInput {
+  const worked =
+    input.time_in !== null && input.time_out !== null ? effectiveHours(input.time_in, input.time_out, input.additional ?? 0) : null;
+  return { ...input, activities: [{ code, hours: worked !== null && worked > 0 ? worked : null }] };
+}
+
+/** Unticked: the lines with that code go (none left: the entry warns "no activity code"). */
+export function untickCode(input: EntryInput, code: string): EntryInput {
+  return { ...input, activities: input.activities.filter((a) => !sameCode(a.code, code)) };
+}

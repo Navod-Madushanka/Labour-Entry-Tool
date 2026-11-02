@@ -1,5 +1,20 @@
 # Changelog
 
+## Missing activity code warns; codes editable on the manpower sheet (2 Nov 2026)
+
+Asked for: an entry without an activity code (where codes are needed) went to Excel without any
+warning; and a quick way to change codes on the manpower sheet before pushing.
+
+- New check W10 "No activity code": an entry with worked hours and no activity line at all, in a
+  workbook kept with codes, is a warning that must be ticked "It's correct" before Push (it was
+  only a note, W08, before). Workbooks kept without codes (SUB CONTRACT) are not affected.
+- Manpower sheet (waiting entries only):
+  - Click a code to rename it for every waiting worker on that page who has it.
+  - "+ code" adds a row for a new code; tick a worker on any code row to put their whole day on
+    it (one line, all worked hours); untick to take them off (no code left: the W10 warning).
+  - A split over several codes or a part of the day is still made with ✎ in the form.
+- Tests: `e2e/sheet-codes.cjs`, helpers in `tests/dinner.test.cjs`, W10 in the backend tests.
+
 ## Suggestions measured and tuned (1 Nov 2026)
 
 Asked for: measure the suggestions continuously, then try a list of accuracy and fewer-keys

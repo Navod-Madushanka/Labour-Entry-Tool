@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { DayView, EntryInput } from "../api";
 import { formulaValue } from "../calc";
 import type { Month } from "../history";
-import { withTimes } from "../form";
+import { renameCode, tickCode, untickCode, withTimes } from "../form";
 import { fmtHours, formatClock, parseClock } from "../time";
 import type { QueueItem } from "./Queue";
 import { placeName } from "../codes";
@@ -108,11 +108,11 @@ function parseHours(text: string): number | null {
 }
 
 /** A sheet cell that can be changed in place: click, type, Enter (Esc cancels). */
-function EditCell({ shown, start, parse, onSave, label }: {
+function EditCell<T>({ shown, start, parse, onSave, label }: {
   shown: React.ReactNode;
   start: string;
-  parse: (text: string) => number | null;
-  onSave: (v: number) => void;
+  parse: (text: string) => T | null;
+  onSave: (v: T) => void;
   label: string;
 }) {
   const [text, setText] = useState<string | null>(null);
@@ -156,6 +156,10 @@ function EditCell({ shown, start, parse, onSave, label }: {
 export function ManpowerSheet(props: Props) {
   const { items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet } = props;
   const [withExcel, setWithExcel] = useState(false);
+  // Codes added on the sheet (a row to tick workers on), per day sheet, until they are used.
+  const [extra, setExtra] = useState<Record<string, string[]>>({});
+  const [newCode, setNewCode] = useState<Record<string, string>>({});
+  const parseCode = (t: string) => t.trim().toUpperCase().replace(/\s+/g, "") || null;
   // Re-rendered with every queue change, so this is the time of the latest entry.
   const entered = new Date().toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -186,7 +190,9 @@ export function ManpowerSheet(props: Props) {
         </div>
         <p className="muted small">
           Every entry you add appears here, laid out like the paper form. Compare it with the paper, then push it to
-          Excel at the bottom. Click a time or hours to change it; ✎ moves a worker back into the form, ✕ removes them.
+          Excel at the bottom. Click a time, hours or code to change it; tick a worker on a code to put their whole day on
+          it (type a new code in "+ code" for a row of its own). For a split over several codes, ✎ moves a worker back into
+          the form; ✕ removes them.
         </p>
         <label className="check wrap">
           <input type="checkbox" checked={withExcel} onChange={(e) => setWithExcel(e.target.checked)} /> Also show
@@ -197,7 +203,14 @@ export function ManpowerSheet(props: Props) {
             <div key={sheet} className="mp-day">
             {pages.map((cols, n) => {
               pageNo += 1;
-              const codes = activities ? [...new Set(cols.flatMap((c) => c.acts.map((a) => a.code)))] : [];
+              const codes = activities ? [...new Set([...cols.flatMap((c) => c.acts.map((a) => a.code)), ...(extra[sheet] ?? [])])] : [];
+              const editable = cols.filter((c) => c.id !== undefined && c.input) as (Column & { id: number; input: EntryInput })[];
+              const canEdit = activities && !busy && editable.length > 0;
+              const addCode = () => {
+                const code = parseCode(newCode[sheet] ?? "");
+                if (code && !codes.includes(code)) setExtra((x) => ({ ...x, [sheet]: [...(x[sheet] ?? []), code] }));
+                setNewCode((x) => ({ ...x, [sheet]: "" }));
+              };
               const blanks = activities ? Math.max(0, 4 - codes.length) : 0; // a few empty rows, like the form
               const padded = [...cols, ...Array.from({ length: PER_PAGE - cols.length }, () => null)];
               return (
@@ -304,16 +317,43 @@ export function ManpowerSheet(props: Props) {
                       <tbody>
                         {codes.map((code) => (
                           <tr key={code}>
-                            <td className="mp-code">{code}</td>
+                            <td className="mp-code">
+                              {canEdit ? (
+                                <EditCell
+                                  label={`code ${code}`}
+                                  shown={code}
+                                  start={code}
+                                  parse={parseCode}
+                                  onSave={(to) => {
+                                    if (to === code) return;
+                                    // every waiting worker on this page with the code gets the new one
+                                    for (const c of editable) if (c.acts.some((a) => a.code === code)) onChange(c.id, renameCode(c.input, code, to));
+                                    setExtra((x) => ({ ...x, [sheet]: (x[sheet] ?? []).map((e) => (e === code ? to : e)) }));
+                                  }}
+                                />
+                              ) : (
+                                code
+                              )}
+                            </td>
                             <td className="mp-desc">{placeName(code, places)}</td>
                             <td className="mp-label-col" />
                             {padded.map((c, i) => {
                               const act = c?.acts.find((a) => a.code === code);
                               return (
                                 <td key={i} className={`mp-tick${c?.source === "excel" ? " excel" : ""}`}>
+                                  {canEdit && c?.id !== undefined && c.input && (
+                                    <input
+                                      type="checkbox"
+                                      className="mp-check"
+                                      checked={Boolean(act)}
+                                      aria-label={`${c.name} on ${code}`}
+                                      title={act ? `Take ${c.name} off ${code}` : `Put ${c.name}'s whole day on ${code} (for a split, use ✎)`}
+                                      onChange={(e) => onChange(c.id!, e.target.checked ? tickCode(c.input!, code) : untickCode(c.input!, code))}
+                                    />
+                                  )}
                                   {act && (
                                     <>
-                                      <span className="tick">✓</span>{" "}
+                                      {!(canEdit && c?.id !== undefined && c.input) && <span className="tick">✓</span>}{" "}
                                       {c?.id !== undefined && c.input && !busy ? (
                                         <EditCell
                                           label={`${c.name} hours on ${code}`}
@@ -337,9 +377,21 @@ export function ManpowerSheet(props: Props) {
                             })}
                           </tr>
                         ))}
-                        {Array.from({ length: blanks }, (_, i) => (
+                        {Array.from({ length: Math.max(blanks, canEdit ? 1 : 0) }, (_, i) => (
                           <tr key={`blank-${i}`}>
-                            <td className="mp-code" />
+                            <td className="mp-code">
+                              {canEdit && i === 0 && (
+                                <input
+                                  className="mp-input mp-new-code"
+                                  placeholder="+ code"
+                                  aria-label={`Add an activity code to sheet ${sheet}`}
+                                  value={newCode[sheet] ?? ""}
+                                  onChange={(e) => setNewCode((x) => ({ ...x, [sheet]: e.target.value }))}
+                                  onKeyDown={(e) => e.key === "Enter" && addCode()}
+                                  onBlur={addCode}
+                                />
+                              )}
+                            </td>
                             <td className="mp-desc" />
                             <td className="mp-label-col" />
                             {padded.map((_, j) => (
