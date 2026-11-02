@@ -671,3 +671,160 @@ def set_places(body: PlacesRequest, request: Request) -> SetupState:
     session.settings.set_key(book.places_key, places=names, asked=asked)
     _apply(request, session)
     return session.sync()
+
+
+# --- the next month: a folder, a copy of the workbook, the entries cleared (app/newmonth.py) ---
+
+
+class NewMonthRequest(BaseModel):
+    month: str | None = Field(None, pattern=r"^\d{4}-\d{2}$")  # default: the month after this one
+    folder: str | None = Field(None, max_length=500)
+    name: str | None = Field(None, max_length=200)
+
+
+class NewMonthPreview(BaseModel):
+    source: str
+    source_path: str | None
+    month: str
+    month_label: str
+    folder: str | None
+    folder_exists: bool = False
+    name: str | None
+    file_exists: bool = False
+    unsaved: bool = False
+    workers: int = 0
+    activity_codes: int = 0
+    problem: str | None = None  # why it cannot be done now (shown instead of the button)
+
+
+class NewMonthResult(BaseModel):
+    state: SetupState
+    path: str
+    sheets: int
+    entries_cleared: int
+    workers: int
+
+
+def _new_month_target(session: Session, src: Path | None, body: NewMonthRequest):
+    from app.newmonth import default_folder, default_name, month_label, next_month
+
+    book = session.book
+    today = dt.date.today().replace(day=1)
+    current = dt.date.fromisoformat(f"{book.month}-01") if book.month else today
+    month = dt.date.fromisoformat(f"{body.month}-01") if body.month else next_month(current)
+    if body.folder:
+        folder = Path(body.folder).expanduser()
+    else:
+        folder = default_folder(src, month) if src else None
+    name = body.name.strip() if body.name else (default_name(src.name, month) if src else None)
+    return month, month_label(month), folder, name
+
+
+@router.post("/new-month/preview", response_model=NewMonthPreview)
+async def new_month_preview(body: NewMonthRequest, request: Request) -> NewMonthPreview:
+    """What "Start the next month" would make: the folder and file name it suggests."""
+    session = _require(request)
+    book = session.book
+    worker = request.app.state.get_worker()
+    src = await worker.run(lambda s: s.workbook_path(), book.service)
+    month, label, folder, name = _new_month_target(session, src, body)
+    out = NewMonthPreview(
+        source=book.name, source_path=str(src) if src else None, month=month.strftime("%Y-%m"),
+        month_label=label, folder=str(folder) if folder else None, name=name,
+        unsaved=book.service.unsaved,
+    )  # fmt: skip
+    if src is None or not src.exists():
+        out.problem = (
+            "The workbook's file is not known. Open it from its file (Browse on the start page) "
+            "first."
+        )
+    elif src.resolve().is_relative_to(session.work.resolve()):
+        out.problem = (
+            "This is a copy dropped on the page. Open the real file with Browse on the start "
+            "page, so the new month is made next to it."
+        )
+    if folder is not None:
+        out.folder_exists = folder.is_dir()
+        out.file_exists = bool(name) and (folder / name).exists()
+    try:
+        master = await worker.run(lambda s: s.master(), book.service)
+        out.workers, out.activity_codes = len(master.workers), len(master.activities)
+    except Exception:  # only for the summary
+        pass
+    return out
+
+
+@router.post("/new-month", response_model=NewMonthResult)
+async def new_month(body: NewMonthRequest, request: Request) -> NewMonthResult:
+    """Make the next month's workbook: create the folder, copy this workbook into it under the
+    chosen name, clear only the entries (Labour Detail, formulas and the other sheets stay), set
+    the new month's dates and day types, save, and open it here."""
+    from starlette.concurrency import run_in_threadpool
+
+    from app.excel.fake_adapter import save_snapshot
+    from app.health import read_snapshot
+    from app.newmonth import check_target, cleared_snapshot, copy_workbook, plan_sheets
+
+    session = _require(request)
+    book = session.book
+    worker = request.app.state.get_worker()
+    src = await worker.run(lambda s: s.workbook_path(), book.service)
+    if src is None or not src.exists():
+        raise HTTPException(409, "The workbook's file is not known. Open it from its file first.")
+    if src.resolve().is_relative_to(session.work.resolve()):
+        raise HTTPException(409, "This is a copy dropped on the page: open the real file first.")
+    if book.service.unsaved:
+        raise HTTPException(
+            409,
+            "This workbook has changes not saved in Excel. Press Save Excel file first, so the "
+            "new month starts from the saved file.",
+        )
+    month, _label, folder, name = _new_month_target(session, src, body)
+    if folder is None or not name:
+        raise HTTPException(422, "Give the folder and the file name.")
+    try:
+        target = check_target(folder, name, src)
+    except (ValueError, FileExistsError) as exc:
+        raise HTTPException(409, str(exc)) from exc
+    config = session.config(book)
+    template = config.template
+    holidays = [h for h in session.base.holidays if (h.year, h.month) == (month.year, month.month)]
+    try:
+        await run_in_threadpool(copy_workbook, src, target)
+        snap = await run_in_threadpool(read_snapshot, target, template)
+        plans = plan_sheets(snap, template, month, holidays)
+        if target.suffix.lower() == ".json":
+            done = cleared_snapshot(snap, plans, target.name)
+            await run_in_threadpool(save_snapshot, done, target)
+        else:
+            await worker.run(_clear_in_excel, target, plans, config)
+        check = await run_in_threadpool(read_snapshot, target, template)
+        left = sum(len(d.entries) for d in check.days)
+        if left or len(check.master.workers) != len(snap.master.workers):
+            raise RuntimeError(f"the new file still has {left} entries, or workers went missing")
+    except Exception as exc:
+        target.unlink(missing_ok=True)
+        msg = f"The new month was not made (the copy is removed): {exc}"
+        raise HTTPException(500, msg) from exc
+    practice = book.mode == "demo"
+    state = await run_in_threadpool(choose, request.app, target, target.name, practice, True)
+    return NewMonthResult(
+        state=state, path=str(target), sheets=len(plans),
+        entries_cleared=sum(p.entries for p in plans), workers=len(snap.master.workers),
+    )  # fmt: skip
+
+
+def _clear_in_excel(target: Path, plans, config: Config) -> None:
+    """On the Excel thread: open the copy, clear the entries, write the headers, save."""
+    from app.excel import xlwings_adapter
+    from app.newmonth import header_writes
+
+    wb = xlwings_adapter.connect_named(target.name, target, config)
+    try:
+        for p in plans:
+            wb.clear_cells(p.sheet, p.clear)
+        wb.write_ranges(header_writes(plans, config.template))
+        wb.save()
+    except BaseException:
+        wb.close()
+        raise

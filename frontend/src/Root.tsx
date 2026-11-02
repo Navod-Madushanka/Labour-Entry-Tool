@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type SetupState } from "./api";
 import { App } from "./App";
+import { NewMonthDialog } from "./components/NewMonthDialog";
 import { StartPage } from "./components/StartPage";
 
 /** The start page until the workbook is chosen, checked and ready; then the entry screen. Several
@@ -9,6 +10,7 @@ export function Root() {
   const [setup, setSetup] = useState<SetupState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false); // on the start page to open one more workbook
+  const [newMonth, setNewMonth] = useState(false); // the "start the next month" dialog
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   const load = () =>
@@ -46,13 +48,25 @@ export function Root() {
       />
     );
   return (
-    <App
-      key={setup.workbook ?? ""}
-      books={setup.books}
-      onSwitch={(name) => api.setupSwitch(name).then(setSetup).catch(fail)}
-      onAddWorkbook={() => setAdding(true)}
-      onCloseBook={(name) => api.setupClose(name).then(setSetup).catch(fail)}
-      onChangeWorkbook={() => api.setupReady(false).then(setSetup).catch(fail)}
-    />
+    <>
+      <App
+        key={setup.workbook ?? ""}
+        books={setup.books}
+        onSwitch={(name) => api.setupSwitch(name).then(setSetup).catch(fail)}
+        onAddWorkbook={() => setAdding(true)}
+        onCloseBook={(name) => api.setupClose(name).then(setSetup).catch(fail)}
+        onChangeWorkbook={() => api.setupReady(false).then(setSetup).catch(fail)}
+        onNewMonth={() => setNewMonth(true)}
+      />
+      {newMonth && (
+        <NewMonthDialog
+          onCancel={() => setNewMonth(false)}
+          onDone={(s) => {
+            setNewMonth(false);
+            setSetup(s);
+          }}
+        />
+      )}
+    </>
   );
 }

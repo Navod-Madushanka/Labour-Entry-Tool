@@ -368,6 +368,39 @@ class XlwingsWorkbook:
     def save(self) -> None:
         self._com(self.book.save)
 
+    def clear_cells(self, sheet: str, addresses: Sequence[str]) -> None:
+        """Empty many cell ranges of one sheet: a few ranges per Excel call (union addresses stay
+        under Excel's 255-character limit), with screen updating and calculation paused."""
+        if not addresses:
+            return
+        app = self._com(lambda: self.book.app)
+        calculation = self._com(lambda: app.calculation)
+        screen = self._com(lambda: app.screen_updating)
+        self._com(lambda: setattr(app, "screen_updating", False))
+        self._com(lambda: setattr(app, "calculation", "manual"))
+        try:
+            try:
+                sht = self._sheet(sheet)
+            except KeyError as exc:
+                raise WorkbookError(str(exc)) from exc
+            chunk: list[str] = []
+            for addr in [*addresses, None]:
+                if addr is not None and len(",".join([*chunk, addr])) <= 240:
+                    chunk.append(addr)
+                    continue
+                if chunk:
+                    union = ",".join(chunk)
+                    self._com(lambda union=union: sht.api.Range(union).ClearContents())
+                chunk = [addr] if addr is not None else []
+        except BaseException:
+            self._restore(app, calculation, screen, report=False)
+            raise
+        self._restore(app, calculation, screen, report=True)
+
+    def close(self) -> None:
+        """Close the workbook in Excel without saving."""
+        self._com(self.book.close)
+
     def save_copy(self, path: Path) -> None:
         path = Path(path).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

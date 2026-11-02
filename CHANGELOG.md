@@ -1,5 +1,26 @@
 # Changelog
 
+## Start the next month (2 Nov 2026)
+
+Asked for: in a new month, make a folder named after the month, copy the old workbook into it with
+the name the user wants, and clear only the entries (keep Labour Detail and the rest).
+
+- Workbook menu → **📅 Start the next month from this workbook…**: month (next one suggested),
+  folder (suggested: a "November 2026" folder next to the "October 2026" folder, or inside the
+  workbook's folder), file name (the old name with the new month; editable).
+- Cleared on every day sheet, in blocks with input only: Time In/Out (G:H), activity lines (J:K,
+  five rows), Additional hours (L), Remarks (R). Kept: Labour Detail (workers, employee codes,
+  activity list), every formula, the ERP upload columns, summary and time card sheets.
+- Each day sheet gets the new month's date (F3), day type (H3: Saturday, Sunday, holidays from the
+  holiday list) and sheet number (F4); a sheet the month does not have (31 in November) keeps its
+  header and is only cleared.
+- With Excel: the copy is opened in Excel, cleared in a few large calls, saved, read back to check
+  that no entry is left and no worker is lost, then opened in the tool (the check page follows).
+  Anything fails: the copy is closed without saving and removed; the old file is never changed.
+  Unsaved changes in the old workbook: "Save Excel file" first. A file already there: refused.
+- Tests: `backend/tests/test_newmonth.py` (names, folders, what is cleared, the endpoint, the Excel
+  steps with a stand-in), `e2e/new-month.cjs`. Not yet run against real Excel.
+
 ## One query window for SQL and commands (2 Nov 2026)
 
 Asked for: the command box above the SQL panel is no longer needed.

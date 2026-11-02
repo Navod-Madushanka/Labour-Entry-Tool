@@ -876,13 +876,16 @@ class EntryService:
 
     # --- the previous month's last days (suggestions and the day builder on the 1st) ---
 
-    def previous_source(self) -> Path | None:
-        """The previous month's workbook next to this one (asks Excel for the path: Excel thread)."""  # noqa: E501
+    def workbook_path(self) -> Path | None:
+        """The workbook's file (asks Excel for the path when it is not known: Excel thread)."""
         try:
-            path = self.source_path or getattr(self.workbook, "full_path", None)
+            return self.source_path or getattr(self.workbook, "full_path", None)
         except WorkbookError:
             return None
-        return previous_workbook(path)
+
+    def previous_source(self) -> Path | None:
+        """The previous month's workbook next to this one (asks Excel for the path: Excel thread)."""  # noqa: E501
+        return previous_workbook(self.workbook_path())
 
     def load_previous(self, prev: Path | None) -> list[DaySheet]:
         """Read ``prev``'s last days (a file read: no need for the Excel thread); cached."""
