@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DayView, EntryInput } from "../api";
 import { formulaValue } from "../calc";
 import type { Month } from "../history";
@@ -117,6 +117,12 @@ function EditCell<T>({ shown, start, parse, onSave, label }: {
 }) {
   const [text, setText] = useState<string | null>(null);
   const cancelled = useRef(false); // Esc: closing the box also blurs it, which must not save
+  const box = useRef<HTMLInputElement | null>(null);
+  const editing = text !== null;
+  // Focus the box as soon as it opens (autoFocus alone loses to a box that is blurring meanwhile).
+  useLayoutEffect(() => {
+    if (editing) box.current?.focus();
+  }, [editing]);
   if (text === null)
     return (
       <button className="mp-edit" title={`Change ${label}`} aria-label={`Change ${label}`} onClick={() => {
@@ -135,6 +141,7 @@ function EditCell<T>({ shown, start, parse, onSave, label }: {
   };
   return (
     <input
+      ref={box}
       className={`mp-input${bad ? " bad" : ""}`}
       aria-label={label}
       autoFocus
