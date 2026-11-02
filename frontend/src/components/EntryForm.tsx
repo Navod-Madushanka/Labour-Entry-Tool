@@ -1029,8 +1029,11 @@ function Preview({ plan, error, onDinner }: { plan: EntryPlan | null; error: str
   const p = plan?.preview;
   const ot = p && p.ot_raw !== null ? Math.max(p.ot_raw, 0) : null;
   const blocked = plan?.blocking.length ?? 0;
+  // "No activity code" is not shown while typing (the code box is next, or offering a code); the
+  // waiting list still asks to confirm it if the entry is added without one.
+  const issues = (plan?.issues ?? []).filter((i) => i.rule !== "W10");
   return (
-    <div className={`preview${plan ? (blocked ? " bad" : plan.issues.some((i) => i.severity === "WARN") ? " warn" : " good") : ""}`} aria-live="polite">
+    <div className={`preview${plan ? (blocked ? " bad" : issues.some((i) => i.severity === "WARN") ? " warn" : " good") : ""}`} aria-live="polite">
       <h3>This worker's day</h3>
       {error && <p className="error-text">{error}</p>}
       {p ? (
@@ -1054,12 +1057,12 @@ function Preview({ plan, error, onDinner }: { plan: EntryPlan | null; error: str
             <dt>Counts as</dt>
             <dd>{plan?.day_count === 1 ? "1 day" : plan?.day_count === 0.5 ? "half a day" : plan?.day_count === 0 ? "no day" : "—"}</dd>
           </dl>
-          {!plan?.issues.some((i) => i.severity !== "INFO") && <p className="ok-text small">✓ Looks right. Press Enter to add.</p>}
+          {!issues.some((i) => i.severity !== "INFO") && <p className="ok-text small">✓ Looks right. Press Enter to add.</p>}
         </>
       ) : (
         <p className="muted small">Pick a worker and type Time In and Time Out to see the hours here.</p>
       )}
-      {plan && <IssueList issues={plan.issues} />}
+      {plan && <IssueList issues={issues} />}
       {plan?.issues.some((i) => i.rule === "W05") && (
         <div className="quick-fix">
           <button onClick={onDinner}>Yes, they had dinner: take off 1 more hour</button>
