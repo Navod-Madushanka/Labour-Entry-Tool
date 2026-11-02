@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime as dt
+import re
 import shutil
 import sys
 import tempfile
@@ -662,6 +663,10 @@ def set_places(body: PlacesRequest, request: Request) -> SetupState:
         raise HTTPException(409, "Check the workbook first.")
     saved = session.settings.get_key(book.places_key)
     names = {**saved.get("places", {})}
+    for suffix in body.names:
+        if not re.fullmatch(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*", suffix):
+            msg = f"-{suffix} is not a code ending (letters and numbers, like P or C-8)."
+            raise HTTPException(422, msg)
     for suffix, name in body.names.items():
         if name.strip():
             names[suffix] = name.strip()[:60]

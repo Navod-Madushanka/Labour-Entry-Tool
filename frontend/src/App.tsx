@@ -10,6 +10,7 @@ import type { CommandContext, CommandResult } from "./commands";
 import { MasterTools } from "./components/MasterTools";
 import { Analysis } from "./components/Analysis";
 import { SqlWorkspace } from "./components/SqlWorkspace";
+import { PlacesEditor } from "./components/PlacesEditor";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
 import { MedicalDialog } from "./components/MedicalDialog";
@@ -640,6 +641,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 refreshStatus();
               }}
             />
+            {master.check_activities && <PlacesEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
             <MasterTools
               user={user}
               onChanged={() => {

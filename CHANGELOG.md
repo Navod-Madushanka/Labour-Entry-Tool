@@ -1,5 +1,17 @@
 # Changelog
 
+## Place names editable at any time (3 Nov 2026)
+
+Asked for: the code-ending (place) registration was only shown when a workbook was first opened;
+make it possible to edit and update it.
+
+- Codes & registration → **Places in the activity codes**: change a name, empty a box to remove it,
+  or add an ending ahead of its codes (e.g. -S = Skywalk). Saved for every workbook of the project;
+  the entry screen and the manpower sheet show the new names at once.
+- Endings named by hand show in the list even before a code in the activity list has them.
+- The start page still asks once for a new project.
+- Tests: `e2e/places-edit.cjs`, place editing in `backend/tests/test_setup.py`.
+
 ## Start the next month (2 Nov 2026)
 
 Asked for: in a new month, make a folder named after the month, copy the old workbook into it with

@@ -65,4 +65,10 @@ def find_places(
         Place(suffix=s, name=names.get(s, ""), codes=len(c), used=used[s], example=c[0])
         for s, c in codes.items()
     ]
+    # endings named by hand that no code in the list has yet (added ahead of new codes)
+    places += [
+        Place(suffix=s, name=n, codes=0, used=used[s], example=f"03-11-00-00-{s}")
+        for s, n in names.items()
+        if s not in codes and n
+    ]
     return sorted(places, key=lambda p: (-p.used, -p.codes, p.suffix))

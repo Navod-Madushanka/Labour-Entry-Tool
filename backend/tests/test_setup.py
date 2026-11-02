@@ -319,6 +319,22 @@ def test_place_names_asked_once_per_project(tmp_path, small_snapshot):
         c.post("/api/setup/places", json={"names": {"P": "Parking area", "C-8": ""}})
         assert c.get("/api/master").json()["places"] == {"P": "Parking area"}
         assert c.get("/api/setup/places").json()["new"] == []  # C-8 left blank: not asked again
+        # edited later from Codes & registration: renamed, one added ahead of its codes, one cleared
+        c.post(
+            "/api/setup/places", json={"names": {"P": "Car park", "C-8": "Core 8", "S": "Skywalk"}}
+        )
+        view = c.get("/api/setup/places").json()
+        assert {p["suffix"]: p["name"] for p in view["places"]} == {
+            "P": "Car park",
+            "C-8": "Core 8",
+            "S": "Skywalk",
+        }
+        assert next(p for p in view["places"] if p["suffix"] == "S")["codes"] == 0
+        c.post("/api/setup/places", json={"names": {"S": "", "C-8": ""}})
+        assert c.get("/api/master").json()["places"] == {"P": "Car park"}
+        assert {p["suffix"] for p in c.get("/api/setup/places").json()["places"]} == {"P", "C-8"}
+        assert c.post("/api/setup/places", json={"names": {"P/1": "x"}}).status_code == 422
+        c.post("/api/setup/places", json={"names": {"P": "Parking area"}})
 
     # Another workbook of the same project, after a restart: nothing to ask, the names are there.
     b = save_snapshot(_named(small_snapshot, "B"), tmp_path / "Other November 2026.json")
