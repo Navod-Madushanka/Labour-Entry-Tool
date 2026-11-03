@@ -313,15 +313,34 @@ export function renameCode(input: EntryInput, from: string, to: string): EntryIn
   return { ...input, activities: lines };
 }
 
-/** Ticked on a code: the worker's whole day goes to that code (one line, all worked hours). A
- * split over several codes is made in the form (✎). */
-export function tickCode(input: EntryInput, code: string): EntryInput {
-  const worked =
-    input.time_in !== null && input.time_out !== null ? effectiveHours(input.time_in, input.time_out, input.additional ?? 0) : null;
-  return { ...input, activities: [{ code, hours: worked !== null && worked > 0 ? worked : null }] };
+/** Most codes one worker can be ticked on from the manpower sheet. */
+export const MAX_TICKS = 4;
+
+/** Worked hours of an entry (lunch/dinner taken off, additional hours added); null without times. */
+const workedOf = (input: EntryInput): number | null =>
+  input.time_in !== null && input.time_out !== null ? effectiveHours(input.time_in, input.time_out, input.additional ?? 0) : null;
+
+/** The worked hours shared over `codes` in quarter hours (11 h over 3: 3.75, 3.75, 3.5). */
+function splitOver(input: EntryInput, codes: string[]): EntryInput["activities"] {
+  const worked = workedOf(input);
+  if (worked === null || worked <= 0) return codes.map((code) => ({ code, hours: null }));
+  const quarters = Math.round(worked * 4);
+  const each = Math.floor(quarters / codes.length);
+  const extra = quarters - each * codes.length; // the first codes get one more quarter
+  return codes.map((code, i) => ({ code, hours: (each + (i < extra ? 1 : 0)) / 4 }));
 }
 
-/** Unticked: the lines with that code go (none left: the entry warns "no activity code"). */
+/** Ticked on a code: the code is added to the worker's codes (up to MAX_TICKS) and the worked
+ * hours are shared equally over all of them. Another split (6 + 5) is made in the form (✎). */
+export function tickCode(input: EntryInput, code: string): EntryInput {
+  const codes = input.activities.map((a) => a.code?.trim()).filter((c): c is string => Boolean(c));
+  if (codes.some((c) => sameCode(c, code)) || codes.length >= MAX_TICKS) return input;
+  return { ...input, activities: splitOver(input, [...codes, code]) };
+}
+
+/** Unticked: the code goes and the worked hours are shared over the codes left (none left: the
+ * entry warns "no activity code"). */
 export function untickCode(input: EntryInput, code: string): EntryInput {
-  return { ...input, activities: input.activities.filter((a) => !sameCode(a.code, code)) };
+  const codes = input.activities.map((a) => a.code?.trim()).filter((c): c is string => Boolean(c) && !sameCode(c!, code));
+  return { ...input, activities: codes.length ? splitOver(input, codes) : [] };
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## Manpower sheet: a worker on up to 4 codes (3 Nov 2026)
+
+Asked for: ticking a worker on a second code took them off the first; allow up to 4 codes, the
+hours split from In/Out by the number of ticks.
+
+- Ticking a worker on a code adds it to their codes (up to 4; a fifth tick box is disabled until
+  one is unticked). The worked hours (from In and Out, lunch/dinner and additional hours counted)
+  are shared equally over the ticked codes in quarter hours: 11 h over 2 = 5.5 + 5.5, over 3 =
+  3.75 + 3.75 + 3.5, over 4 = 2.75 each.
+- Unticking shares the hours over the codes left (none left: the "No activity code" warning).
+- Another split (6 + 5) is still made with ✎ in the form, or by clicking the hours on the sheet.
+
 ## Place names editable at any time (3 Nov 2026)
 
 Asked for: the code-ending (place) registration was only shown when a workbook was first opened;

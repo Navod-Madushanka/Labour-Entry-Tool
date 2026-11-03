@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DayView, EntryInput } from "../api";
 import { formulaValue } from "../calc";
 import type { Month } from "../history";
-import { renameCode, tickCode, untickCode, withTimes } from "../form";
+import { MAX_TICKS, renameCode, tickCode, untickCode, withTimes } from "../form";
 import { fmtHours, formatClock, parseClock } from "../time";
 import type { QueueItem } from "./Queue";
 import { placeName } from "../codes";
@@ -197,9 +197,9 @@ export function ManpowerSheet(props: Props) {
         </div>
         <p className="muted small">
           Every entry you add appears here, laid out like the paper form. Compare it with the paper, then push it to
-          Excel at the bottom. Click a time, hours or code to change it; tick a worker on a code to put their whole day on
-          it (type a new code in "+ code" for a row of its own). For a split over several codes, ✎ moves a worker back into
-          the form; ✕ removes them.
+          Excel at the bottom. Click a time, hours or code to change it. Tick a worker on up to {MAX_TICKS} codes: the worked
+          hours are shared equally over the ticked codes (type a new code in "+ code" for a row of its own). For another
+          split, ✎ moves a worker back into the form; ✕ removes them.
         </p>
         <label className="check wrap">
           <input type="checkbox" checked={withExcel} onChange={(e) => setWithExcel(e.target.checked)} /> Also show
@@ -353,8 +353,15 @@ export function ManpowerSheet(props: Props) {
                                       type="checkbox"
                                       className="mp-check"
                                       checked={Boolean(act)}
+                                      disabled={!act && c.acts.length >= MAX_TICKS}
                                       aria-label={`${c.name} on ${code}`}
-                                      title={act ? `Take ${c.name} off ${code}` : `Put ${c.name}'s whole day on ${code} (for a split, use ✎)`}
+                                      title={
+                                        act
+                                          ? `Take ${c.name} off ${code} (the hours go to the other codes)`
+                                          : c.acts.length >= MAX_TICKS
+                                            ? `${c.name} is already on ${MAX_TICKS} codes: untick one first`
+                                            : `Add ${code} to ${c.name}: the worked hours are shared equally over the ticked codes (another split: ✎)`
+                                      }
                                       onChange={(e) => onChange(c.id!, e.target.checked ? tickCode(c.input!, code) : untickCode(c.input!, code))}
                                     />
                                   )}

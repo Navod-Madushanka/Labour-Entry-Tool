@@ -45,10 +45,17 @@ assert.equal(F.dinnerFix(form({ timeOut: "19", additional: "-1", remark: "dinner
 
 // --- quick code changes on the manpower sheet (same file: src/form.ts)
 const inp = (acts, o = {}) => ({ sheet: "7", calling_name: "AA-01", time_in: 7, time_out: 19, additional: null, remark: null, overwrite: false, acknowledged: [], activities: acts, ...o });
-assert.deepEqual(F.tickCode(inp([{ code: "P", hours: 6 }, { code: "Q", hours: 5 }]), "R").activities, [{ code: "R", hours: 11 }]);
+// tick adds the code and shares the worked hours equally (quarter hours), up to 4 codes
+assert.deepEqual(F.tickCode(inp([{ code: "P", hours: 11 }]), "R").activities, [{ code: "P", hours: 5.5 }, { code: "R", hours: 5.5 }]);
+assert.deepEqual(F.tickCode(inp([{ code: "P", hours: 6 }, { code: "Q", hours: 5 }]), "R").activities, [{ code: "P", hours: 3.75 }, { code: "Q", hours: 3.75 }, { code: "R", hours: 3.5 }]);
 assert.deepEqual(F.tickCode(inp([], { time_in: 7, time_out: 22, additional: -1 }), "R").activities, [{ code: "R", hours: 13 }]);
 assert.deepEqual(F.tickCode(inp([], { time_out: null }), "R").activities, [{ code: "R", hours: null }]);
-assert.deepEqual(F.untickCode(inp([{ code: "P", hours: 6 }, { code: "q", hours: 5 }]), "Q").activities, [{ code: "P", hours: 6 }]);
+const four = inp(["A", "B", "C", "D"].map((code) => ({ code, hours: 2.75 })));
+assert.equal(F.tickCode(four, "E"), four, "a fifth code is not added");
+assert.equal(F.tickCode(inp([{ code: "P", hours: 11 }]), "p").activities.length, 1, "already ticked");
+assert.deepEqual(F.untickCode(four, "B").activities, [{ code: "A", hours: 3.75 }, { code: "C", hours: 3.75 }, { code: "D", hours: 3.5 }]);
+assert.deepEqual(F.untickCode(inp([{ code: "P", hours: 6 }, { code: "q", hours: 5 }]), "Q").activities, [{ code: "P", hours: 11 }]);
+assert.deepEqual(F.untickCode(inp([{ code: "P", hours: 11 }]), "P").activities, []);
 assert.deepEqual(F.renameCode(inp([{ code: "P", hours: 6 }, { code: "Q", hours: 5 }]), "P", "X").activities, [{ code: "X", hours: 6 }, { code: "Q", hours: 5 }]);
 assert.deepEqual(F.renameCode(inp([{ code: "P", hours: 6 }, { code: "Q", hours: 5 }]), "P", "Q").activities, [{ code: "Q", hours: 11 }], "renamed onto a code it already has: one line");
 console.log("dinner: all passed");

@@ -39,14 +39,37 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForFunction(() => !document.querySelector(".push-bar button")?.disabled);
   console.log("push ready after the tick: yes");
 
-  // add a new code row and move AAA-01 onto it
+  // add a new code row and tick AAA-01 on it too: the 11 h are shared 5.5 + 5.5
   await p.getByLabel("Add an activity code to sheet 7").fill("03-20-00-00-c-8");
   await p.keyboard.press("Enter");
   await p.getByLabel("AAA-01 on 03-20-00-00-C-8").check();
+  await p.waitForFunction(() => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.innerText.includes("AAA-01") && r.innerText.includes("03-20-00-00-C-8")));
   await settle();
   const q1 = (await p.locator(".queue tbody tr", { hasText: "AAA-01" }).innerText()).replace(/\s+/g, " ");
-  console.log("AAA-01 on the new code:", q1.slice(0, 120));
-  if (!q1.includes("03-20-00-00-C-8 · 11") || q1.includes("03-11-00-00 ·")) throw new Error("not moved to the new code");
+  console.log("AAA-01 on two codes:", q1.slice(0, 140));
+  if (!q1.includes("03-11-00-00 · 5.5") || !q1.includes("03-20-00-00-C-8 · 5.5")) throw new Error("not shared over two codes");
+
+  // up to 4 codes: two more rows; a fifth tick box is disabled
+  for (const code of ["03-11-00-00-p", "01-20-00-00", "01-54-00-00"]) {
+    await p.getByLabel("Add an activity code to sheet 7").fill(code);
+    await p.keyboard.press("Enter");
+  }
+  await p.getByLabel("AAA-01 on 03-11-00-00-P").check();
+  await p.getByLabel("AAA-01 on 01-20-00-00").check();
+  await p.waitForFunction(() => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.innerText.includes("AAA-01") && r.innerText.includes("01-20-00-00")));
+  await settle();
+  const q4 = (await p.locator(".queue tbody tr", { hasText: "AAA-01" }).innerText()).replace(/\s+/g, " ");
+  console.log("AAA-01 on four codes:", q4.slice(0, 200));
+  const fifth = await p.getByLabel("AAA-01 on 01-54-00-00").isDisabled();
+  console.log("fifth tick box disabled:", fifth);
+  if (!fifth || (q4.match(/· 2\.75/g) || []).length !== 4) throw new Error("4 codes at 2.75 h each expected, the fifth disabled");
+
+  // untick two: the hours go back to the others
+  await p.getByLabel("AAA-01 on 03-11-00-00-P").uncheck();
+  await p.getByLabel("AAA-01 on 01-20-00-00").uncheck();
+  await p.getByLabel("AAA-01 on 03-11-00-00", { exact: true }).uncheck();
+  await p.waitForFunction(() => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.innerText.includes("AAA-01") && r.innerText.includes("03-20-00-00-C-8 · 11")));
+  console.log("after unticking three: AAA-01 has 03-20-00-00-C-8 · 11");
 
   // rename 03-11-00-00 (AAA-02) to 03-11-00-00-P from the code cell
   await p.getByRole("button", { name: "Change code 03-11-00-00", exact: true }).click();
