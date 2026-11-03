@@ -82,6 +82,8 @@ class SetupState(BaseModel):
     mode: Literal["live", "demo"] | None = None
     month: str | None = None
     month_note: str | None = None
+    month_confirmed: bool = False  # False: the start page asks which month the workbook is for
+    month_source: str | None = None  # where the suggested month came from (file name, sheet dates)
     check_activities: bool = True  # activity codes and their hours are checked
     ready: bool = False  # the user finished the start page for it
     books: list[BookInfo] = Field(default_factory=list)  # every workbook open in this session
@@ -101,9 +103,16 @@ class Book:
         self.name, self.path, self.mode, self.service = name, path, mode, service
         self.month: str | None = None
         self.month_note: str | None = None
+        self.month_confirmed = False  # the user said which month it is (asked once per file)
+        self.month_source: str | None = None  # where the suggested month came from
         self.ready = False
         self.check_activities: bool | None = None  # None: not decided yet (see decide)
         self.places_key: str | None = None  # where its place names are kept (see decide)
+
+    def confirm_month(self, month: str) -> None:
+        """The month the user gave (or gave before for this file)."""
+        self.month, self.month_note = month, None
+        self.month_confirmed, self.month_source = True, "you"
 
 
 class Session:
@@ -205,6 +214,8 @@ class Session:
         s.mode = b.mode if b else None  # type: ignore[assignment]
         s.month = b.month if b else None
         s.month_note = b.month_note if b else None
+        s.month_confirmed = bool(b and b.month_confirmed)
+        s.month_source = b.month_source if b else None
         s.check_activities = b is None or b.check_activities is not False
         s.ready = bool(b and b.ready)
         s.books = [
@@ -299,6 +310,10 @@ def choose(app, path: Path | None, name: str, practice: bool, real_file: bool) -
     book = Book(name, path, "live" if live else "demo", None)  # type: ignore[arg-type]
     book.month = guess.month if guess else month_from_name(name)
     book.month_note = guess.note if guess else None
+    book.month_source = guess.source if guess else ("file name" if book.month else None)
+    saved = session.settings.get_key(month_key(name)).get("month")
+    if isinstance(saved, str) and re.fullmatch(r"\d{4}-\d{2}", saved):
+        book.confirm_month(saved)
     session.decide(book, snapshot)
     config = session.config(book)
     if live:
@@ -516,7 +531,7 @@ async def _check(request: Request, session: Session) -> HealthReport:
     def run(service: EntryService) -> HealthReport:
         snap = service.snapshot()
         b = session.book
-        if b.path is None:  # chosen from Excel's open workbooks: the sheets tell the month too
+        if b.path is None and not b.month_confirmed:  # from Excel: the sheets tell the month
             guess = guess_month(b.name, snap)
             if guess.month and guess.month != b.month:
                 b.month, b.month_note = guess.month, guess.note
@@ -547,6 +562,28 @@ def _apply(request: Request, session: Session) -> None:
     request.app.state.config = config
     if (service := request.app.state.service) is not None:
         service.set_config(config)
+
+
+def month_key(name: str) -> str:
+    """Where the month the user gave for one workbook file is kept (per file, not per kind)."""
+    return f"file:{Path(name).name.casefold()}"
+
+
+class MonthRequest(BaseModel):
+    month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+@router.post("/month", response_model=SetupState)
+def set_month(body: MonthRequest, request: Request) -> SetupState:
+    """Which month the active workbook is for: asked once for a new workbook, changeable any
+    time. Kept for this file; the sheets are checked against it (dates, Saturdays, Sundays,
+    holidays), and the start page offers to fix them."""
+    session = _require(request)
+    book = session.book
+    book.confirm_month(body.month)
+    session.settings.set_key(month_key(book.name), month=body.month)
+    _apply(request, session)
+    return session.sync()
 
 
 class HolidaysRequest(BaseModel):
@@ -580,7 +617,6 @@ async def add_registration(request: Request, filename: str = Query(...)) -> Setu
 async def get_readiness(request: Request) -> Readiness:
     """The checks the automation depends on, on the sheets as read by the last check (and any
     fix since)."""
-    _require(request)
 
     def run(service: EntryService) -> Readiness:
         snap = WorkbookSnapshot(
@@ -596,7 +632,7 @@ async def get_readiness(request: Request) -> Readiness:
                 crews = (build.candidates, len(build.crews))
             except (KeyError, ValueError):
                 pass
-        return readiness(
+        out = readiness(
             snap,
             config.month_start,
             config.holidays,
@@ -606,7 +642,15 @@ async def get_readiness(request: Request) -> Readiness:
             crews,
             check_activities=config.check_activities,
         )
+        if not session.book.month_confirmed:
+            for c in out.checks:
+                if c.id == "month":
+                    c.status = "fail"
+                    c.detail = "Say which month this workbook is for (the previous step asks)."
+            out.ready = False
+        return out
 
+    session = _require(request)
     return await run_service(request, run)
 
 
@@ -812,6 +856,8 @@ async def new_month(body: NewMonthRequest, request: Request) -> NewMonthResult:
         msg = f"The new month was not made (the copy is removed): {exc}"
         raise HTTPException(500, msg) from exc
     practice = book.mode == "demo"
+    # the month was chosen in the dialog: no need to ask it again for the new file
+    session.settings.set_key(month_key(target.name), month=month.strftime("%Y-%m"))
     state = await run_in_threadpool(choose, request.app, target, target.name, practice, True)
     return NewMonthResult(
         state=state, path=str(target), sheets=len(plans),

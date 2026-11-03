@@ -309,6 +309,9 @@ export interface SetupState {
   mode: "live" | "demo" | null;
   month: string | null;
   month_note: string | null;
+  month_confirmed: boolean; // false: the start page asks which month the workbook is for
+  month_source: string | null; // "file name", "sheet dates", "you"
+
   holidays: string[];
   registration_files: string[];
   live_available: boolean;
@@ -541,6 +544,7 @@ export const api = {
     call<{ cancelled: boolean; state?: SetupState }>("POST", "/api/setup/browse", { practice }),
   setupOpen: (name: string) => call<SetupState>("POST", "/api/setup/open", { name }),
   setupCheck: () => call<HealthReport>("POST", "/api/setup/check"),
+  setupMonth: (month: string) => call<SetupState>("POST", "/api/setup/month", { month }),
   setupHolidays: (holidays: string[]) => call<SetupState>("POST", "/api/setup/holidays", { holidays }),
   setupRegistration: (file: File) => send<SetupState>("/api/setup/registration", file),
   setupReadiness: () => call<Readiness>("GET", "/api/setup/readiness"),

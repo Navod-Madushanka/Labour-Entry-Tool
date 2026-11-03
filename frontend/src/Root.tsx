@@ -11,6 +11,7 @@ export function Root() {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false); // on the start page to open one more workbook
   const [newMonth, setNewMonth] = useState(false); // the "start the next month" dialog
+  const [editMonth, setEditMonth] = useState(false); // the start page opened to change the month
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   const load = () =>
@@ -40,8 +41,10 @@ export function Root() {
         key={adding ? "add" : setup.workbook ?? ""}
         initial={setup}
         adding={adding}
+        editMonth={editMonth}
         onDone={(s) => {
           setAdding(false);
+          setEditMonth(false);
           setSetup(s);
         }}
         onCancel={setup.ready ? () => setAdding(false) : undefined}
@@ -57,6 +60,10 @@ export function Root() {
         onCloseBook={(name) => api.setupClose(name).then(setSetup).catch(fail)}
         onChangeWorkbook={() => api.setupReady(false).then(setSetup).catch(fail)}
         onNewMonth={() => setNewMonth(true)}
+        onChangeMonth={() => {
+          setEditMonth(true);
+          api.setupReady(false).then(setSetup).catch(fail);
+        }}
       />
       {newMonth && (
         <NewMonthDialog

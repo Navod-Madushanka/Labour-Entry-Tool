@@ -44,9 +44,10 @@ interface AppProps {
   onCloseBook: (name: string) => void;
   onChangeWorkbook: () => void;
   onNewMonth: () => void;
+  onChangeMonth: () => void;
 }
 
-export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkbook, onNewMonth }: AppProps) {
+export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkbook, onNewMonth, onChangeMonth }: AppProps) {
   const [user, setUser] = useState(() => store.get("labour.user") ?? "");
   const [askName, setAskName] = useState(() => !store.get("labour.user"));
   const [status, setStatus] = useState<Status | null>(null);
@@ -557,6 +558,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         onSwitch={(name) => leave(() => onSwitch(name))}
         onAddWorkbook={() => leave(onAddWorkbook)}
         onNewMonth={() => leave(onNewMonth)}
+        onChangeMonth={() => leave(onChangeMonth)}
         // Closing the workbook in use drops its waiting entries (ask); another one: nothing to lose.
         onCloseBook={closeBook}
         story={{

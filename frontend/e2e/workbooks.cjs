@@ -12,6 +12,12 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.goto(BASE);
   await p.evaluate(() => localStorage.setItem("labour.user", "Tester")); await p.reload();
   await p.waitForSelector(".book-current");
+  // a workbook's month is asked once: say yes to the suggestion when the card is there
+  const confirmMonth = async () => {
+    const yes = p.getByRole("button", { name: /^Yes, / });
+    await yes.or(p.getByRole("button", { name: /^Continue/ })).first().waitFor();
+    if (await yes.count()) { await yes.click(); await p.getByRole("button", { name: /^Continue/ }).waitFor(); }
+  };
   const switchTo = async (name) => {
     await p.locator(".book-current").click();
     await p.locator(".book-list .book-name", { hasText: name }).click();
@@ -23,6 +29,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForSelector("text=Check activity codes and hours");
   const on = await p.locator(".activity-toggle input").isChecked();
   console.log("B toggle checked:", on);
+  await confirmMonth();
   await p.getByRole("button", { name: /^Continue/ }).click();
   await p.waitForSelector("text=Not used in this workbook");
   await p.screenshot({ path: out + "/b-ready.png", fullPage: true });
@@ -47,6 +54,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
 
   // Place names: asked once on the start page, then shown next to the codes.
   await p.getByRole("button", { name: "Check workbook" }).click();
+  await confirmMonth();
   await p.waitForSelector("text=Places in the activity codes");
   await p.getByLabel("Place for -P").fill("Parking area");
   await p.getByRole("button", { name: "Save place names" }).click();

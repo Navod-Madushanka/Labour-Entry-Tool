@@ -105,6 +105,19 @@ def test_practice_flow(app, small_snapshot, tmp_path):
                      json={"user": USER, "fields": ["day_type"], "approve": True})  # fmt: skip
         assert fix.json()["status"] == "written"
         ready = c.get("/api/setup/readiness").json()
+        # the month is asked once (the file name's month suggested): not ready until confirmed
+        assert (
+            not ready["ready"]
+            and {x["id"]: x["status"] for x in ready["checks"]}["month"] == "fail"
+        )
+        state = c.get("/api/setup").json()
+        assert (state["month"], state["month_confirmed"], state["month_source"]) == (
+            "2026-10",
+            False,
+            "file name",
+        )
+        assert c.post("/api/setup/month", json={"month": "2026-10"}).json()["month_confirmed"]
+        ready = c.get("/api/setup/readiness").json()
         checks = {x["id"]: x for x in ready["checks"]}
         assert ready["ready"] and ready["next_sheet"] == "1"
         assert checks["headers"]["status"] == "ok" and checks["formulas"]["status"] == "ok"
@@ -445,3 +458,29 @@ def test_recent_batches_are_the_workbooks_own(app, small_snapshot, tmp_path):
             assert res["status"] == "written", res
         own = c.get("/api/batches").json()
         assert [x["workbook"] for x in own] == [b.name]  # B's only, though the log holds both
+
+
+def test_month_asked_once_and_changeable(tmp_path, small_snapshot):
+    """The month a workbook is for: suggested, confirmed once (kept per file), changed later;
+    the sheets are then checked against the new month (dates, Saturdays, Sundays)."""
+    cfg = Config(month="2000-01", backups={"dir": tmp_path / "b"},
+                 settings_file=tmp_path / "workbooks.json")  # fmt: skip
+    path = save_snapshot(small_snapshot, tmp_path / "Labour book.json")  # no month in the name
+    app = create_app(cfg)
+    state = setup_api.choose(app, path, path.name, practice=True, real_file=False)
+    assert (state.month, state.month_source, state.month_confirmed) == (
+        "2026-10",
+        "sheet dates",
+        False,
+    )
+    with TestClient(app) as c:
+        assert c.post("/api/setup/month", json={"month": "2026-13"}).status_code == 422
+        c.post("/api/setup/month", json={"month": "2026-11"})
+        report = c.post("/api/setup/check").json()
+        assert report["month"] == "2026-11"
+        assert "H01" in {i["rule"] for i in report["issues"]}  # October dates on a November book
+        assert c.get("/api/master").json()["month"] == "2026-11"
+    # opened again later (a restart): the month given is remembered for this file
+    app2 = create_app(cfg)
+    again = setup_api.choose(app2, path, path.name, practice=True, real_file=False)
+    assert (again.month, again.month_confirmed, again.month_source) == ("2026-11", True, "you")

@@ -14,7 +14,11 @@ import { store } from "../store";
 
 type Step = "choose" | "check" | "ready";
 const HEADER = ["H01", "H02", "H03"];
-const FIELD: Record<string, string> = { H01: "date", H02: "day_type", H03: "sheet_no" };
+const FIELD: Record<string, string> = {
+  H01: "date",
+  H02: "day_type",
+  H03: "sheet_no",
+};
 const CODES = ["M02", "W07"];
 const ICON = { ok: "✓", warn: "!", fail: "✗" };
 
@@ -23,6 +27,7 @@ interface Props {
   adding?: boolean; // opening one more workbook: start at step 1, keep the others open
   onDone: (state: SetupState) => void;
   onCancel?: () => void; // back to the entry screen without adding one
+  editMonth?: boolean; // opened to change the workbook's month
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -30,7 +35,10 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function monthLabel(month: string | null): string {
   if (!month) return "unknown month";
   const [y, m] = month.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function sheetDate(month: string | null, sheet: string | null): Date | null {
@@ -43,19 +51,33 @@ function sheetDate(month: string | null, sheet: string | null): Date | null {
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-
 /** Choose the workbook -> check it and fix what can be fixed -> readiness -> entry. */
-export function StartPage({ initial, adding = false, onDone, onCancel }: Props) {
+export function StartPage({
+  initial,
+  adding = false,
+  onDone,
+  onCancel,
+  editMonth = false,
+}: Props) {
   const [setup, setSetup] = useState(initial);
-  const [step, setStep] = useState<Step>(initial.workbook && !adding ? "check" : "choose");
-  const [practice, setPractice] = useState(!initial.live_available || initial.mode === "demo");
+  const [monthOpen, setMonthOpen] = useState(editMonth);
+  const [step, setStep] = useState<Step>(
+    initial.workbook && !adding ? "check" : "choose",
+  );
+  const [practice, setPractice] = useState(
+    !initial.live_available || initial.mode === "demo",
+  );
   const [user, setUser] = useState(() => store.get("labour.user") ?? "");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<HealthReport | null>(null);
   const [ready, setReady] = useState<Readiness | null>(null);
   const [places, setPlaces] = useState<PlacesView | null>(null); // shown while not null
-  const [reading, setReading] = useState<{ done?: number; total?: number; step?: string } | null>(null);
+  const [reading, setReading] = useState<{
+    done?: number;
+    total?: number;
+    step?: string;
+  } | null>(null);
 
   // While the check reads every sheet through Excel, show how far it has got (asked every second;
   // answered without waiting for Excel).
@@ -64,11 +86,17 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
       setReading(null);
       return;
     }
-    const t = setInterval(() => api.setupProgress().then(setReading).catch(() => undefined), 1000);
+    const t = setInterval(
+      () =>
+        api
+          .setupProgress()
+          .then(setReading)
+          .catch(() => undefined),
+      1000,
+    );
     return () => clearInterval(t);
   }, [busy]);
   const started = useRef(false);
-
 
   // Dropping a file anywhere on the page must not make the browser open it instead.
   useEffect(() => {
@@ -81,7 +109,10 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
     };
   }, []);
 
-  const run = async <T,>(label: string, fn: () => Promise<T>): Promise<T | undefined> => {
+  const run = async <T,>(
+    label: string,
+    fn: () => Promise<T>,
+  ): Promise<T | undefined> => {
     setBusy(label);
     setError(null);
     try {
@@ -120,8 +151,12 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
 
   const savePlaces = async (names: Record<string, string>) => {
     // Every suffix shown counts as asked, named or not, so the card does not come back.
-    const all = Object.fromEntries((places?.places ?? []).map((p) => [p.suffix, names[p.suffix] ?? ""]));
-    const s = await run("Saving the place names…", () => api.saveSetupPlaces(all));
+    const all = Object.fromEntries(
+      (places?.places ?? []).map((p) => [p.suffix, names[p.suffix] ?? ""]),
+    );
+    const s = await run("Saving the place names…", () =>
+      api.saveSetupPlaces(all),
+    );
     if (s) {
       setSetup(s);
       setPlaces(null);
@@ -176,7 +211,9 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
   };
 
   const start = async () => {
-    const s = await run("Opening the entry screen…", () => api.setupReady(true));
+    const s = await run("Opening the entry screen…", () =>
+      api.setupReady(true),
+    );
     if (!s) return;
     if (ready?.next_sheet) store.set("labour.sheet", ready.next_sheet);
     onDone(s);
@@ -189,7 +226,12 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
         <ol className="steps">
           {(["choose", "check", "ready"] as Step[]).map((s, n) => (
             <li key={s} className={s === step ? "active" : ""}>
-              {n + 1}. {s === "choose" ? "Choose the workbook" : s === "check" ? "Check and fix" : "Ready"}
+              {n + 1}.{" "}
+              {s === "choose"
+                ? "Choose the workbook"
+                : s === "check"
+                  ? "Check and fix"
+                  : "Ready"}
             </li>
           ))}
         </ol>
@@ -198,11 +240,31 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
       {setup.workbook && step !== "choose" && (
         <p className="chosen">
           <b>{setup.workbook}</b> · {monthLabel(setup.month)} ·{" "}
-          {setup.mode === "live" ? "writes into the workbook open in Excel" : "practice copy (Excel is not changed)"}{" "}
-          <button className="link" onClick={() => setStep("choose")} disabled={!!busy}>
+          {setup.mode === "live"
+            ? "writes into the workbook open in Excel"
+            : "practice copy (Excel is not changed)"}{" "}
+          <button
+            className="link"
+            onClick={() => setStep("choose")}
+            disabled={!!busy}
+          >
             Change
           </button>
-          {setup.month_note && <span className="warn-text block">{setup.month_note}</span>}
+          {setup.month_confirmed && (
+            <>
+              {" · "}
+              <button
+                className="link small"
+                onClick={() => setMonthOpen(true)}
+                disabled={!!busy}
+              >
+                Change month
+              </button>
+            </>
+          )}
+          {setup.month_note && (
+            <span className="warn-text block">{setup.month_note}</span>
+          )}
           <label className="check block activity-toggle">
             <input
               type="checkbox"
@@ -218,7 +280,11 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
             </span>
           </label>
           {setup.check_activities && (
-            <button className="link small" onClick={editPlaces} disabled={!!busy}>
+            <button
+              className="link small"
+              onClick={editPlaces}
+              disabled={!!busy}
+            >
               Place names
             </button>
           )}
@@ -239,7 +305,15 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
         <div className="banner WARN">
           <p>{setup.excel_note}</p>
           <div className="actions">
-            <button onClick={() => run("Asking Excel again…", api.setup).then((s) => s && setSetup(s))}>Check again</button>
+            <button
+              onClick={() =>
+                run("Asking Excel again…", api.setup).then(
+                  (s) => s && setSetup(s),
+                )
+              }
+            >
+              Check again
+            </button>
           </div>
         </div>
       )}
@@ -249,11 +323,16 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
           {reading && reading.total ? (
             <div className="read-progress" role="status">
               <div className="tc-bar">
-                <span style={{ width: `${Math.round(((reading.done ?? 0) / reading.total) * 100)}%` }} />
+                <span
+                  style={{
+                    width: `${Math.round(((reading.done ?? 0) / reading.total) * 100)}%`,
+                  }}
+                />
               </div>
               <small className="muted">
-                Reading from Excel: {reading.step} ({reading.done} of {reading.total}). On a slow PC this can take a
-                few minutes; keep Excel open and don't click in it meanwhile.
+                Reading from Excel: {reading.step} ({reading.done} of{" "}
+                {reading.total}). On a slow PC this can take a few minutes; keep
+                Excel open and don't click in it meanwhile.
               </small>
             </div>
           ) : null}
@@ -271,32 +350,76 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
           user={user}
           setUser={saveUser}
           busy={!!busy}
-          onFile={(f) => run(`Reading ${f.name}…`, () => api.setupUpload(f, practice)).then(chosen)}
-          onBrowse={() =>
-            run("Waiting for the file dialog (it may open behind this window)…", () => api.setupBrowse(practice)).then(
-              (r) => r && !r.cancelled && chosen(r.state),
+          onFile={(f) =>
+            run(`Reading ${f.name}…`, () => api.setupUpload(f, practice)).then(
+              chosen,
             )
           }
-          onOpen={(name) => run(`Connecting to ${name}…`, () => api.setupOpen(name)).then(chosen)}
+          onBrowse={() =>
+            run(
+              "Waiting for the file dialog (it may open behind this window)…",
+              () => api.setupBrowse(practice),
+            ).then((r) => r && !r.cancelled && chosen(r.state))
+          }
+          onOpen={(name) =>
+            run(`Connecting to ${name}…`, () => api.setupOpen(name)).then(
+              chosen,
+            )
+          }
         />
       )}
 
-      {places && step !== "choose" && !busy && setup.check_activities && (
-        <PlacesCard view={places} busy={!!busy} onSave={savePlaces} onLater={() => setPlaces(null)} />
-      )}
+      {step === "check" &&
+        setup.workbook &&
+        !busy &&
+        (!setup.month_confirmed || monthOpen) && (
+          <MonthCard
+            setup={setup}
+            onCancel={
+              setup.month_confirmed ? () => setMonthOpen(false) : undefined
+            }
+            onSave={async (month) => {
+              const s = await run("Saving the month…", () =>
+                api.setupMonth(month),
+              );
+              if (s) {
+                setSetup(s);
+                setMonthOpen(false);
+                check(); // the sheets against this month: dates, Saturdays, Sundays, holidays
+              }
+            }}
+          />
+        )}
 
-      {step === "check" && report && !busy && (
-        <CheckStep
-          setup={setup}
-          report={report}
-          user={user}
-          setUser={saveUser}
-          run={run}
-          onChanged={check}
-          onSetup={setSetup}
-          onContinue={toReadiness}
-        />
-      )}
+      {places &&
+        step !== "choose" &&
+        !busy &&
+        setup.check_activities &&
+        setup.month_confirmed && (
+          <PlacesCard
+            view={places}
+            busy={!!busy}
+            onSave={savePlaces}
+            onLater={() => setPlaces(null)}
+          />
+        )}
+
+      {step === "check" &&
+        report &&
+        !busy &&
+        setup.month_confirmed &&
+        !monthOpen && (
+          <CheckStep
+            setup={setup}
+            report={report}
+            user={user}
+            setUser={saveUser}
+            run={run}
+            onChanged={check}
+            onSetup={setSetup}
+            onContinue={toReadiness}
+          />
+        )}
 
       {step === "ready" && ready && !busy && (
         <section className="card">
@@ -316,7 +439,12 @@ export function StartPage({ initial, adding = false, onDone, onCancel }: Props) 
             <div className="go">
               <p>
                 Everything the tool needs is in place.
-                {ready.next_sheet && <> Entry starts at <b>sheet {ready.next_sheet}</b>.</>}
+                {ready.next_sheet && (
+                  <>
+                    {" "}
+                    Entry starts at <b>sheet {ready.next_sheet}</b>.
+                  </>
+                )}
               </p>
               <button className="primary big" onClick={start} autoFocus>
                 Start entering data
@@ -352,7 +480,20 @@ interface ChooseProps {
 }
 
 function ChooseStep(props: ChooseProps) {
-  const { setup, practice, setPractice, user, setUser, busy, onFile, onBrowse, onOpen, onSwitch, onClose, onCancel } = props;
+  const {
+    setup,
+    practice,
+    setPractice,
+    user,
+    setUser,
+    busy,
+    onFile,
+    onBrowse,
+    onOpen,
+    onSwitch,
+    onClose,
+    onCancel,
+  } = props;
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const live = setup.live_available && !practice;
@@ -371,22 +512,33 @@ function ChooseStep(props: ChooseProps) {
           <ul>
             {setup.books.map((b) => (
               <li key={b.name}>
-                <button className="link" disabled={busy} onClick={() => onSwitch(b.name)}>
+                <button
+                  className="link"
+                  disabled={busy}
+                  onClick={() => onSwitch(b.name)}
+                >
                   {b.name}
                 </button>{" "}
                 <span className="muted small">
-                  {monthLabel(b.month)} · {b.mode === "live" ? "Excel" : "practice copy"}
+                  {monthLabel(b.month)} ·{" "}
+                  {b.mode === "live" ? "Excel" : "practice copy"}
                   {!b.check_activities && " · no activity codes"}
                   {b.ready ? "" : " · not checked yet"}
                 </span>{" "}
-                <button className="link muted small" disabled={busy} onClick={() => onClose(b.name)} title="Take it off this list (the file is not changed)">
+                <button
+                  className="link muted small"
+                  disabled={busy}
+                  onClick={() => onClose(b.name)}
+                  title="Take it off this list (the file is not changed)"
+                >
                   Close
                 </button>
               </li>
             ))}
           </ul>
           <p className="muted small">
-            Click one to work on it, or choose another workbook below to open it as well.
+            Click one to work on it, or choose another workbook below to open it
+            as well.
             {onCancel && (
               <>
                 {" "}
@@ -423,9 +575,15 @@ function ChooseStep(props: ChooseProps) {
           if (f && !busy && !nameMissing) onFile(f);
         }}
       >
-        <p className="drop-title">Drop the labour entry workbook (.xlsb) here</p>
+        <p className="drop-title">
+          Drop the labour entry workbook (.xlsb) here
+        </p>
         <p className="muted">or</p>
-        <button className="primary" onClick={browse} disabled={busy || nameMissing}>
+        <button
+          className="primary"
+          onClick={browse}
+          disabled={busy || nameMissing}
+        >
           Browse…
         </button>
         <input
@@ -439,14 +597,20 @@ function ChooseStep(props: ChooseProps) {
             if (f) onFile(f);
           }}
         />
-        {nameMissing && <p className="warn-text small">Type your name first.</p>}
+        {nameMissing && (
+          <p className="warn-text small">Type your name first.</p>
+        )}
       </div>
 
       {live && setup.open_workbooks.length > 0 && (
         <div className="open-books">
           <h3>Open in Excel now</h3>
           {setup.open_workbooks.map((name) => (
-            <button key={name} onClick={() => onOpen(name)} disabled={busy || nameMissing}>
+            <button
+              key={name}
+              onClick={() => onOpen(name)}
+              disabled={busy || nameMissing}
+            >
               Use {name}
             </button>
           ))}
@@ -460,7 +624,8 @@ function ChooseStep(props: ChooseProps) {
           disabled={!setup.live_available || busy}
           onChange={(e) => setPractice(e.target.checked)}
         />{" "}
-        Practice mode: work on a copy in memory, Excel and the file are not changed
+        Practice mode: work on a copy in memory, Excel and the file are not
+        changed
       </label>
       <p className="muted small">
         {!setup.live_available
@@ -488,11 +653,22 @@ interface CheckProps {
   onContinue: () => void;
 }
 
-function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onContinue }: CheckProps) {
+function CheckStep({
+  setup,
+  report,
+  user,
+  setUser,
+  run,
+  onChanged,
+  onSetup,
+  onContinue,
+}: CheckProps) {
   const issues = report.issues;
   const header = issues.filter((i) => HEADER.includes(i.rule));
   const codes = issues.filter((i) => CODES.includes(i.rule));
-  const rest = issues.filter((i) => !HEADER.includes(i.rule) && !CODES.includes(i.rule));
+  const rest = issues.filter(
+    (i) => !HEADER.includes(i.rule) && !CODES.includes(i.rule),
+  );
   const other = rest.filter((i) => i.severity === "BLOCK");
   const warns = rest.filter((i) => i.severity === "WARN");
   const info = rest.filter((i) => i.severity === "INFO");
@@ -503,23 +679,34 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
 
   const bySheet = useMemo(() => {
     const m = new Map<string, PlainIssue[]>();
-    for (const i of header) m.set(i.sheet ?? "", [...(m.get(i.sheet ?? "") ?? []), i]);
+    for (const i of header)
+      m.set(i.sheet ?? "", [...(m.get(i.sheet ?? "") ?? []), i]);
     return [...m.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
   }, [header]);
 
   const fixSheets = async (sheets: [string, PlainIssue[]][]) => {
-    const done = await run(`Fixing ${sheets.length === 1 ? `sheet ${sheets[0][0]}` : `${sheets.length} sheets`}…`, async () => {
-      for (const [sheet, list] of sheets) {
-        const res = await api.headerFix(sheet, [...new Set(list.map((i) => FIELD[i.rule]))], user.trim());
-        if (res.status === "failed" || res.status === "rejected") throw new Error(`Sheet ${sheet}: ${res.error ?? res.status}`);
-      }
-      return true;
-    });
+    const done = await run(
+      `Fixing ${sheets.length === 1 ? `sheet ${sheets[0][0]}` : `${sheets.length} sheets`}…`,
+      async () => {
+        for (const [sheet, list] of sheets) {
+          const res = await api.headerFix(
+            sheet,
+            [...new Set(list.map((i) => FIELD[i.rule]))],
+            user.trim(),
+          );
+          if (res.status === "failed" || res.status === "rejected")
+            throw new Error(`Sheet ${sheet}: ${res.error ?? res.status}`);
+        }
+        return true;
+      },
+    );
     if (done) onChanged();
   };
 
   const setHolidays = async (dates: string[]) => {
-    const st = await run("Saving the holidays…", () => api.setupHolidays(dates));
+    const st = await run("Saving the holidays…", () =>
+      api.setupHolidays(dates),
+    );
     if (st) {
       onSetup(st);
       onChanged();
@@ -537,7 +724,8 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
             : `${errors} mistake${errors === 1 ? "" : "s"} to correct, ${warnings} thing${warnings === 1 ? "" : "s"} worth checking`}
         </h2>
         <p className="muted">
-          {s.workers} workers in Labour Detail; {s.entries} worker-days entered on {s.sheets_with_entries} sheets.
+          {s.workers} workers in Labour Detail; {s.entries} worker-days entered
+          on {s.sheets_with_entries} sheets.
         </p>
         <div className="holidays">
           <span>Holidays this month:</span>
@@ -545,7 +733,13 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
           {inMonth.map((d) => (
             <span key={d} className="chip static">
               {d}{" "}
-              <button className="link" title="Remove" onClick={() => setHolidays(setup.holidays.filter((x) => x !== d))}>
+              <button
+                className="link"
+                title="Remove"
+                onClick={() =>
+                  setHolidays(setup.holidays.filter((x) => x !== d))
+                }
+              >
                 ×
               </button>
             </span>
@@ -555,7 +749,9 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
             aria-label="Add a holiday"
             min={`${report.month}-01`}
             max={`${report.month}-31`}
-            onChange={(e) => e.target.value && setHolidays([...setup.holidays, e.target.value])}
+            onChange={(e) =>
+              e.target.value && setHolidays([...setup.holidays, e.target.value])
+            }
           />
         </div>
       </section>
@@ -564,7 +760,11 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
         <section className="card">
           <div className="field name-field">
             <label htmlFor="check-user">Your name (needed to make fixes)</label>
-            <input id="check-user" value={user} onChange={(e) => setUser(e.target.value)} />
+            <input
+              id="check-user"
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+            />
           </div>
         </section>
       )}
@@ -573,17 +773,26 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
         <section className="card">
           <div className="section-head">
             <h2>Sheet dates and day types: the tool can fix these</h2>
-            <button className="primary" disabled={needName} onClick={() => fixSheets(bySheet)}>
+            <button
+              className="primary"
+              disabled={needName}
+              onClick={() => fixSheets(bySheet)}
+            >
               Fix all {bySheet.length} sheet{bySheet.length === 1 ? "" : "s"}
             </button>
           </div>
-          <p className="muted small">A wrong date or day type makes overtime come out wrong. Each fix can be undone.</p>
+          <p className="muted small">
+            A wrong date or day type makes overtime come out wrong. Each fix can
+            be undone.
+          </p>
           <ul className="fix-list">
             {bySheet.map(([sheet, list]) => {
               const date = sheetDate(report.month, sheet);
               const h02 = list.find((i) => i.rule === "H02");
-              const markedHoliday = !!h02 && h02.message.includes("marked Holiday");
-              const maybeHoliday = !!h02 && date && (date.getDay() !== 0 || markedHoliday);
+              const markedHoliday =
+                !!h02 && h02.message.includes("marked Holiday");
+              const maybeHoliday =
+                !!h02 && date && (date.getDay() !== 0 || markedHoliday);
               return (
                 <li key={sheet}>
                   <div>
@@ -595,14 +804,24 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
                     ))}
                   </div>
                   <div className="row-actions">
-                    <button disabled={needName} onClick={() => fixSheets([[sheet, list]])}>
+                    <button
+                      disabled={needName}
+                      onClick={() => fixSheets([[sheet, list]])}
+                    >
                       Fix
                     </button>
-                    {maybeHoliday && date && !setup.holidays.includes(iso(date)) && (
-                      <button title="Mark this date as a holiday instead" onClick={() => setHolidays([...setup.holidays, iso(date)])}>
-                        {markedHoliday ? "Keep as holiday" : "It's a holiday"}
-                      </button>
-                    )}
+                    {maybeHoliday &&
+                      date &&
+                      !setup.holidays.includes(iso(date)) && (
+                        <button
+                          title="Mark this date as a holiday instead"
+                          onClick={() =>
+                            setHolidays([...setup.holidays, iso(date)])
+                          }
+                        >
+                          {markedHoliday ? "Keep as holiday" : "It's a holiday"}
+                        </button>
+                      )}
                   </div>
                 </li>
               );
@@ -612,7 +831,14 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
       )}
 
       {codes.length > 0 && (
-        <CodeFixer setup={setup} codeIssues={codes} user={user} run={run} onSetup={onSetup} onChanged={onChanged} />
+        <CodeFixer
+          setup={setup}
+          codeIssues={codes}
+          user={user}
+          run={run}
+          onSetup={onSetup}
+          onChanged={onChanged}
+        />
       )}
 
       {other.length > 0 && <ExcelIssues issues={other} mode={setup.mode} />}
@@ -620,7 +846,8 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
       {warns.length > 0 && (
         <details className="card">
           <summary>
-            {warns.length} thing{warns.length === 1 ? "" : "s"} worth checking on days already entered (not required): click to see
+            {warns.length} thing{warns.length === 1 ? "" : "s"} worth checking
+            on days already entered (not required): click to see
           </summary>
           <IssueGroups issues={warns} />
         </details>
@@ -629,7 +856,8 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
       {info.length > 0 && (
         <details className="card">
           <summary>
-            {info.length} small note{info.length === 1 ? "" : "s"} (nothing to do): click to see
+            {info.length} small note{info.length === 1 ? "" : "s"} (nothing to
+            do): click to see
           </summary>
           <IssueGroups issues={info} />
         </details>
@@ -645,7 +873,13 @@ function CheckStep({ setup, report, user, setUser, run, onChanged, onSetup, onCo
   );
 }
 
-function ExcelIssues({ issues, mode }: { issues: PlainIssue[]; mode: SetupState["mode"] }) {
+function ExcelIssues({
+  issues,
+  mode,
+}: {
+  issues: PlainIssue[];
+  mode: SetupState["mode"];
+}) {
   return (
     <section className="card">
       <h2>Mistakes to correct in Excel</h2>
@@ -662,7 +896,8 @@ function ExcelIssues({ issues, mode }: { issues: PlainIssue[]; mode: SetupState[
 function IssueGroups({ issues }: { issues: PlainIssue[] }) {
   const groups = useMemo(() => {
     const m = new Map<string, PlainIssue[]>();
-    for (const i of issues) m.set(i.plain.title, [...(m.get(i.plain.title) ?? []), i]);
+    for (const i of issues)
+      m.set(i.plain.title, [...(m.get(i.plain.title) ?? []), i]);
     return [...m.entries()];
   }, [issues]);
   return (
@@ -681,7 +916,10 @@ function IssueGroup({ title, list }: { title: string; list: PlainIssue[] }) {
   return (
     <div className="group">
       <h3 className="group-title">
-        {title} <span className="muted">({list.length === 1 ? "1 place" : `${list.length} places`})</span>
+        {title}{" "}
+        <span className="muted">
+          ({list.length === 1 ? "1 place" : `${list.length} places`})
+        </span>
       </h3>
       {sameFix && <p className="todo">What to do: {list[0].plain.fix}</p>}
       <ul className="issues plain">
@@ -712,11 +950,20 @@ interface CodeProps {
   onChanged: () => void;
 }
 
-function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodeProps) {
+function CodeFixer({
+  setup,
+  codeIssues,
+  user,
+  run,
+  onSetup,
+  onChanged,
+}: CodeProps) {
   const [proposals, setProposals] = useState<CodeProposal[] | null>(null);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const workers = new Set(codeIssues.filter((i) => i.rule === "M02").map((i) => i.calling_name)).size;
+  const workers = new Set(
+    codeIssues.filter((i) => i.rule === "M02").map((i) => i.calling_name),
+  ).size;
   const files = setup.registration_files;
 
   const load = useCallback(() => {
@@ -734,18 +981,34 @@ function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodePro
   const add = async (list: FileList | null) => {
     if (!list?.length) return;
     let last: SetupState | undefined;
-    for (const f of Array.from(list)) last = (await run(`Reading ${f.name}…`, () => api.setupRegistration(f))) ?? last;
+    for (const f of Array.from(list))
+      last =
+        (await run(`Reading ${f.name}…`, () => api.setupRegistration(f))) ??
+        last;
     if (last) onSetup(last);
   };
 
   const ready = (proposals ?? []).filter((p) => p.selectable && p.proposed);
   const write = async () => {
     const lines = ready.map((p) => `${p.calling_name}: ${p.proposed}`);
-    if (!window.confirm(`Write ${ready.length} employee code(s) into Labour Detail column G?\n\n${lines.join("\n")}\n\nA backup is made first; the batch can be undone.`)) return;
+    if (
+      !window.confirm(
+        `Write ${ready.length} employee code(s) into Labour Detail column G?\n\n${lines.join("\n")}\n\nA backup is made first; the batch can be undone.`,
+      )
+    )
+      return;
     const res = await run("Writing the codes…", () =>
-      api.writeCodes(ready.map((p) => ({ row: p.row, calling_name: p.calling_name, code: p.proposed! })), user.trim()),
+      api.writeCodes(
+        ready.map((p) => ({
+          row: p.row,
+          calling_name: p.calling_name,
+          code: p.proposed!,
+        })),
+        user.trim(),
+      ),
     );
-    if (res && res.status !== "written") window.alert(res.error ?? res.problems.join("\n"));
+    if (res && res.status !== "written")
+      window.alert(res.error ?? res.problems.join("\n"));
     if (res) onChanged();
   };
 
@@ -753,9 +1016,11 @@ function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodePro
     <section className="card">
       <h2>Employee codes</h2>
       <p>
-        {workers > 0 ? `${workers} worker${workers === 1 ? "" : "s"} ha${workers === 1 ? "s" : "ve"} no valid employee code` : "Some upload lines have no employee code"}
-        : their hours can be entered, but their lines in the payroll upload stay blank. The tool can find the codes in the
-        registration files.
+        {workers > 0
+          ? `${workers} worker${workers === 1 ? "" : "s"} ha${workers === 1 ? "s" : "ve"} no valid employee code`
+          : "Some upload lines have no employee code"}
+        : their hours can be entered, but their lines in the payroll upload stay
+        blank. The tool can find the codes in the registration files.
       </p>
       <div
         className={`drop small-drop${over ? " over" : ""}`}
@@ -774,9 +1039,20 @@ function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodePro
         <button className="link" onClick={() => input.current?.click()}>
           browse
         </button>
-        <input ref={input} type="file" accept=".xlsx,.xlsm" multiple hidden onChange={(e) => add(e.target.files).then(() => (e.target.value = ""))} />
+        <input
+          ref={input}
+          type="file"
+          accept=".xlsx,.xlsm"
+          multiple
+          hidden
+          onChange={(e) =>
+            add(e.target.files).then(() => (e.target.value = ""))
+          }
+        />
         {files.length > 0 && (
-          <div className="muted small">Using: {files.map((f) => f.split(/[\\/]/).pop()).join(", ")}</div>
+          <div className="muted small">
+            Using: {files.map((f) => f.split(/[\\/]/).pop()).join(", ")}
+          </div>
         )}
       </div>
       {proposals && (
@@ -786,11 +1062,22 @@ function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodePro
               <ul className="code-list">
                 {ready.map((p) => (
                   <li key={p.row}>
-                    <b>{p.calling_name}</b> → {p.proposed} <span className="muted small">({p.source === "registration" ? p.found_in : "same person's other line"})</span>
+                    <b>{p.calling_name}</b> → {p.proposed}{" "}
+                    <span className="muted small">
+                      (
+                      {p.source === "registration"
+                        ? p.found_in
+                        : "same person's other line"}
+                      )
+                    </span>
                   </li>
                 ))}
               </ul>
-              <button className="primary" disabled={!user.trim()} onClick={write}>
+              <button
+                className="primary"
+                disabled={!user.trim()}
+                onClick={write}
+              >
                 Write {ready.length} code{ready.length === 1 ? "" : "s"}
               </button>
             </>
@@ -799,11 +1086,102 @@ function CodeFixer({ setup, codeIssues, user, run, onSetup, onChanged }: CodePro
           )}
           {proposals.length > ready.length && (
             <p className="muted small">
-              {proposals.length - ready.length} need a look by hand: see the Codes &amp; registration tab after you start.
+              {proposals.length - ready.length} need a look by hand: see the
+              Codes &amp; registration tab after you start.
             </p>
           )}
         </>
       )}
     </section>
   );
+}
+
+const SOURCE: Record<string, string> = {
+  "file name": "from the file name",
+  "sheet dates": "from the dates on most of its sheets",
+  you: "as you set it",
+};
+
+/** Which month the workbook is for: asked once for a new workbook (the guess filled in),
+ * changeable at any time. The sheets are then checked against it. */
+function MonthCard({
+  setup,
+  onSave,
+  onCancel,
+}: {
+  setup: SetupState;
+  onSave: (month: string) => void;
+  onCancel?: () => void;
+}) {
+  const today = new Date();
+  const [month, setMonth] = useState(
+    setup.month ??
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
+  );
+  const changing = setup.month_confirmed;
+  return (
+    <section className="card month-card">
+      <h2>
+        {changing
+          ? "Change the month of this workbook"
+          : "Which month is this workbook for?"}
+      </h2>
+      <p className="muted small">
+        {changing
+          ? "The sheets are then checked against the new month, and the tool offers to set every sheet's date and day type."
+          : "The dates, Saturdays, Sundays and holidays of every day sheet are checked against this month, and the tool offers to set them. You are asked once for each workbook."}
+      </p>
+      {!changing && (
+        <p className="small">
+          {setup.month ? (
+            <>
+              Suggested: <b>{monthText(setup.month)}</b>{" "}
+              {setup.month_source ? (SOURCE[setup.month_source] ?? "") : ""}.
+            </>
+          ) : (
+            <span className="warn-text">
+              The month could not be told from the file name or the sheets:
+              choose it.
+            </span>
+          )}
+          {setup.month_note && (
+            <span className="warn-text block">{setup.month_note}</span>
+          )}
+        </p>
+      )}
+      <div className="actions">
+        <label className="month-pick">
+          Month{" "}
+          <input
+            type="month"
+            aria-label="Month of this workbook"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+        </label>
+        <button
+          className="primary"
+          disabled={!/^\d{4}-\d{2}$/.test(month)}
+          onClick={() => onSave(month)}
+        >
+          {changing ? `Use ${monthText(month)}` : `Yes, ${monthText(month)}`}
+        </button>
+        {onCancel && (
+          <button className="link" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function monthText(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return y && m
+    ? new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+      })
+    : month;
 }

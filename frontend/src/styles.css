@@ -731,3 +731,6 @@ details.card > summary .badge { margin-left: 6px; }
 .nm-fields input { font-size: 14px; }
 .nm-summary { margin: 4px 0 10px; padding-left: 18px; color: var(--muted); }
 .places-card tr.add-place td { padding-top: 8px; border-top: 1px dashed var(--line); }
+.month-card { border-top-color: var(--info); }
+.month-card .month-pick { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.month-card .month-pick input { font-size: 15px; }

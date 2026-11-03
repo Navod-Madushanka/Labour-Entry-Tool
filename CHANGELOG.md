@@ -1,5 +1,22 @@
 # Changelog
 
+## Month asked once per workbook; change it any time (3 Nov 2026)
+
+Asked for: how does the tool know the month? Ask the user when a new workbook is opened, set the
+days for that month and year, and allow changing the month of any workbook.
+
+- Before: the month came from the file name ("… November 2026 …"), else from the dates on most
+  sheets, without asking.
+- Now the start page asks once per workbook: "Which month is this workbook for?", pre-filled with
+  that guess and where it came from. The answer is kept for the file (settings), so it is not
+  asked again, also after a restart.
+- The sheet checks (date in F3, day type in H3, sheet no. in F4) use that month: an empty
+  November workbook gets 30 dates, Saturdays/Sundays/holidays as day types, and "Fix all N
+  sheets" writes them. Sheet 31 is flagged as not a day of November.
+- Change it any time: workbook menu → "🗓 Change the month of this workbook…", or "Change month"
+  on the start page. The checks run again for the new month.
+- A workbook made with "Start the next month" is already confirmed for its new month.
+
 ## Manpower sheet: a worker on up to 4 codes (3 Nov 2026)
 
 Asked for: ticking a worker on a second code took them off the first; allow up to 4 codes, the
