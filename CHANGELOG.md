@@ -1,5 +1,16 @@
 # Changelog
 
+## Time cards: pause, resume, and continue after a stop (4 Nov 2026)
+
+Asked for: a pause button for printing time cards; after Stop, printing started again from the
+beginning.
+
+- While printing: "⏸ Pause" waits after the card being printed (Excel is free meanwhile);
+  "▶ Resume" goes on with the next card. Stop still works, also while paused.
+- After a stop, or a printer error: "▶ Continue from AAA-004 (37 left)" prints only the cards not
+  printed yet; the card that failed is printed again. "Print the whole list again" is still there.
+- Backend: `POST /api/timecards/pause` and `/resume`; the job has `paused` and `left`.
+
 ## Month asked once per workbook; change it any time (3 Nov 2026)
 
 Asked for: how does the tool know the month? Ask the user when a new workbook is opened, set the

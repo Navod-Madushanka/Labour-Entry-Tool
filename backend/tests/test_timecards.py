@@ -100,6 +100,32 @@ def test_print_job_stops_between_cards(small_snapshot, tmp_path):
         assert job["stopped"] and job["done"] < len(names)
 
 
+def test_print_job_pauses_and_continues_where_it_stopped(small_snapshot, tmp_path):
+    app = practice_app(small_snapshot, tmp_path)
+    with TestClient(app) as c:
+        names = ["INB-01", "INC-02", "INH-03", "INB-01 CH"] * 3
+        body = {"sheet": "Time Card (Internal)", "cell": "E8", "names": names, "user": "Clerk"}
+        c.post("/api/timecards/print", json=body)
+        assert c.post("/api/timecards/pause").json()["paused"]
+        time.sleep(0.6)
+        held = c.get("/api/timecards/job").json()
+        assert held["running"] and held["paused"] and held["current"] is None
+        time.sleep(0.4)
+        assert c.get("/api/timecards/job").json()["done"] == held["done"]  # no card while paused
+        c.post("/api/timecards/resume")
+        time.sleep(0.2)
+        c.post("/api/timecards/stop")
+        job = wait_done(c)
+        assert job["stopped"] and 0 < job["done"] < len(names)
+        assert job["left"] == names[job["done"] :]  # the rest, not the whole list
+        c.post("/api/timecards/resume")  # continue after the stop
+        job = wait_done(c)
+        assert not job["stopped"] and job["left"] == [] and job["error"] is None
+        assert job["done"] == job["total"] == len(names) and job["printed"] == names
+        assert [n for _, n, _ in app.state.service.workbook.printed] == names  # each card once
+        assert c.post("/api/timecards/resume").status_code == 409  # nothing left
+
+
 # --- the list of workers from a file ---------------------------------------------------------
 
 

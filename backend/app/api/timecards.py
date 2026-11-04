@@ -2,8 +2,9 @@
 
 For each name the job writes it into the time card's Calling Name cell, lets Excel fill the card,
 and prints the sheet with the page setup and printer chosen in Excel (no print dialog). It runs
-card by card on the Excel thread, so it can be stopped between cards; at the end the cell gets
-its original value back. Nothing is saved.
+card by card on the Excel thread, so it can be paused, resumed or stopped between cards; at the
+end the cell gets its original value back. After a stop (or a printer error) the job keeps the
+names not printed yet, and "continue" prints those, not the whole list again. Nothing is saved.
 """
 
 from __future__ import annotations
@@ -41,6 +42,8 @@ class Job(BaseModel):
     current: str | None = None
     printed: list[str] = Field(default_factory=list)
     stopped: bool = False
+    paused: bool = False  # pause asked: waits after the card being printed (current) is done
+    left: list[str] = Field(default_factory=list)  # not printed yet, after a stop or an error
     error: str | None = None
     user: str | None = None
 
@@ -49,7 +52,9 @@ class _State:
     def __init__(self) -> None:
         self.job = Job()
         self.stop = threading.Event()
+        self.pause = threading.Event()
         self.lock = threading.Lock()
+        self.body: PrintRequest | None = None  # the last job's request (for continue)
 
 
 def _state(request: Request) -> _State:
@@ -98,6 +103,41 @@ def stop(request: Request) -> Job:
     return _state(request).job
 
 
+@router.post("/pause", response_model=Job)
+def pause(request: Request) -> Job:
+    """Wait after the card being printed; resume goes on with the next one."""
+    st = _state(request)
+    if st.job.running:
+        st.pause.set()
+        st.job.paused = True
+    return st.job
+
+
+@router.post("/resume", response_model=Job)
+async def resume(request: Request) -> Job:
+    """Go on after a pause; after a stop or an error, print the cards not printed yet."""
+    st = _state(request)
+    with st.lock:
+        if st.job.running:
+            st.pause.clear()
+            st.job.paused = False
+            return st.job
+        if not st.job.left or st.body is None:
+            raise HTTPException(409, "Nothing left to print.")
+        body = st.body.model_copy(update={"names": st.job.left})
+        service: EntryService = request.app.state.get_service()
+        original = await run_service(request, lambda s: s.timecard_cell(body.sheet, body.cell))
+        st.stop.clear()
+        st.pause.clear()
+        prev = st.job
+        st.job = prev.model_copy(update={"running": True, "stopped": False, "paused": False,
+                                         "error": None, "left": [], "current": None,
+                                         "printed": list(prev.printed)})  # fmt: skip
+    worker = request.app.state.worker
+    threading.Thread(target=_run, args=(st, worker, service, body, original), daemon=True).start()
+    return st.job
+
+
 @router.post("/print", response_model=Job)
 async def start(body: PrintRequest, request: Request) -> Job:
     st = _state(request)
@@ -111,6 +151,8 @@ async def start(body: PrintRequest, request: Request) -> Job:
             raise HTTPException(422, f"Not in Labour Detail: {', '.join(missing[:10])}")
         original = await run_service(request, lambda s: s.timecard_cell(body.sheet, body.cell))
         st.stop.clear()
+        st.pause.clear()
+        st.body = body
         st.job = Job(running=True, practice=service.mode == "demo", sheet=body.sheet,
                      total=len(body.names), user=body.user)  # fmt: skip
     worker = request.app.state.worker
@@ -120,8 +162,12 @@ async def start(body: PrintRequest, request: Request) -> Job:
 
 def _run(st: _State, worker, service: EntryService, body: PrintRequest, original) -> None:
     job = st.job
+    i = 0
     try:
-        for name in body.names:
+        for i, name in enumerate(body.names):
+            job.current = None
+            while st.pause.is_set() and not st.stop.is_set():  # paused between cards
+                time.sleep(0.1)
             if st.stop.is_set():
                 job.stopped = True
                 break
@@ -129,12 +175,16 @@ def _run(st: _State, worker, service: EntryService, body: PrintRequest, original
             worker.call(service.print_timecard, body.sheet, body.cell, name, body.copies)
             job.printed.append(name)
             job.done += 1
+            i += 1
             time.sleep(0.15 if job.practice else PAUSE)
     except (WorkbookError, KeyError, ValueError) as exc:
         job.error = str(exc)
     except Exception as exc:  # keep the job state truthful whatever happens
         job.error = f"Printing stopped: {exc}"
     finally:
+        job.left = list(body.names[i:]) if (job.stopped or job.error) else []
+        job.paused = False
+        st.pause.clear()
         try:
             worker.call(service.restore_timecard_cell, body.sheet, body.cell, original)
         except Exception as exc:

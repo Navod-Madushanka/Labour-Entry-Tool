@@ -368,6 +368,8 @@ export interface PrintJob {
   current: string | null;
   printed: string[];
   stopped: boolean;
+  paused: boolean; // waits after the card being printed
+  left: string[]; // not printed yet, after a stop or an error
   error: string | null;
 }
 
@@ -564,4 +566,6 @@ export const api = {
     call<PrintJob>("POST", "/api/timecards/print", { sheet, cell, names, copies, user }),
   printJob: () => call<PrintJob>("GET", "/api/timecards/job"),
   stopPrinting: () => call<PrintJob>("POST", "/api/timecards/stop"),
+  pausePrinting: () => call<PrintJob>("POST", "/api/timecards/pause"),
+  resumePrinting: () => call<PrintJob>("POST", "/api/timecards/resume"),
 };
