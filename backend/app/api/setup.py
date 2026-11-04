@@ -852,8 +852,13 @@ async def new_month(body: NewMonthRequest, request: Request) -> NewMonthResult:
         if left or len(check.master.workers) != len(snap.master.workers):
             raise RuntimeError(f"the new file still has {left} entries, or workers went missing")
     except Exception as exc:
-        target.unlink(missing_ok=True)
-        msg = f"The new month was not made (the copy is removed): {exc}"
+        with contextlib.suppress(OSError):  # still open in Excel: Windows keeps the file
+            target.unlink(missing_ok=True)
+        if target.exists():  # the tool never closes anything in Excel: the user does
+            msg = (f"The new month was not made: {exc}. The copy {target.name} is open in Excel, "
+                   f"not saved: close it there without saving, then delete {target}.")  # fmt: skip
+        else:
+            msg = f"The new month was not made (the copy is removed): {exc}"
         raise HTTPException(500, msg) from exc
     practice = book.mode == "demo"
     # the month was chosen in the dialog: no need to ask it again for the new file
@@ -866,16 +871,13 @@ async def new_month(body: NewMonthRequest, request: Request) -> NewMonthResult:
 
 
 def _clear_in_excel(target: Path, plans, config: Config) -> None:
-    """On the Excel thread: open the copy, clear the entries, write the headers, save."""
+    """On the Excel thread: open the copy, clear the entries, write the headers, save. On an
+    error the copy is left open in Excel, not saved (the tool never closes a workbook)."""
     from app.excel import xlwings_adapter
     from app.newmonth import header_writes
 
     wb = xlwings_adapter.connect_named(target.name, target, config)
-    try:
-        for p in plans:
-            wb.clear_cells(p.sheet, p.clear)
-        wb.write_ranges(header_writes(plans, config.template))
-        wb.save()
-    except BaseException:
-        wb.close()
-        raise
+    for p in plans:
+        wb.clear_cells(p.sheet, p.clear)
+    wb.write_ranges(header_writes(plans, config.template))
+    wb.save()

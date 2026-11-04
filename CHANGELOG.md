@@ -1,5 +1,18 @@
 # Changelog
 
+## The tool never closes Excel or a workbook (4 Nov 2026)
+
+Asked for: check whether the tool can close Excel under any condition, and remove it.
+
+- Found one: when "Start the next month" failed half-way while clearing the new copy in Excel, it
+  closed that copy in Excel without saving. It never closed the month's own workbook, and
+  nothing quit Excel. That call and the adapter's `close()` are removed.
+- Now on such an error the copy stays open in Excel, not saved, and the message says to close it
+  there without saving and delete the file (the copy is deleted when Windows allows it).
+- "✕ / Close" on the workbook list only takes a workbook off the tool's list, as before.
+- A test fails if any code that talks to Excel calls close, or anything calls quit, kill or
+  taskkill.
+
 ## Time cards: pause, resume, and continue after a stop (4 Nov 2026)
 
 Asked for: a pause button for printing time cards; after Stop, printing started again from the

@@ -397,10 +397,6 @@ class XlwingsWorkbook:
             raise
         self._restore(app, calculation, screen, report=True)
 
-    def close(self) -> None:
-        """Close the workbook in Excel without saving."""
-        self._com(self.book.close)
-
     def save_copy(self, path: Path) -> None:
         path = Path(path).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

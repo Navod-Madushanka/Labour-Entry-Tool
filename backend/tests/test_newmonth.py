@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from pathlib import Path
 
 import pytest
@@ -132,7 +133,7 @@ class FakeExcelBook:
     def __init__(self, fail_on: str | None = None):
         self.cleared: dict[str, list[str]] = {}
         self.writes = []
-        self.saved = self.closed = False
+        self.saved = False
         self.fail_on = fail_on
 
     def clear_cells(self, sheet, addresses):
@@ -146,9 +147,6 @@ class FakeExcelBook:
     def save(self):
         self.saved = True
 
-    def close(self):
-        self.closed = True
-
 
 def test_excel_steps(small_snapshot, monkeypatch, tmp_path):
     from app.excel import xlwings_adapter
@@ -157,7 +155,7 @@ def test_excel_steps(small_snapshot, monkeypatch, tmp_path):
     book = FakeExcelBook()
     monkeypatch.setattr(xlwings_adapter, "connect_named", lambda name, path, config: book)
     setup_api._clear_in_excel(tmp_path / "n.xlsb", plans, Config(month="2026-11"))
-    assert book.saved and not book.closed
+    assert book.saved
     assert {s: len(a) for s, a in book.cleared.items()} == {p.sheet: len(p.clear) for p in plans}
     assert {w.address for w in book.writes} == {"F3", "H3", "F4"}
 
@@ -165,4 +163,28 @@ def test_excel_steps(small_snapshot, monkeypatch, tmp_path):
     monkeypatch.setattr(xlwings_adapter, "connect_named", lambda name, path, config: bad)
     with pytest.raises(RuntimeError):
         setup_api._clear_in_excel(tmp_path / "n.xlsb", plans, Config(month="2026-11"))
-    assert bad.closed and not bad.saved  # closed without saving; the endpoint removes the copy
+    assert not bad.saved  # left open in Excel, not saved (the tool never closes a workbook)
+
+
+def test_the_tool_never_closes_excel():
+    """No code path closes a workbook in Excel or quits / kills Excel. Files that talk to Excel
+    (xlwings) may not call close at all; nowhere may quit, kill or taskkill."""
+    import pathlib
+
+    import app
+
+    anywhere = re.compile(r"\.(quit|kill|Quit)\(|taskkill|\.Close\b")
+    excel_close = re.compile(r"\.close\b|\.Close\b")
+    # not Excel: the openpyxl reader of an uploaded name list, the change-log database
+    allowed = {("timecards.py", "wb.close()"), ("api/setup.py", "book.service.audit.close()")}
+    root = pathlib.Path(app.__file__).parent
+    hits = []
+    for path in root.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        talks_to_excel = "xlwings" in text
+        for n, line in enumerate(text.splitlines(), 1):
+            if (path.relative_to(root).as_posix(), line.strip()) in allowed:
+                continue
+            if anywhere.search(line) or (talks_to_excel and excel_close.search(line)):
+                hits.append(f"{path.relative_to(root)}:{n}: {line.strip()}")
+    assert not hits, "\n".join(hits)
