@@ -22,6 +22,9 @@ import {
   round2,
   summarise,
   supervisorDays,
+  supervisedDays,
+  supervisorWork,
+  workerSupervisors,
   type Slice,
   type BookSummary,
   type DayRow,
@@ -198,7 +201,7 @@ export function Analysis({ master, month, loaded, total }: Props) {
       ) : view === "places" ? (
         <PlacesTrades places={byPlace(slices)} trades={byTrade(slices)} onPlace={(place) => set({ place })} onTrade={(trade) => set({ trade })} />
       ) : view === "supervisors" ? (
-        <SupervisorsView slices={slices} days={daily(data, slices, filter)} owned={owned} reviews={reviews} month={month} onPick={(supervisor) => set({ supervisor })} />
+        <SupervisorsView data={data} entries={entries} slices={slices} days={daily(data, slices, filter)} owned={owned} reviews={reviews} month={month} onPick={(supervisor) => set({ supervisor })} />
       ) : view === "manpower" ? (
         <Manpower days={daily(data, slices, filter)} />
       ) : view === "timeline" ? (
@@ -387,7 +390,20 @@ function sheetCounts(owned: Owned[], reviews: Review[], month: Month) {
   return out;
 }
 
-function SupervisorsView({ slices, days, owned, reviews, month, onPick }: { slices: Slice[]; days: DayRow[]; owned: Owned[]; reviews: Review[]; month: Month; onPick: (s: string) => void }) {
+function SupervisorsView({ data, entries, slices, days, owned, reviews, month, onPick }: {
+  data: ReturnType<typeof buildData>;
+  entries: ReturnType<typeof applyFilter>["entries"];
+  slices: Slice[];
+  days: DayRow[];
+  owned: Owned[];
+  reviews: Review[];
+  month: Month;
+  onPick: (s: string) => void;
+}) {
+  const realName = (n: string) => String(data.workers.get(n)?.name ?? "");
+  const log = supervisedDays(data, entries);
+  const whose = workerSupervisors(entries);
+  const work = supervisorWork(slices);
   const groups = bySupervisor(slices);
   const counts = sheetCounts(owned, reviews, month);
   const none = groups.find((g) => g.key === NO_SUPERVISOR);
@@ -441,9 +457,80 @@ function SupervisorsView({ slices, days, owned, reviews, month, onPick }: { slic
           />
         </div>
       )}
+      {owned.length > 0 && (
+        <>
+          <div className="card sup-log">
+            <h3>Who worked under whom, by date</h3>
+            <p className="muted small">Each worker's day and the supervisor whose manpower sheet it was on.</p>
+            <SortTable
+              search="Search worker, name, supervisor, date or code"
+              cols={[
+                { key: "date", label: "Date", value: (r) => `${r.date ?? ""} ${longDay(r.date, r.day)}`, fmt: (_v, r) => longDay(r.date, r.day) },
+                { key: "name", label: "Worker", value: (r) => r.name },
+                { key: "real", label: "Name", value: (r) => realName(r.name) },
+                { key: "trade", label: "Trade", value: (r) => r.trade },
+                { key: "sup", label: "Supervisor", value: (r) => r.supervisor },
+                { key: "hours", label: "Hours", value: (r) => r.hours, num: true, fmt: (v) => h(v as number) },
+                { key: "ot", label: "OT", value: (r) => r.ot, num: true, fmt: (v) => h(v as number) },
+                { key: "codes", label: "Activity codes", value: (r) => r.codes.join(", ") },
+              ]}
+              rows={log}
+              rowKey={(r) => `${r.sheet}|${r.name}`}
+              initial={{ key: "date", desc: true }}
+            />
+          </div>
+          <div className="card sup-whose">
+            <h3>Whose worker</h3>
+            <p className="muted small">The supervisor of most of each worker's days, and every supervisor they worked under.</p>
+            <SortTable
+              search="Search worker, name, trade or supervisor"
+              cols={[
+                { key: "name", label: "Worker", value: (r) => r.name },
+                { key: "real", label: "Name", value: (r) => realName(r.name) },
+                { key: "trade", label: "Trade", value: (r) => r.trade },
+                { key: "sup", label: "Supervisor", value: (r) => r.supervisor, fmt: (v) => <b>{v}</b> },
+                { key: "share", label: "Of their days", value: (r) => r.share, num: true, fmt: (v) => pct(v as number) },
+                { key: "days", label: "Days", value: (r) => r.days, num: true },
+                {
+                  key: "all",
+                  label: "All supervisors (days, first–last day)",
+                  value: (r) => r.all.map((x) => `${x.supervisor} ${x.days}`).join(", "),
+                  fmt: (_v, r) => r.all.map((x) => `${x.supervisor} ${x.days} (${x.first === x.last ? x.first : `${x.first}–${x.last}`})`).join(" · "),
+                },
+              ]}
+              rows={whose}
+              rowKey={(r) => r.person}
+              initial={{ key: "name", desc: false }}
+            />
+          </div>
+          <div className="card sup-work">
+            <h3>Where each supervisor's people worked</h3>
+            <p className="muted small">Supervisor, place and activity code, with the hours and the people on it.</p>
+            <SortTable
+              search="Search supervisor, place or activity code"
+              cols={[
+                { key: "sup", label: "Supervisor", value: (r) => r.supervisor },
+                { key: "place", label: "Place", value: (r) => r.place },
+                { key: "code", label: "Activity code", value: (r) => r.code },
+                { key: "hours", label: "Hours", value: (r) => r.hours, num: true, fmt: (v) => h(v as number) },
+                { key: "ot", label: "OT", value: (r) => r.ot, num: true, fmt: (v) => h(v as number) },
+                { key: "people", label: "People", value: (r) => r.people, num: true },
+                { key: "days", label: "Days", value: (r) => r.days, num: true },
+                { key: "first", label: "First day", value: (r) => r.first, num: true },
+                { key: "last", label: "Last day", value: (r) => r.last, num: true },
+              ]}
+              rows={work}
+              rowKey={(r) => `${r.supervisor}|${r.place}|${r.code}`}
+            />
+          </div>
+        </>
+      )}
     </>
   );
 }
+
+const longDay = (date: string | null, day: number) =>
+  date ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : `Day ${day}`;
 
 function topTrades(days: DayRow[], n = 6) {
   const sums = new Map<string, number>();
@@ -957,7 +1044,7 @@ function SortTable<T>({ cols, rows, rowKey, initial, limit = 30, expand, search 
   initial?: { key: string; desc: boolean };
   limit?: number;
   expand?: (r: T) => ReactNode;
-  search?: boolean;
+  search?: boolean | string; // a string: what the box searches (its placeholder and label)
 }) {
   const [sort, setSort] = useState(initial ?? { key: cols.find((c) => c.num)?.key ?? cols[0].key, desc: true });
   const [all, setAll] = useState(false);
@@ -977,7 +1064,7 @@ function SortTable<T>({ cols, rows, rowKey, initial, limit = 30, expand, search 
   return (
     <>
       {search && (
-        <input className="table-search" placeholder="Search worker, name or trade" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
+        <input className="table-search" placeholder={typeof search === "string" ? search : "Search worker, name or trade"} value={q} onChange={(e) => setQ(e.target.value)} aria-label={typeof search === "string" ? search : "Search"} />
       )}
       <div className="table-wrap">
         <table className="data">
@@ -1058,6 +1145,13 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
     { name: "Supervisors", note, columns: ["Supervisor", ...groupColsX], rows: groupRows(bySupervisor(slices)) },
     { name: "Supervisor by activity", note, columns: ["Supervisor", "Activity", "Hours"],
       rows: bySupervisor(slices).flatMap((g) => g.breakdown.map((b) => [g.key, b.key, r(b.hours)])) },
+    { name: "Worker days by supervisor", note, columns: ["Day", "Date", "Worker", "Name", "Trade", "Supervisor", "Hours", "OT", "Activity codes"],
+      rows: supervisedDays(data, entries).map((x) => [x.day, x.date, x.name, String(data.workers.get(x.name)?.name ?? ""), x.trade, x.supervisor, r(x.hours), r(x.ot), x.codes.join(", ")]) },
+    { name: "Whose worker", note, columns: ["Worker", "Name", "Trade", "Supervisor", "Share of days %", "Days", "All supervisors (days)"],
+      rows: workerSupervisors(entries).map((x) => [x.name, String(data.workers.get(x.name)?.name ?? ""), x.trade, x.supervisor, r(x.share * 100), x.days,
+        x.all.map((y) => `${y.supervisor} ${y.days}`).join(", ")]) }, // prettier-ignore
+    { name: "Supervisor place activity", note, columns: ["Supervisor", "Place", "Activity", "Hours", "OT", "People", "Days", "First day", "Last day"],
+      rows: supervisorWork(slices).map((x) => [x.supervisor, x.place, x.code, r(x.hours), r(x.ot), x.people, x.days, x.first, x.last]) },
     { name: "Activity by trade", note, columns: ["Activity", "Trade", "Hours"],
       rows: byCode(slices).flatMap((g) => g.breakdown.map((b) => [g.key, b.key, r(b.hours)])) },
     { name: "Daily manpower", note, columns: ["Day", "Date", "Day type", "People", ...top, ...(rest.size ? ["Other"] : []), "Hours", "OT"],

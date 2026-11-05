@@ -1,5 +1,22 @@
 # Changelog
 
+## Analysis: worker × supervisor × date, whose worker, supervisor × place × activity (5 Nov 2026)
+
+Asked for: in Analysis, know that this worker worked under this supervisor on this date, that
+this worker belongs to this supervisor, and that this supervisor worked on this place on this
+activity code.
+
+Three new tables in Analysis → Supervisors, each with its own search box; they follow the filters
+(supervisor, trade, place, activity, days) and go into the Excel export:
+
+- **Who worked under whom, by date**: date, worker, name, trade, supervisor, hours, OT, codes.
+  Export sheet "Worker days by supervisor".
+- **Whose worker**: each worker's main supervisor (most of their days; a supervisor counts
+  before "No supervisor", a tie goes to the latest), the share of their days, and every
+  supervisor they worked under with days and first–last day. Export sheet "Whose worker".
+- **Where each supervisor's people worked**: supervisor × place × activity code with hours, OT,
+  people, days, first and last day. Export sheet "Supervisor place activity".
+
 ## Supervisors: search and review; supervisors in Analysis (5 Nov 2026)
 
 Asked for: search and review the supervisors' sheets; supervisor data in the Analysis section.

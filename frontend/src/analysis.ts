@@ -204,6 +204,92 @@ export const byPlace = (s: Slice[]) => group(s, (x) => x.place, (x) => x.trade);
 export const byTrade = (s: Slice[]) => group(s, (x) => x.trade, (x) => x.code);
 export const bySupervisor = (s: Slice[]) => group(s, (x) => x.supervisor, (x) => x.code);
 
+/** Who worked under whom, when: one row per entry (worker, day, supervisor, hours, codes). */
+export interface SupervisedDay {
+  sheet: string;
+  day: number;
+  date: string | null;
+  name: string;
+  person: string;
+  trade: string;
+  supervisor: string;
+  hours: number;
+  ot: number;
+  codes: string[];
+}
+
+export function supervisedDays(data: Data, entries: EntryRow[]): SupervisedDay[] {
+  const dates = new Map(data.days.map((d) => [d.sheet, d.date]));
+  return entries.map((e) => ({
+    sheet: e.sheet, day: e.day, date: dates.get(e.sheet) ?? null, name: e.name, person: e.person, trade: e.trade,
+    supervisor: e.supervisor, hours: e.worked, ot: e.ot, codes: e.codes,
+  })); // prettier-ignore
+}
+
+/** Whose worker each one is: the supervisor of most of their days (a supervisor beats "No
+ * supervisor"), and every supervisor they worked under with the days. */
+export interface WorkerSupervisor {
+  name: string; // calling name (the first one, when a person has several)
+  person: string;
+  trade: string;
+  supervisor: string; // the main one
+  share: number; // of the worker's days under the main one (0..1)
+  days: number;
+  all: { supervisor: string; days: number; first: number; last: number }[]; // most days first
+}
+
+export function workerSupervisors(entries: EntryRow[]): WorkerSupervisor[] {
+  const by = new Map<string, { names: string[]; trade: string; sup: Map<string, { days: Set<number>; first: number; last: number }> }>();
+  for (const e of entries) {
+    const r = by.get(e.person) ?? { names: [] as string[], trade: e.trade, sup: new Map() };
+    if (!r.names.includes(e.name)) r.names.push(e.name);
+    const s = r.sup.get(e.supervisor) ?? { days: new Set<number>(), first: e.day, last: e.day };
+    s.days.add(e.day);
+    s.first = Math.min(s.first, e.day);
+    s.last = Math.max(s.last, e.day);
+    r.sup.set(e.supervisor, s);
+    by.set(e.person, r);
+  }
+  return [...by].map(([person, r]) => {
+    const all = [...r.sup]
+      .map(([supervisor, x]) => ({ supervisor, days: x.days.size, first: x.first, last: x.last }))
+      .sort((a, b) => Number(a.supervisor === NO_SUPERVISOR) - Number(b.supervisor === NO_SUPERVISOR) || b.days - a.days || b.last - a.last);
+    const days = new Set([...r.sup.values()].flatMap((x) => [...x.days])).size;
+    return { name: r.names.sort()[0], person, trade: r.trade, supervisor: all[0].supervisor, share: days ? all[0].days / days : 0, days, all };
+  });
+}
+
+/** Where each supervisor's people worked: supervisor x place x activity code. */
+export interface SupervisorWork {
+  supervisor: string;
+  place: string;
+  code: string;
+  hours: number;
+  ot: number;
+  people: number;
+  days: number;
+  first: number;
+  last: number;
+}
+
+export function supervisorWork(slices: Slice[]): SupervisorWork[] {
+  const by = new Map<string, { s: Slice; hours: number; ot: number; people: Set<string>; days: Set<number>; first: number; last: number }>();
+  for (const x of slices) {
+    const key = `${x.supervisor}|${x.place}|${x.code}`;
+    const r = by.get(key) ?? { s: x, hours: 0, ot: 0, people: new Set<string>(), days: new Set<number>(), first: x.day, last: x.day };
+    r.hours += x.hours;
+    r.ot += x.ot;
+    r.people.add(x.person);
+    r.days.add(x.day);
+    r.first = Math.min(r.first, x.day);
+    r.last = Math.max(r.last, x.day);
+    by.set(key, r);
+  }
+  return [...by.values()]
+    .map((r) => ({ supervisor: r.s.supervisor, place: r.s.place, code: r.s.code, hours: r.hours, ot: r.ot, people: r.people.size, days: r.days.size, first: r.first, last: r.last }))
+    .sort((a, b) => a.supervisor.localeCompare(b.supervisor) || b.hours - a.hours);
+}
+
 /** People per day on each supervisor's sheets: day -> supervisor -> people. */
 export function supervisorDays(slices: Slice[]): Map<number, Map<string, number>> {
   const sets = new Map<number, Map<string, Set<string>>>();

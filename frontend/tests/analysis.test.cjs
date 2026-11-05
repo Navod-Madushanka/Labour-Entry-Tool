@@ -124,4 +124,18 @@ const kamal = A.applyFilter(sup, { supervisor: "Kamal" });
 assert.deepEqual([...new Set(kamal.entries.map((x) => x.name))].sort(), ["AA-01", "AA-02"]);
 assert.equal(A.supervisorDays(sup.slices).get(1).get("Kamal"), 2);
 assert.equal(A.buildData(month, master).slices.every((x) => x.supervisor === A.NO_SUPERVISOR), true);
+// who worked under whom, when; whose worker; where each supervisor's people worked
+const log = A.supervisedDays(sup, sup.entries);
+const d1 = log.find((x) => x.name === "AA-02" && x.sheet === "1");
+assert.equal(d1.supervisor, "Kamal"); assert.equal(d1.date, "2026-10-01"); near(d1.hours, 11, "AA-02 day 1");
+const ws = new Map(A.workerSupervisors(sup.entries).map((w) => [w.person, w]));
+// AA-01: day 1 Kamal, day 2 Nimal (as AA-01 CH), day 4 none -> a tie between Kamal and Nimal: the latest wins
+assert.equal(ws.get("AA-01").supervisor, "Nimal"); assert.equal(ws.get("AA-01").days, 3);
+assert.deepEqual(ws.get("AA-01").all.map((x) => x.supervisor), ["Nimal", "Kamal", A.NO_SUPERVISOR]);
+assert.equal(ws.get("AA-02").supervisor, "Kamal"); near(ws.get("AA-02").share, 1, "AA-02 only under Kamal");
+assert.equal(ws.get("BB-01").supervisor, A.NO_SUPERVISOR);
+const work = A.supervisorWork(sup.slices);
+const kp = work.find((x) => x.supervisor === "Kamal" && x.code === "03-11-00-00-P");
+near(kp.hours, 19, "Kamal's people on -P: AA-01 8 + AA-02 11"); assert.equal(kp.place, "Parking area"); assert.equal(kp.people, 2);
+assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
 console.log("analysis: all passed");
