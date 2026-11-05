@@ -99,6 +99,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.locator('#worker').fill("");
   await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled);
   await p.locator('.push-bar button').click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForFunction(() => !document.querySelector('.queue tbody tr'));
   const pushed = await values();
   if (pushed.join("|") !== "||") throw new Error("form not clear after push: " + pushed);

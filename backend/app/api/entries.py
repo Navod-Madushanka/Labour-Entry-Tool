@@ -49,6 +49,7 @@ class PreviewResponse(BaseModel):
 class CommitRequest(PreviewRequest):
     user: str = Field(min_length=1)
     dry_run: bool = False
+    supervisor: str | None = Field(None, max_length=80)  # whose manpower sheet (paper) this is
 
 
 class UserRequest(BaseModel):
@@ -166,7 +167,10 @@ async def preview(body: PreviewRequest, request: Request) -> PreviewResponse:
 async def commit(body: CommitRequest, request: Request) -> CommitResult:
     """Write a batch (or check it with ``dry_run``). Status ``rejected`` lists what blocks it."""
     return await run_service(
-        request, lambda s: s.commit(body.entries, body.user, dry_run=body.dry_run)
+        request,
+        lambda s: s.commit(
+            body.entries, body.user, dry_run=body.dry_run, supervisor=body.supervisor
+        ),
     )
 
 

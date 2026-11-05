@@ -1,5 +1,26 @@
 # Changelog
 
+## Supervisors: each pushed manpower sheet belongs to a supervisor (5 Nov 2026)
+
+Asked for: when pushing to Excel, ask who the supervisor is, so a day's entries can be checked
+again later against that supervisor's paper manpower sheet; pick a supervisor or type a new one.
+
+- Push → "Whose manpower sheet is this?": the supervisors used before (most recent first) as
+  buttons, or type a name (a new one joins the list; "kamal" becomes the known "Kamal").
+- New **Supervisors** page: each day's entries by supervisor, laid out like the paper form, with
+  what is in Excel now. "≠ Excel" marks a worker changed in Excel after the push (hover: what
+  changed). Filter by supervisor and day; entries of a day with no supervisor are listed.
+- Wrong supervisor chosen: "Give this sheet to …" moves it. The supervisor list (rename,
+  remove, add) is at the bottom of the page; removing a name keeps it on its sheets.
+- Storage: SQLite, in the change log the tool already keeps (`audit.sqlite` in the data
+  folder), table `sheet_owners`: one row per pushed entry with its supervisor and the entry as
+  pushed, linked to the push. An entry belongs to the supervisor of its latest push that is not
+  undone, so Undo gives it back to the supervisor before. The list of typed names is in the
+  settings file. Practice copies keep theirs in the practice folder, as before.
+- API: `supervisor` on `POST /api/entries` (optional for other callers), `GET/POST
+  /api/supervisors`, `/api/supervisors/remove`, `/api/supervisors/rename`,
+  `GET /api/supervisor-sheets`, `POST /api/supervisor-sheets/reassign`.
+
 ## The tool never closes Excel or a workbook (4 Nov 2026)
 
 Asked for: check whether the tool can close Excel under any condition, and remove it.

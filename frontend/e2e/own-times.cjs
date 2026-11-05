@@ -39,6 +39,7 @@ const out = process.argv[2] || ".";
   await p.locator(".entry .actions button.primary").click(); // Add 3 workers
   await p.waitForFunction(() => document.querySelectorAll(".queue .pill.ok").length === 3, null, { timeout: 10000 });
   await p.getByRole("button", { name: /Push 3 entries/ }).click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForSelector(".result.ok");
   const day = await p.evaluate(async () =>
     (await (await fetch("/api/days/30")).json()).entries
@@ -61,6 +62,7 @@ const out = process.argv[2] || ".";
   await p.locator(".entry .actions button.primary").click();
   await p.waitForFunction(() => document.querySelectorAll(".queue .pill.ok").length === 2, null, { timeout: 10000 });
   await p.getByRole("button", { name: /Push 2 entries/ }).click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForSelector(".result.ok");
   const day29 = await p.evaluate(async () =>
     (await (await fetch("/api/days/29")).json()).entries

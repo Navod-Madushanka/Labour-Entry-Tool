@@ -48,6 +48,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   // Push and read back what Excel holds.
   await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled);
   await p.locator('.push-bar button').click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForFunction(() => !document.querySelector('.queue tbody tr'));
   const day = await p.evaluate(async () => (await (await fetch('/api/days/6')).json()).entries.map(v => [v.entry.calling_name, v.entry.time_in, v.entry.time_out, v.entry.activities.filter(a => a.code).map(a => a.hours)]));
   console.log("sheet 6 in Excel:", JSON.stringify(day));

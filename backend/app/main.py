@@ -12,7 +12,16 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import analysis, entries, health, registration, setup, suggestlog, timecards
+from app.api import (
+    analysis,
+    entries,
+    health,
+    registration,
+    setup,
+    suggestlog,
+    supervisors,
+    timecards,
+)
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config, load_config
@@ -129,6 +138,7 @@ def create_app(
     app.include_router(timecards.router)
     app.include_router(analysis.router)
     app.include_router(suggestlog.router)
+    app.include_router(supervisors.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")

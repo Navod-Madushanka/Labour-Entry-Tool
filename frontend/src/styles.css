@@ -734,3 +734,19 @@ details.card > summary .badge { margin-left: 6px; }
 .month-card { border-top-color: var(--info); }
 .month-card .month-pick { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
 .month-card .month-pick input { font-size: 15px; }
+
+/* Whose manpower sheet: asked at push, browsed on the Supervisors page */
+.supervisor-dialog { max-width: 560px; }
+.supervisor-dialog .field { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
+.sup-choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.sup-choices .chip { border-radius: 999px; padding: 4px 12px; }
+.sup-choices button.chip.on, .sup-choices button.chip.on:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+.sup-filters { gap: 16px; flex-wrap: wrap; margin: 8px 0 12px; }
+.sup-filters .field { display: flex; flex-direction: column; gap: 4px; }
+.sup-index { border-collapse: collapse; min-width: 560px; }
+.sup-index th, .sup-index td { text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--line); }
+.sup-index tr.on td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.sup-move input { width: 140px; padding: 2px 6px; }
+.sup-list { margin-top: 20px; }
+.sup-list ul { list-style: none; padding: 0; }
+.sup-list li { padding: 3px 0; }

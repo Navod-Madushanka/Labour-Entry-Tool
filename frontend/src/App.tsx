@@ -13,6 +13,8 @@ import { SqlWorkspace } from "./components/SqlWorkspace";
 import { PlacesEditor } from "./components/PlacesEditor";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
+import { SupervisorDialog } from "./components/SupervisorDialog";
+import { Supervisors } from "./components/Supervisors";
 import { MedicalDialog } from "./components/MedicalDialog";
 import { DayBuilder } from "./components/DayBuilder";
 import { NamePrompt } from "./components/NamePrompt";
@@ -69,9 +71,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const pageOf = (hash: string) =>
-    hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : hash === "#analysis" ? "analysis" : "entry";
-  const [page, setPage] = useState<"entry" | "codes" | "cards" | "analysis">(() => pageOf(window.location.hash));
+    hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : hash === "#analysis" ? "analysis" : hash === "#supervisors" ? "supervisors" : "entry";
+  const [page, setPage] = useState<"entry" | "codes" | "cards" | "analysis" | "supervisors">(() => pageOf(window.location.hash));
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
+  const [supervisorOpen, setSupervisorOpen] = useState(false); // "whose manpower sheet?" at push
   const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
   const [storyOn, setStoryOn] = useState(storyEnabled);
   const nextId = useRef(1);
@@ -287,13 +290,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     setFocusToken((t) => t + 1);
   };
 
-  const commit = async (dryRun: boolean) => {
+  const commit = async (dryRun: boolean, supervisor?: string) => {
     if (!queue.length) return;
     setBusy(true);
     setMessage(null);
     try {
       const sent = queue; // entries added while this runs stay in the queue
-      const res = await api.commit(sent.map((q) => withHeaderAck(q.input)), user, dryRun);
+      const res = await api.commit(sent.map((q) => withHeaderAck(q.input)), user, dryRun, supervisor);
       setResult(res);
       const planOf = new Map(sent.map((q, n) => [q.id, res.plans[n]]));
       if (res.status === "written" && storyOn) {
@@ -618,6 +621,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           <p className="muted">{status && !status.connected ? "Open the workbook in Excel; this page retries every 10 seconds." : "Loading…"}</p>
         ) : page === "analysis" ? (
           <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} />
+        ) : page === "supervisors" ? (
+          <Supervisors master={master} month={month} />
         ) : page === "cards" ? (
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (
@@ -695,7 +700,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               month={month}
               busy={busy}
               ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
-              onWrite={() => commit(false)}
+              onWrite={() => setSupervisorOpen(true)}
               onEdit={editQueued}
               onRemove={removeQueued}
               allSheets={master.sheets}
@@ -710,6 +715,18 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               }}
             />
             {result && <CommitResultView result={result} onClose={() => setResult(null)} />}
+            {supervisorOpen && (
+              <SupervisorDialog
+                count={queue.length}
+                days={pushDays(queue.map((q) => q.input.sheet), month)}
+                busy={busy}
+                onCancel={() => setSupervisorOpen(false)}
+                onPush={(name) => {
+                  setSupervisorOpen(false);
+                  commit(false, name);
+                }}
+              />
+            )}
             <Queue
               items={queue}
               busy={busy}
@@ -808,3 +825,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   );
 }
 
+/** "sheet 26 (Thu 26 Nov)" or "sheets 25 and 26" for the push dialog. */
+function pushDays(sheets: string[], month: Month): string {
+  const list = [...new Set(sheets)].sort((a, b) => Number(a) - Number(b));
+  if (list.length === 1) {
+    const iso = month[list[0]]?.header.date;
+    const when = iso ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : "";
+    return `sheet ${list[0]}${when ? ` (${when})` : ""}`;
+  }
+  return `sheets ${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+}

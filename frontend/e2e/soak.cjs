@@ -52,6 +52,7 @@ const rss = () => {
     const canPush = await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled, null, { timeout: 20000 }).then(() => true, () => false);
     if (canPush) {
       await p.locator('.push-bar button').click();
+      await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
       await p.waitForFunction(() => !document.querySelector('.queue tbody tr'), null, { timeout: 60000 });
     } else { errs.push(`day ${sheet}: push stayed disabled`); await p.getByRole('button', { name: 'Remove all' }).click(); }
     const pushMs = Date.now() - t0;

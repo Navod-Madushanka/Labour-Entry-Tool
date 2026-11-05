@@ -39,6 +39,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8000";
   await p.keyboard.press("Escape");
 
   await p.getByRole("button", { name: /Push 1 entry/ }).click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForSelector(".result.ok");
   const written = await p.evaluate(async () =>
     (await (await fetch("/api/days/30")).json()).entries.filter((v) => v.entry.calling_name === "INB-01").map((v) => v.entry.activities.filter((a) => a.code).map((a) => a.hours)),

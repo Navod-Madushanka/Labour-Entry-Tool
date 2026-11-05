@@ -402,10 +402,16 @@ class EntryService:
         self._last_reread = now
         return True
 
-    def commit(self, entries: list[EntryInput], user: str, dry_run: bool = False) -> CommitResult:
+    def commit(self, entries: list[EntryInput], user: str, dry_run: bool = False,
+               supervisor: str | None = None) -> CommitResult:  # fmt: skip
+        """``supervisor``: whose manpower sheet these entries are from (kept with the push)."""
         started = time.perf_counter()
         if not user.strip():
             raise ValueError("a user name is required for writes")
+        supervisor = clean_name(supervisor or "") or None
+        if supervisor:  # "kamal" when "Kamal" is known: the known spelling
+            known = {n.casefold(): n for n, _ in self.audit.supervisors()}
+            supervisor = known.get(supervisor.casefold(), supervisor)
         wb = self.workbook
         plans = self._plan(entries, self.master(fresh=True), fresh=True)
 
@@ -417,8 +423,17 @@ class EntryService:
             return result("rejected")
         if dry_run:
             return result("dry_run")
+
+        def own(batch_id: int | None) -> None:
+            if supervisor:
+                self.audit.own(batch_id, user, wb.name, supervisor, [
+                    (p.input.sheet, p.input.calling_name, p.input.model_dump(mode="json"))
+                    for p in plans
+                ])  # fmt: skip
+
         changed = [p for p in plans if p.changes]
         if not changed:
+            own(None)
             return result("unchanged")
         writes = [w for p in changed for w in p.writes if _range_changes(w, p.old)]
         if bad := unwritable_cells(writes, self.template):  # last line of defence (E09)
@@ -446,12 +461,14 @@ class EntryService:
             readback = [self._read_back(p) for p in changed]
         except WorkbookError as exc:  # written, but Excel could not be read back just now
             self.audit.finish(batch_id, "done", f"read-back failed: {exc}")
+            own(batch_id)
             return result("written", batch_id=batch_id, backup=str(backup),
                           error=f"Written, but the check read-back failed: {exc}")  # fmt: skip
         bad_reads = sum(not r.ok for r in readback)
         self.audit.finish(
             batch_id, "done", f"{bad_reads} read-back mismatches" if bad_reads else None
         )
+        own(batch_id)
         return result("written", batch_id=batch_id, backup=str(backup), readback=readback)
 
     def _plan(
@@ -1153,6 +1170,11 @@ class EntryService:
 
     def recent_batches(self, limit: int = 20) -> list[Batch]:
         return self.audit.recent(limit, workbook=self.workbook.name)
+
+
+def clean_name(name: str) -> str:
+    """A supervisor's name as typed: spaces tidied (the spelling and case are the user's)."""
+    return re.sub(r"\s+", " ", name).strip()[:80]
 
 
 def _range_changes(write: RangeWrite, old: dict[str, CellValue]) -> bool:

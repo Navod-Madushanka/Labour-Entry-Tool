@@ -40,6 +40,7 @@ const { chromium } = require('playwright');
   if (!blocked) {
     t = Date.now();
     await p.getByRole('button', { name: /Push \d+ entries/ }).click();
+    await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
     await p.waitForSelector('.result');
     console.log(`write: ${await p.locator('.result-head strong').innerText()} (${Date.now() - t} ms in browser)`);
   }

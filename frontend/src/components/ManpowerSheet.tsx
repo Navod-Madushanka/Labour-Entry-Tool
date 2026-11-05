@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { DayView, EntryInput } from "../api";
+import type { DayView, EntryInput, Owned } from "../api";
 import { formulaValue } from "../calc";
 import type { Month } from "../history";
 import { MAX_TICKS, renameCode, tickCode, untickCode, withTimes } from "../form";
@@ -20,6 +20,7 @@ interface Column {
   acts: { code: string; hours: number | null }[];
   source: "queue" | "excel";
   problem: boolean; // something still blocks or needs confirming
+  note?: string; // a supervisor's record: Excel differs from what was pushed
 }
 
 interface Props {
@@ -534,5 +535,153 @@ function Row({
         </td>
       ))}
     </tr>
+  );
+}
+
+const sameNum = (a: unknown, b: unknown) => (typeof a === "number" && typeof b === "number" ? Math.abs(a - b) < 1e-6 : (a ?? null) === (b ?? null));
+
+/** What differs between an entry as pushed and the same worker's entry in Excel now. */
+function changes(pushed: EntryInput, now: DayView["entries"][number]["entry"]): string[] {
+  const out: string[] = [];
+  if (!sameNum(pushed.time_in, now.time_in)) out.push(`In ${time(num(pushed.time_in))} → ${time(num(now.time_in)) || "blank"}`);
+  if (!sameNum(pushed.time_out, now.time_out)) out.push(`Out ${time(num(pushed.time_out))} → ${time(num(now.time_out)) || "blank"}`);
+  const acts = (list: { code: unknown; hours: unknown }[]) =>
+    list
+      .filter((a) => typeof a.code === "string" && a.code.trim())
+      .map((a) => `${String(a.code).trim()} ${fmtHours(num(a.hours) ?? undefined)}`)
+      .join(", ");
+  const [was, is] = [acts(pushed.activities), acts(now.activities)];
+  if (was !== is) out.push(`codes ${was || "none"} → ${is || "none"}`);
+  return out;
+}
+
+export type { Column };
+
+/** The columns of a supervisor's sheet: each worker as in Excel now, marked where Excel differs
+ * from what was pushed (or the entry is gone). */
+export function recordColumns(owned: Owned[], day: DayView | undefined): Column[] {
+  return owned.map((o) => {
+    const v = day?.entries.find((e) => e.entry.calling_name === o.calling_name);
+    if (v) {
+      const diff = changes(o.entry, v.entry);
+      return { ...fromExcel(v), note: diff.length ? `Changed in Excel since it was pushed: ${diff.join("; ")}` : undefined };
+    }
+    return {
+      name: o.calling_name,
+      tin: o.entry.time_in,
+      tout: o.entry.time_out,
+      normal: null,
+      ot: null,
+      acts: o.entry.activities.filter((a) => a.code).map((a) => ({ code: a.code!.trim(), hours: a.hours })),
+      source: "excel",
+      problem: false,
+      note: day ? "Not in Excel now (shown as it was pushed)" : undefined, // day not read yet: as pushed
+    };
+  });
+}
+
+/** A supervisor's manpower sheet for one day, read-only: laid out like the paper form. */
+export function ManpowerRecord({ sheet, day, supervisor, columns, places, activities, footer }: {
+  sheet: string;
+  day: DayView | undefined;
+  supervisor: string;
+  columns: Column[];
+  places: Record<string, string>;
+  activities: boolean;
+  footer?: React.ReactNode;
+}) {
+  const pages: Column[][] = [];
+  for (let i = 0; i < columns.length; i += PER_PAGE) pages.push(columns.slice(i, i + PER_PAGE));
+  return (
+    <>
+      {pages.map((cols, n) => {
+        const codes = activities ? [...new Set(cols.flatMap((c) => c.acts.map((a) => a.code)))] : [];
+        const padded = [...cols, ...Array.from({ length: PER_PAGE - cols.length }, () => null)];
+        return (
+          <section key={n} className="manpower record">
+            <div className="mp-banner">
+              <span className="mp-date">{longDate(day?.header.date) || `Sheet ${sheet}`}</span>
+              <span className="mp-entered">Supervisor: {supervisor}</span>
+            </div>
+            <table className="mp-head">
+              <tbody>
+                <tr>
+                  <th colSpan={2} className="mp-title">
+                    DAILY RECORD OF MANPOWER
+                  </th>
+                  <td className="mp-label">Date</td>
+                  <td>{dateText(day?.header.date)}</td>
+                </tr>
+                <tr>
+                  <td className="mp-label">Supervisor</td>
+                  <td>
+                    <b>{supervisor}</b>
+                  </td>
+                  <td className="mp-label">Sheet No</td>
+                  <td>
+                    {sheet}
+                    {pages.length > 1 && <span className="muted"> · page {n + 1} of {pages.length}</span>}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="mp-label">Project / Activity Centre</td>
+                  <td>{cell(day?.header.project)}</td>
+                  <td className="mp-label">Day</td>
+                  <td>{cell(day?.header.day_type)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="table-wrap">
+              <table className="mp-grid">
+                <thead>
+                  <Row
+                    label="Emp.No"
+                    cols={padded}
+                    codes={codes}
+                    rowSpanLeft={activities}
+                    render={(c) => (
+                      <>
+                        <b>{c.name}</b>
+                        {c.note && (
+                          <span className="badge warn small" title={c.note} aria-label={c.note}>
+                            ≠ Excel
+                          </span>
+                        )}
+                      </>
+                    )}
+                  />
+                  <Row label="In:" cols={padded} render={(c) => time(c.tin)} />
+                  <Row label="Out:" cols={padded} render={(c) => time(c.tout)} />
+                  <Row label="Normal Hrs" cols={padded} render={(c) => fmtHours(c.normal ?? undefined)} />
+                  <Row label="OT" cols={padded} render={(c) => (c.ot ? fmtHours(c.ot) : "")} />
+                </thead>
+                <tbody>
+                  {codes.map((code) => (
+                    <tr key={code}>
+                      <td className="mp-code">{code}</td>
+                      <td className="mp-desc">{placeName(code, places)}</td>
+                      <td className="mp-label-col" />
+                      {padded.map((c, i) => {
+                        const act = c?.acts.find((a) => a.code === code);
+                        return (
+                          <td key={i} className="mp-tick">
+                            {act && (
+                              <>
+                                <span className="tick">✓</span> <span className="mp-hours">({fmtHours(act.hours ?? undefined)})</span>
+                              </>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {footer && n === pages.length - 1 && <div className="mp-foot small">{footer}</div>}
+          </section>
+        );
+      })}
+    </>
   );
 }

@@ -57,6 +57,7 @@ const out = process.argv[2] || ".";
   await p.waitForFunction(() => document.querySelectorAll(".queue .pill.ok").length === 6, null, { timeout: 15000 });
   await p.screenshot({ path: `${out}/same_for_many.png`, fullPage: true });
   await p.getByRole("button", { name: /Push 6 entries/ }).click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForSelector(".result.ok");
   const day = await p.evaluate(async () =>
     (await (await fetch("/api/days/28")).json()).entries.map((v) => [v.entry.calling_name, v.entry.time_in, v.entry.time_out, v.entry.activities.filter((a) => a.code).map((a) => `${a.code}:${a.hours}`).join(" ")]),

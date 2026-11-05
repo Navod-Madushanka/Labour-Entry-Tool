@@ -1,8 +1,12 @@
 """SQLite audit log: one row per batch, one row per changed cell with its old and new value.
 
 A batch is recorded as ``pending`` *before* Excel is touched, so the old values survive a crash or
-a write that fails half way; undo works from these rows. It stores calling names, cells and values,
-never names or ID numbers (PLAN.md §10).
+a write that fails half way; undo works from these rows. It stores calling names, cells and
+values, never names or ID numbers (PLAN.md §10).
+
+``sheet_owners``: whose manpower sheet (which supervisor's paper) each pushed entry came from, with
+the entry as pushed. An entry belongs to the supervisor of its latest push that is not undone, so
+undoing a push gives the entry back to the supervisor before it.
 """
 
 from __future__ import annotations
@@ -43,6 +47,18 @@ CREATE TABLE IF NOT EXISTS changes (
     new          TEXT
 );
 CREATE INDEX IF NOT EXISTS changes_batch ON changes(batch_id);
+CREATE TABLE IF NOT EXISTS sheet_owners (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id     INTEGER REFERENCES batches(id),  -- NULL: pushed, but Excel had it already
+    created_at   TEXT NOT NULL,
+    user         TEXT NOT NULL,
+    workbook     TEXT NOT NULL,
+    sheet        TEXT NOT NULL,
+    calling_name TEXT NOT NULL,
+    supervisor   TEXT NOT NULL,
+    entry        TEXT NOT NULL  -- the entry as pushed (JSON)
+);
+CREATE INDEX IF NOT EXISTS sheet_owners_book ON sheet_owners(workbook, sheet);
 """
 
 
@@ -52,6 +68,19 @@ class Change(BaseModel):
     calling_name: str | None = None
     old: CellValue = None
     new: CellValue = None
+
+
+class Owned(BaseModel):
+    """One worker's entry on a day sheet, and whose manpower sheet it came from."""
+
+    id: int
+    sheet: str
+    calling_name: str
+    supervisor: str
+    created_at: dt.datetime
+    user: str
+    batch_id: int | None = None
+    entry: dict  # as pushed (EntryInput)
 
 
 class Batch(BaseModel):
@@ -118,6 +147,63 @@ class AuditStore:
                     " (SELECT undo_of FROM batches WHERE id = ?)",
                     (batch_id, batch_id),
                 )
+
+    # --- whose manpower sheet ---
+
+    def own(self, batch_id: int | None, user: str, workbook: str, supervisor: str,
+            entries: list[tuple[str, str, dict]]) -> None:  # fmt: skip
+        """``entries``: (sheet, calling name, entry as pushed) of one push."""
+        now = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._lock, self._db:
+            self._db.executemany(
+                "INSERT INTO sheet_owners (batch_id, created_at, user, workbook, sheet,"
+                " calling_name, supervisor, entry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [(batch_id, now, user, workbook, sheet, name, supervisor, json.dumps(entry))
+                 for sheet, name, entry in entries],
+            )  # fmt: skip
+
+    def owners(self, workbook: str) -> list[Owned]:
+        """Each entry of the workbook with its supervisor: the latest push not undone."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT o.* FROM sheet_owners o LEFT JOIN batches b ON b.id = o.batch_id"
+                " WHERE o.workbook = ? AND (o.batch_id IS NULL OR"
+                " (b.status = 'done' AND b.undone_by IS NULL)) ORDER BY o.id",
+                (workbook,),
+            ).fetchall()
+        latest: dict[tuple[str, str], Owned] = {}
+        for r in rows:
+            latest[(r["sheet"], r["calling_name"])] = Owned(
+                id=r["id"], sheet=r["sheet"], calling_name=r["calling_name"],
+                supervisor=r["supervisor"], created_at=r["created_at"], user=r["user"],
+                batch_id=r["batch_id"], entry=json.loads(r["entry"]),
+            )  # fmt: skip
+        return list(latest.values())
+
+    def reassign(self, workbook: str, ids: list[int], supervisor: str) -> int:
+        """A wrong supervisor chosen at push: give these entries (owner rows) to another one."""
+        with self._lock, self._db:
+            cur = self._db.executemany(
+                "UPDATE sheet_owners SET supervisor = ? WHERE id = ? AND workbook = ?",
+                [(supervisor, i, workbook) for i in ids],
+            )
+        return cur.rowcount
+
+    def rename_supervisor(self, old: str, new: str) -> int:
+        with self._lock, self._db:
+            cur = self._db.execute(
+                "UPDATE sheet_owners SET supervisor = ? WHERE supervisor = ?", (new, old)
+            )
+        return cur.rowcount
+
+    def supervisors(self) -> list[tuple[str, str]]:
+        """(name, last used) of every supervisor in the log, most recent first."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT supervisor, MAX(created_at) AS last, MAX(id) AS n FROM sheet_owners"
+                " GROUP BY supervisor ORDER BY n DESC"
+            ).fetchall()
+        return [(r["supervisor"], r["last"]) for r in rows]
 
     def batch(self, batch_id: int) -> Batch | None:
         rows = self._batches("WHERE b.id = ?", "", (batch_id,))

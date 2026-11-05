@@ -24,6 +24,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
     }
     await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled, null, { timeout: 15000 });
     await p.locator('.push-bar button').click();
+    await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
     await p.waitForFunction(() => !document.querySelector('.queue tbody tr'));
   };
   await push(["AAA-10", "AAA-11"]);

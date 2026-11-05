@@ -44,6 +44,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForFunction(() => !document.querySelector('.push-bar button')?.disabled);
   await p.screenshot({ path: out + "/b-entry.png", fullPage: true });
   await p.locator('.push-bar button').click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForFunction(() => !document.querySelector('.queue tbody tr'));
   const day = await p.evaluate(async () => (await (await fetch('/api/days/5')).json()).entries.map(v => [v.entry.calling_name, v.issues.map(i => i.rule)]));
   console.log("B sheet 5 after push:", JSON.stringify(day));

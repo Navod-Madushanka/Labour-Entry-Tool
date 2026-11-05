@@ -39,6 +39,7 @@ async function keyboardFlow(out) {
   await p.waitForFunction(() => [...document.querySelectorAll('.queue .pill.ok')].length === 2, null, {timeout: 10000});
   await p.screenshot({ path: `${out}/ui_queue.png`, fullPage: true });
   await p.getByRole('button', { name: /Push 2 entries/ }).click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForSelector('.result.ok');
   console.log('result:', (await p.locator('.result-head strong').textContent()));
   await p.waitForFunction(() => document.querySelectorAll('.daylist tbody tr').length === 2);
@@ -87,6 +88,7 @@ async function crewEditHeader(out) {
   await p.waitForFunction(() => !document.body.innerText.includes('checking…'));
   console.log('crew queued', n, 'ready', await p.locator('.queue .pill.ok').count());
   await p.getByRole('button', { name: new RegExp(`Push ${n} entries`) }).click();
+  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
   await p.waitForSelector('.result.ok');
   console.log('crew result:', await p.locator('.result-head strong').textContent());
   // copy yesterday (sheet 28 <- 27 empty, so use sheet 2 <- 1): suggestion button for a worker

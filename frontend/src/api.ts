@@ -373,6 +373,24 @@ export interface PrintJob {
   error: string | null;
 }
 
+/** A supervisor offered at push: used before (latest first), or typed in by hand. */
+export interface Supervisor {
+  name: string;
+  last_used: string | null;
+}
+
+/** A pushed entry and whose manpower sheet (paper) it came from. */
+export interface Owned {
+  id: number;
+  sheet: string;
+  calling_name: string;
+  supervisor: string;
+  created_at: string;
+  user: string;
+  batch_id: number | null;
+  entry: EntryInput; // as pushed
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -517,8 +535,15 @@ export const api = {
     call<DayView>("GET", `/api/days/${encodeURIComponent(sheet)}${fresh ? "?fresh=true" : ""}`),
   preview: (entries: EntryInput[]) =>
     call<{ plans: EntryPlan[] }>("POST", "/api/preview", { entries }).then((r) => r.plans),
-  commit: (entries: EntryInput[], user: string, dryRun = false) =>
-    call<CommitResult>("POST", "/api/entries", { entries, user, dry_run: dryRun }),
+  commit: (entries: EntryInput[], user: string, dryRun = false, supervisor?: string) =>
+    call<CommitResult>("POST", "/api/entries", { entries, user, dry_run: dryRun, supervisor: supervisor ?? null }),
+  supervisors: () => call<Supervisor[]>("GET", "/api/supervisors"),
+  addSupervisor: (name: string) => call<Supervisor[]>("POST", "/api/supervisors", { name }),
+  removeSupervisor: (name: string) => call<Supervisor[]>("POST", "/api/supervisors/remove", { name }),
+  renameSupervisor: (old: string, name: string) => call<Supervisor[]>("POST", "/api/supervisors/rename", { old, new: name }),
+  supervisorSheets: () => call<Owned[]>("GET", "/api/supervisor-sheets"),
+  reassignSheets: (ids: number[], supervisor: string) =>
+    call<Owned[]>("POST", "/api/supervisor-sheets/reassign", { ids, supervisor }),
   batches: (limit = 20) => call<Batch[]>("GET", `/api/batches?limit=${limit}`),
   undo: (batchId: number, user: string) =>
     call<UndoResult>("POST", `/api/batches/${batchId}/undo`, { user }),
