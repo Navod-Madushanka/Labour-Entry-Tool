@@ -442,3 +442,85 @@ def test_day_reads_stop_after_the_last_worker():
     assert day.reads[-1] == f"A1:R{last}" and last < 200
     assert [e.calling_name for e in d.entries] == ["INB-01"]  # same result, a fraction of the rows
     assert d.block_names[:2] == ["INB-01", "INB-02"]
+
+
+# --- staying connected while Excel prints ---------------------------------------------------
+
+
+def test_transient_call_failure_is_retried_but_not_for_prints():
+    now, slept = [0.0], []
+
+    def sleep(s):
+        slept.append(s)
+        now[0] += s
+
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise ComError(xa.RPC_S_CALL_FAILED)
+        return "ok"
+
+    assert xa.retry_busy(flaky, 10, sleep=sleep, clock=lambda: now[0]) == "ok"
+    calls.clear()
+    with pytest.raises(ComError):  # a print is never repeated after a failed-looking call
+        xa.retry_busy(flaky, 10, sleep=sleep, clock=lambda: now[0], transient=False)
+    assert len(calls) == 1
+    assert isinstance(xa.translate_com_error(ComError(xa.RPC_S_CALL_FAILED)), NotConnectedError)
+
+
+def test_connect_waits_for_a_busy_excel(monkeypatch):
+    import sys
+    import types
+
+    tries = []
+
+    class Apps:
+        def __iter__(self):
+            tries.append(1)
+            if len(tries) < 3:  # printing: Excel turns the first calls away
+                raise ComError(xa.RPC_E_CALL_REJECTED)
+            return iter([types.SimpleNamespace(books=[types.SimpleNamespace(name="Book.xlsb")])])
+
+    monkeypatch.setitem(sys.modules, "xlwings", types.SimpleNamespace(apps=Apps()))
+    monkeypatch.setattr(xa.time, "sleep", lambda s: None)
+    wb = xa.connect_named("Book.xlsb", None, Config(month="2026-10"))
+    assert wb.book.name == "Book.xlsb" and len(tries) == 3
+    tries.clear()
+    assert xa.open_workbook_names() == ["Book.xlsb"]
+
+
+def test_print_waits_until_excel_is_ready_and_explains_a_stuck_printer(monkeypatch):
+    import types
+
+    monkeypatch.setattr(xa.time, "sleep", lambda s: None)
+    ready = iter([False, False, True])
+    printed = []
+
+    class Rng:
+        value = None
+
+    class Api:  # Application.Ready: False while Excel is still printing
+        @property
+        def Ready(self):
+            return next(ready)
+
+    app = types.SimpleNamespace(calculate=lambda: None, api=Api())
+    sheet = types.SimpleNamespace(range=lambda a: Rng(), name="Card", api=types.SimpleNamespace(
+        PrintOut=lambda **kw: printed.append(kw)))  # fmt: skip
+    book = types.SimpleNamespace(name="wb.xlsb", sheets={"Card": sheet}, app=app)
+    wb = xa.XlwingsWorkbook(book, Config(month="2026-10").template)
+    wb.print_card("Card", "E8", "INB-05")
+    assert printed == [{"Copies": 1}]
+    with pytest.raises(StopIteration):
+        next(ready)  # it asked until Excel said ready
+
+    def busy(**kw):
+        raise ComError(xa.RPC_E_CALL_REJECTED)
+
+    sheet.api.PrintOut = busy
+    monkeypatch.setattr(xa, "PRINT_PATIENCE", 0.0)
+    wb.busy_timeout = 0.0
+    with pytest.raises(WorkbookBusyError, match="INB-05's card was not printed"):
+        wb.print_card("Card", "E8", "INB-05")

@@ -497,38 +497,7 @@ export interface SuggestLogSummary {
   last: string | null;
 }
 
-export interface NewMonthRequest {
-  month?: string; // "YYYY-MM"
-  folder?: string;
-  name?: string;
-}
-
-export interface NewMonthPreview {
-  source: string;
-  source_path: string | null;
-  month: string;
-  month_label: string;
-  folder: string | null;
-  folder_exists: boolean;
-  name: string | null;
-  file_exists: boolean;
-  unsaved: boolean;
-  workers: number;
-  activity_codes: number;
-  problem: string | null;
-}
-
-export interface NewMonthResult {
-  state: SetupState;
-  path: string;
-  sheets: number;
-  entries_cleared: number;
-  workers: number;
-}
-
 export const api = {
-  newMonthPreview: (body: NewMonthRequest) => call<NewMonthPreview>("POST", "/api/setup/new-month/preview", body),
-  newMonth: (body: NewMonthRequest) => call<NewMonthResult>("POST", "/api/setup/new-month", body),
   previousMonth: () => call<{ source: string | null; days: Record<string, DayView> }>("GET", "/api/previous-month"),
   logSuggestion: (line: SuggestLogLine) => call<{ ok: boolean }>("POST", "/api/suggest-log", line),
   suggestLogSummary: (days = 30) => call<SuggestLogSummary>("GET", `/api/suggest-log/summary?days=${days}`),

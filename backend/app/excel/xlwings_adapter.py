@@ -48,7 +48,13 @@ RPC_E_CALL_REJECTED = -2147418111  # 0x80010001
 VBA_E_IGNORE = -2146777998  # 0x800AC472, Excel is in edit mode
 RPC_E_SERVERCALL_RETRYLATER = -2147417846  # 0x8001010A
 BUSY_HRESULTS = frozenset({RPC_E_CALL_REJECTED, VBA_E_IGNORE, RPC_E_SERVERCALL_RETRYLATER})
-GONE_HRESULTS = frozenset({-2147023174, -2147023170, -2147417848})  # RPC unavailable / disconnected
+RPC_S_CALL_FAILED = -2147023170  # 0x800706BE "the remote procedure call failed"
+# RPC server unavailable, call failed, object disconnected: Excel gone (after the retries)
+GONE_HRESULTS = frozenset({-2147023174, RPC_S_CALL_FAILED, -2147417848})
+# Seen for a moment while Excel prints (or shows a dialog): retried like "busy" before the
+# connection is called lost. Not for the print itself, which must never run twice.
+TRANSIENT_HRESULTS = frozenset({RPC_S_CALL_FAILED})
+PRINT_PATIENCE = 120.0  # seconds a printing Excel may stay busy before the next card gives up
 
 MASTER_MARGIN = 500  # rows read past Labour Detail's last worker row
 BLOCK_MARGIN = 10  # day-sheet blocks read past the one of Labour Detail's last worker
@@ -71,6 +77,11 @@ def hresult(exc: BaseException) -> int | None:
 
 def is_busy_error(exc: BaseException) -> bool:
     return hresult(exc) in BUSY_HRESULTS
+
+
+def is_transient_error(exc: BaseException) -> bool:
+    """Busy, or a failed call Excel usually answers again a moment later."""
+    return hresult(exc) in BUSY_HRESULTS | TRANSIENT_HRESULTS
 
 
 XL_REFUSED = -2146827284  # 0x800A03EC: Excel's "can't do that here" (protected sheet, bad range…)
@@ -115,14 +126,17 @@ def retry_busy(
     timeout: float,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    transient: bool = True,
 ) -> T:
-    """Call ``fn``; while Excel rejects the call as busy, retry with backoff up to ``timeout``."""
+    """Call ``fn``; while Excel rejects the call as busy, retry with backoff up to ``timeout``.
+    ``transient``: also retry a call that failed for a moment (only for calls safe to repeat)."""
+    retry = is_transient_error if transient else is_busy_error
     deadline, delay = clock() + timeout, 0.1
     while True:
         try:
             return fn()
         except Exception as exc:
-            if not is_busy_error(exc) or clock() + delay > deadline:
+            if not retry(exc) or clock() + delay > deadline:
                 raise
             sleep(delay)
             delay = min(delay * 2, 1.0)
@@ -146,6 +160,12 @@ def com_uninit() -> None:
 # --- The adapter ---------------------------------------------------------------------------------
 
 
+def _open_books(xw: Any, timeout: float) -> list[Any]:
+    """Every workbook open in Excel. Excel busy (printing, a cell being edited) is waited for: a
+    busy Excel is not a lost one."""
+    return retry_busy(lambda: [book for app in xw.apps for book in app.books], timeout)
+
+
 def connect(config: Config) -> XlwingsWorkbook:
     """Attach to the single open workbook matching ``config.workbook_pattern``."""
     try:
@@ -153,7 +173,7 @@ def connect(config: Config) -> XlwingsWorkbook:
     except ImportError as exc:  # not Windows, or not installed
         raise NotConnectedError(f"Live Excel is not available on this computer ({exc}).") from exc
     try:
-        books = [book for app in xw.apps for book in app.books]
+        books = _open_books(xw, config.excel.busy_timeout)
     except Exception as exc:
         raise translate_com_error(exc) from exc
     names = match_books([b.name for b in books], config.workbook_pattern)
@@ -177,7 +197,7 @@ def open_workbook_names() -> list[str]:
     except ImportError:
         return []
     try:
-        return [book.name for app in xw.apps for book in app.books]
+        return retry_busy(lambda: [book.name for app in xw.apps for book in app.books], 10.0)
     except Exception as exc:
         raise translate_com_error(exc) from exc
 
@@ -190,7 +210,7 @@ def connect_named(name: str, path: Path | None, config: Config) -> XlwingsWorkbo
     except ImportError as exc:
         raise NotConnectedError(f"Live Excel is not available on this computer ({exc}).") from exc
     try:
-        books = [book for app in xw.apps for book in app.books]
+        books = _open_books(xw, config.excel.busy_timeout)
         found = [b for b in books if b.name.casefold() == name.casefold()]
         if len(found) > 1:
             raise NotConnectedError(f"{name} is open twice in Excel. Close one of them.")
@@ -219,9 +239,11 @@ class XlwingsWorkbook:
         # Excel. None until Labour Detail has been read: then the whole sheet is read.
         self._blocks: int | None = None
 
-    def _com(self, fn: Callable[[], T]) -> T:
+    def _com(self, fn: Callable[[], T], timeout: float | None = None, transient: bool = True) -> T:
         try:
-            return retry_busy(fn, self.busy_timeout)
+            return retry_busy(
+                fn, self.busy_timeout if timeout is None else timeout, transient=transient
+            )
         except WorkbookError:
             raise
         except Exception as exc:
@@ -353,49 +375,51 @@ class XlwingsWorkbook:
         """Calling name in, Excel recalculates the card, the sheet prints with its own page setup
         on Excel's current printer (no print dialog)."""
         sht = self._sheet(sheet)
+        wait = max(self.busy_timeout, PRINT_PATIENCE)  # the card before may still be printing
         try:
-            self._com(lambda: setattr(sht.range(cell), "value", calling_name))
+            self._com(lambda: setattr(sht.range(cell), "value", calling_name), timeout=wait)
+        except WorkbookBusyError as exc:
+            raise WorkbookBusyError(
+                f"Excel stayed busy for {wait:.0f} s (still printing the card before, or a message "
+                f"open), so {calling_name}'s card was not printed. Check Excel and the printer, "
+                "then press Continue."
+            ) from exc
         except WorkbookError as exc:
             raise WorkbookError(
                 f"Excel did not accept the calling name in {sheet}!{cell} ({exc}). If the sheet is "
                 f"protected, unlock {cell} (Format Cells > Protection > untick Locked) or "
                 "unprotect the sheet, then try again."
             ) from exc
-        app = self._com(lambda: self.book.app)
-        self._com(app.calculate)
-        self._com(lambda: sht.api.PrintOut(Copies=copies))
+        try:
+            app = self._com(lambda: self.book.app, timeout=wait)
+            self._com(app.calculate, timeout=wait)
+            # never repeated: a failed-looking print may have printed (only "busy, not started" is)
+            self._com(lambda: sht.api.PrintOut(Copies=copies), timeout=wait, transient=False)
+        except WorkbookBusyError as exc:
+            raise WorkbookBusyError(
+                f"Excel stayed busy for {wait:.0f} s, so {calling_name}'s card was not printed. "
+                "Check Excel and the printer for an open message (paper, printer offline), close "
+                "it, then press Continue."
+            ) from exc
+        self._wait_ready(app, wait)
+
+    def _wait_ready(self, app: Any, timeout: float) -> None:
+        """After PrintOut Excel goes on spooling (its "Printing…" box) and turns calls away: wait
+        until it is ready again, so the next card or entry does not find it busy."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                if app.api.Ready:
+                    return
+            except AttributeError:  # not real Excel (tests)
+                return
+            except Exception as exc:
+                if not is_transient_error(exc):
+                    return  # the next call reports it
+            time.sleep(0.25)
 
     def save(self) -> None:
         self._com(self.book.save)
-
-    def clear_cells(self, sheet: str, addresses: Sequence[str]) -> None:
-        """Empty many cell ranges of one sheet: a few ranges per Excel call (union addresses stay
-        under Excel's 255-character limit), with screen updating and calculation paused."""
-        if not addresses:
-            return
-        app = self._com(lambda: self.book.app)
-        calculation = self._com(lambda: app.calculation)
-        screen = self._com(lambda: app.screen_updating)
-        self._com(lambda: setattr(app, "screen_updating", False))
-        self._com(lambda: setattr(app, "calculation", "manual"))
-        try:
-            try:
-                sht = self._sheet(sheet)
-            except KeyError as exc:
-                raise WorkbookError(str(exc)) from exc
-            chunk: list[str] = []
-            for addr in [*addresses, None]:
-                if addr is not None and len(",".join([*chunk, addr])) <= 240:
-                    chunk.append(addr)
-                    continue
-                if chunk:
-                    union = ",".join(chunk)
-                    self._com(lambda union=union: sht.api.Range(union).ClearContents())
-                chunk = [addr] if addr is not None else []
-        except BaseException:
-            self._restore(app, calculation, screen, report=False)
-            raise
-        self._restore(app, calculation, screen, report=True)
 
     def save_copy(self, path: Path) -> None:
         path = Path(path).resolve()

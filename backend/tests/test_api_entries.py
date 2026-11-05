@@ -153,3 +153,46 @@ def test_demo_mode(tmp_path, small_snapshot):
         res = c.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]}).json()
         assert res["status"] == "written"
     assert path.read_text() == save_snapshot(small_snapshot, tmp_path / "again.json").read_text()
+
+
+def test_a_read_attaches_again_once_after_a_lost_connection(small_snapshot, tmp_path):
+    """Excel stops answering for a moment (printing): a read (GET) attaches again and is tried
+    once more; a write is never repeated."""
+    fake = FakeWorkbook(small_snapshot)
+    lost = {"reads": 1, "writes": 1}
+
+    class Flaky:
+        def __getattr__(self, name):
+            return getattr(fake, name)
+
+        def read_master(self):
+            if lost["reads"]:
+                lost["reads"] -= 1
+                raise NotConnectedError("Lost the connection to Excel.")
+            return fake.read_master()
+
+        def write_ranges(self, writes):
+            if lost["writes"]:
+                lost["writes"] -= 1
+                raise NotConnectedError("Lost the connection to Excel.")
+            return fake.write_ranges(writes)
+
+    connects = []
+
+    def factory(config):
+        def connect():
+            connects.append(1)
+            return Flaky()
+
+        return EntryService(connect, config, AuditStore(), BackupManager(tmp_path / "b"))
+
+    with TestClient(create_app(Config(month="2026-10"), service_factory=factory)) as c:
+        assert c.get("/api/master").status_code == 200  # lost, attached again, read
+        assert len(connects) == 2
+        res = c.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]})
+        assert res.json()["status"] == "failed"  # reported, not tried again by itself
+        assert fake.read_range("1", "G16:H16") == [[None, None]] and lost["writes"] == 0
+        assert (
+            c.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]}).json()["status"]
+            == "written"
+        )

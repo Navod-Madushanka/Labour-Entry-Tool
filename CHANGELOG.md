@@ -1,5 +1,29 @@
 # Changelog
 
+## "Start the next month" removed; staying connected to Excel while printing (5 Nov 2026)
+
+Asked for: the tool loses its connection to Excel now and then, most often when printing; remove
+the create-new-workbook feature entirely without breaking anything.
+
+- **Removed**: "📅 Start the next month from this workbook…" (the menu item, its dialog, the
+  `/api/setup/new-month` endpoints, `app/newmonth.py`, the cell-clearing Excel call it used, its
+  tests). Nothing else used them. The guard test that the tool never closes Excel moved to
+  `tests/test_excel_safety.py`. Changing a workbook's month (🗓) stays.
+- **Connection, while printing** (what was found in the code):
+  - Attaching to Excel listed its open workbooks without waiting for a busy Excel, so attaching
+    while Excel was printing (or a cell was being edited) failed at once and showed "not
+    connected". It now waits for a busy Excel like every other call.
+  - After each card, Excel keeps spooling with its "Printing…" box and turns calls away; the tool
+    gave up after 10 s. Now it waits until Excel says it is ready again (up to 2 minutes per
+    card), and if Excel stays busy the message names the card and says to check the printer,
+    then press Continue (instead of "finish editing the cell").
+  - "The remote procedure call failed", which Excel gives for a moment while printing, was taken
+    as "Excel is gone". It is now retried first (never for the print itself, which must not run
+    twice). A read that still finds the connection lost attaches again and is tried once more;
+    writes are not repeated.
+- When it happens again, `labour-tool.log` in the "Labour Entry Tool" folder (in the user's home
+  folder) has the Excel errors with their times.
+
 ## Analysis: worker × supervisor × date, whose worker, supervisor × place × activity (5 Nov 2026)
 
 Asked for: in Analysis, know that this worker worked under this supervisor on this date, that

@@ -8,6 +8,7 @@ passes its checks and every warning is acknowledged.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -35,6 +36,7 @@ from app.service import (
 
 router = APIRouter(prefix="/api")
 
+log = logging.getLogger("labour.excel")
 EXCEL_WAIT = 120.0  # seconds before a request gives up on a silent Excel (a full read takes ~20)
 
 
@@ -64,12 +66,21 @@ class HeaderFixRequest(UserRequest):
 async def run_service(
     request: Request, fn: Callable[[EntryService], Any], wait: float | None = None
 ) -> Any:
-    """Run ``fn(service)`` on the Excel thread and map workbook errors to HTTP errors."""
+    """Run ``fn(service)`` on the Excel thread and map workbook errors to HTTP errors. A read
+    (GET) that finds the connection lost attaches to the workbook again and is tried once more:
+    Excel often answers again a moment later (after printing, a dialog). Writes are never repeated.
+    """
     service: EntryService = request.app.state.get_service()
+    timeout = EXCEL_WAIT if wait is None else wait
     try:
-        return await asyncio.wait_for(
-            request.app.state.get_worker().run(fn, service), EXCEL_WAIT if wait is None else wait
-        )
+        try:
+            return await asyncio.wait_for(request.app.state.get_worker().run(fn, service), timeout)
+        except NotConnectedError:
+            if request.method != "GET":
+                raise
+            service.disconnect()
+            log.info("%s: lost the connection to Excel; attaching again", request.url.path)
+            return await asyncio.wait_for(request.app.state.get_worker().run(fn, service), timeout)
     except TimeoutError as exc:
         raise HTTPException(
             504,

@@ -14,14 +14,13 @@ interface Props {
   onSwitch: (name: string) => void;
   onAddWorkbook: () => void;
   onCloseBook: (name: string) => void;
-  onNewMonth: () => void;
   onChangeMonth: () => void;
   story: { on: boolean; unlocked: number; total: number; onOpen: () => void };
 }
 
 export function StatusBar(props: Props) {
   const { page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story } = props;
-  const { books, onSwitch, onAddWorkbook, onCloseBook, onNewMonth, onChangeMonth } = props;
+  const { books, onSwitch, onAddWorkbook, onCloseBook, onChangeMonth } = props;
   const active = books.find((b) => b.active)?.name ?? status?.workbook ?? "";
   const backup = status?.backup ? `Backup: ${status.backup}` : "No backup yet";
   return (
@@ -50,7 +49,7 @@ export function StatusBar(props: Props) {
         </span>
       )}
       {books.length > 0 ? (
-        <WorkbookMenu books={books} active={active} title={backup} onSwitch={onSwitch} onAdd={onAddWorkbook} onClose={onCloseBook} onNewMonth={onNewMonth} onChangeMonth={onChangeMonth} />
+        <WorkbookMenu books={books} active={active} title={backup} onSwitch={onSwitch} onAdd={onAddWorkbook} onClose={onCloseBook} onChangeMonth={onChangeMonth} />
       ) : (
         status?.workbook && <span className="workbook" title={backup}>{status.workbook}</span>
       )}
@@ -88,14 +87,13 @@ export function StatusBar(props: Props) {
 
 /** The active workbook's name; opens the list of workbooks open in this tool: click one to work on
  * it, ✕ to take it off the list (the file and Excel are not touched), or open another. */
-function WorkbookMenu({ books, active, title, onSwitch, onAdd, onClose, onNewMonth, onChangeMonth }: {
+function WorkbookMenu({ books, active, title, onSwitch, onAdd, onClose, onChangeMonth }: {
   books: BookInfo[];
   active: string;
   title: string;
   onSwitch: (name: string) => void;
   onAdd: () => void;
   onClose: (name: string) => void;
-  onNewMonth: () => void;
   onChangeMonth: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -157,9 +155,6 @@ function WorkbookMenu({ books, active, title, onSwitch, onAdd, onClose, onNewMon
           ))}
           <button role="menuitem" className="link book-add" onClick={() => pick(onAdd)}>
             + Open another workbook
-          </button>
-          <button role="menuitem" className="link book-add" onClick={() => pick(onNewMonth)} title="A folder for the next month, a copy of this workbook with only the entries cleared">
-            📅 Start the next month from this workbook…
           </button>
           <button role="menuitem" className="link book-add" onClick={() => pick(onChangeMonth)} title="Which month this workbook is for: the sheets' dates and day types are checked and set for it">
             🗓 Change the month of this workbook…

@@ -725,12 +725,6 @@ details.card > summary .badge { margin-left: 6px; }
 .ch-badge.ch-update { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
 .ch-badge.ch-delete, .ch-badge.ch-unqueue { background: var(--block-bg); color: var(--block); border-color: transparent; }
 .sqlws-grid td.changed { background: var(--warn-bg) !important; font-weight: 600; }
-.modal.new-month { max-width: 680px; }
-.nm-fields { display: grid; grid-template-columns: 170px 1fr; gap: 10px 12px; margin: 10px 0; }
-.nm-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
-.nm-fields label.wide { grid-column: 1 / -1; }
-.nm-fields input { font-size: 14px; }
-.nm-summary { margin: 4px 0 10px; padding-left: 18px; color: var(--muted); }
 .places-card tr.add-place td { padding-top: 8px; border-top: 1px dashed var(--line); }
 .month-card { border-top-color: var(--info); }
 .month-card .month-pick { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
