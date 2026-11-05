@@ -622,7 +622,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         ) : page === "analysis" ? (
           <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} />
         ) : page === "supervisors" ? (
-          <Supervisors master={master} month={month} />
+          <Supervisors master={master} month={month} user={user} />
         ) : page === "cards" ? (
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (

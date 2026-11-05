@@ -557,6 +557,19 @@ function changes(pushed: EntryInput, now: DayView["entries"][number]["entry"]): 
 
 export type { Column };
 
+/** What a sheet looks like now (workers, times, codes and hours as in Excel): stored with a review,
+ * so a later change (an edit in Excel, a push, a moved sheet) shows as "changed since review". */
+export function fingerprint(cols: Column[]): string {
+  const text = cols
+    .map((c) => `${c.name}:${c.tin}-${c.tout}:${c.acts.map((a) => `${a.code}=${a.hours}`).join(",")}`)
+    .sort()
+    .join("|");
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+  return `${cols.length}-${h.toString(36)}`;
+}
+
+
 /** The columns of a supervisor's sheet: each worker as in Excel now, marked where Excel differs
  * from what was pushed (or the entry is gone). */
 export function recordColumns(owned: Owned[], day: DayView | undefined): Column[] {
@@ -581,7 +594,7 @@ export function recordColumns(owned: Owned[], day: DayView | undefined): Column[
 }
 
 /** A supervisor's manpower sheet for one day, read-only: laid out like the paper form. */
-export function ManpowerRecord({ sheet, day, supervisor, columns, places, activities, footer }: {
+export function ManpowerRecord({ sheet, day, supervisor, columns, places, activities, footer, highlight }: {
   sheet: string;
   day: DayView | undefined;
   supervisor: string;
@@ -589,6 +602,7 @@ export function ManpowerRecord({ sheet, day, supervisor, columns, places, activi
   places: Record<string, string>;
   activities: boolean;
   footer?: React.ReactNode;
+  highlight?: (c: Column) => boolean; // search hits
 }) {
   const pages: Column[][] = [];
   for (let i = 0; i < columns.length; i += PER_PAGE) pages.push(columns.slice(i, i + PER_PAGE));
@@ -641,7 +655,7 @@ export function ManpowerRecord({ sheet, day, supervisor, columns, places, activi
                     rowSpanLeft={activities}
                     render={(c) => (
                       <>
-                        <b>{c.name}</b>
+                        {highlight?.(c) ? <mark>{c.name}</mark> : <b>{c.name}</b>}
                         {c.note && (
                           <span className="badge warn small" title={c.note} aria-label={c.note}>
                             ≠ Excel

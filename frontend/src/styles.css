@@ -501,15 +501,16 @@ section.timecards { border-top-color: var(--brand); }
 .tc-bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; margin-bottom: 6px; }
 .tc-bar span { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
 .tc-progress.done .tc-bar span { background: var(--ok); }
-/* Keep the top bar on one line on a laptop: the workbook name gives way first. */
-@media (min-width: 1280px) {
+/* Keep the top bar on one line on a wide screen: the workbook name gives way first. Narrower, it
+ * wraps to a second line rather than run off the screen or crush the workbook menu. */
+@media (min-width: 1500px) {
   .statusbar { flex-wrap: nowrap; }
   .statusbar .workbook { flex: 0 1 auto; min-width: 0; max-width: 34ch; }
   .statusbar > * { flex-shrink: 0; }
   .statusbar .workbook, .statusbar .spacer { flex-shrink: 1; }
   .statusbar .book-menu { flex-shrink: 1; min-width: 0; }
 }
-.book-menu { min-width: 0; max-width: 100%; }
+.book-menu { min-width: min(16ch, 100%); max-width: 100%; }
 .book-current { max-width: 100%; min-width: 0; }
 .book-current .name { min-width: 0; }
 
@@ -750,3 +751,8 @@ details.card > summary .badge { margin-left: 6px; }
 .sup-list { margin-top: 20px; }
 .sup-list ul { list-style: none; padding: 0; }
 .sup-list li { padding: 3px 0; }
+.sup-search input { min-width: 280px; }
+.sup-summary, .sup-hits { margin: 4px 0 8px; }
+.sup-review { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.sup-badge { font-weight: 600; }
+.manpower.record mark { background: var(--warn-bg, #fff3bf); color: inherit; padding: 0 2px; border-radius: 3px; font-weight: 700; }

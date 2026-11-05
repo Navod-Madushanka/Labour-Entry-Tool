@@ -9,11 +9,13 @@ it off that list: the sheets it was given stay.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.api.entries import run_service
-from app.audit.store import Owned
+from app.audit.store import Owned, Review
 from app.service import clean_name
 
 router = APIRouter(prefix="/api")
@@ -120,3 +122,34 @@ async def reassign(body: ReassignBody, request: Request) -> list[Owned]:
         raise HTTPException(422, "Type the supervisor's name.")
     await run_service(request, lambda s: s.audit.reassign(s.workbook.name, body.ids, name))
     return await sheets(request)
+
+
+class ReviewBody(BaseModel):
+    sheet: str = Field(min_length=1)
+    supervisor: str = Field(min_length=1, max_length=80)
+    status: Literal["ok", "problem", "cleared"]
+    note: str | None = Field(None, max_length=500)
+    fingerprint: str = Field(max_length=200)  # the sheet as reviewed, to see later changes
+    user: str = Field(min_length=1)
+
+
+@router.get("/supervisor-reviews", response_model=list[Review])
+async def reviews(request: Request) -> list[Review]:
+    """The latest review of each supervisor's sheet in this workbook."""
+    return await run_service(request, lambda s: s.audit.reviews(s.workbook.name))
+
+
+@router.post("/supervisor-reviews", response_model=list[Review])
+async def add_review(body: ReviewBody, request: Request) -> list[Review]:
+    """A supervisor's sheet checked against the paper: matches (ok), or a problem (with a note);
+    "cleared" takes a review back."""
+    note = (body.note or "").strip() or None
+    if body.status == "problem" and not note:
+        raise HTTPException(422, "Say what the problem is.")
+
+    def save(s):
+        s.audit.review(body.user.strip(), s.workbook.name, body.sheet, body.supervisor,
+                       body.status, note, body.fingerprint)  # fmt: skip
+        return s.audit.reviews(s.workbook.name)
+
+    return await run_service(request, save)

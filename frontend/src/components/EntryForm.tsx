@@ -595,7 +595,12 @@ export function EntryForm(props: Props) {
                           const next = e.key === "ArrowDown" ? (at + 1) % suggested.length : (at <= 0 ? suggested.length : at) - 1;
                           picked.current = suggested[next].code; // for an Enter before the next render
                           setLine(0, { code: suggested[next].code });
-                          requestAnimationFrame(() => refs.current.code0?.select());
+                          // select it for typing over, unless an Enter has moved on meanwhile (select()
+                          // would take the focus back to this box, and the next Enter would be lost)
+                          requestAnimationFrame(() => {
+                            const box = refs.current.code0;
+                            if (box && document.activeElement === box) box.select();
+                          });
                         } else if (e.key === "Enter" && !e.ctrlKey) {
                           e.preventDefault();
                           const code = line.code.trim() || (i === 0 ? picked.current ?? "" : "");

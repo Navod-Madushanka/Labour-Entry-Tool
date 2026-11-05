@@ -12,6 +12,7 @@ export type DayKind = "Normal" | "Saturday" | "Sunday" | "Holiday";
 export const NO_CODE = "ZIDLE (no activity)";
 export const NO_PLACE = "No place";
 export const NO_TRADE = "No trade";
+export const NO_SUPERVISOR = "No supervisor";
 
 export interface Slice {
   sheet: string;
@@ -20,6 +21,7 @@ export interface Slice {
   name: string; // calling name
   person: string; // the person (several calling names can be one person)
   trade: string;
+  supervisor: string; // whose manpower sheet the entry came from (given at push)
   code: string;
   place: string;
   hours: number; // worked hours on this line
@@ -34,6 +36,7 @@ export interface EntryRow {
   name: string;
   person: string;
   trade: string;
+  supervisor: string;
   tin: number | null;
   tout: number | null;
   worked: number;
@@ -69,7 +72,11 @@ export function dayKind(dayType: unknown, date: string | null, holidays: string[
 }
 
 /** Cut the month into slices and entry rows. Blank blocks and junk values are skipped. */
-export function buildData(month: Month, master: Pick<Master, "workers" | "places" | "holidays" | "activities" | "check_activities">): Data {
+export function buildData(
+  month: Month,
+  master: Pick<Master, "workers" | "places" | "holidays" | "activities" | "check_activities">,
+  owners: Map<string, string> = new Map(), // "sheet|calling name" -> supervisor
+): Data {
   const workers = new Map(master.workers.map((w) => [w.calling_name, w]));
   const valid = new Set(master.activities.map((a) => a.trim()));
   const slices: Slice[] = [];
@@ -90,6 +97,7 @@ export function buildData(month: Month, master: Pick<Master, "workers" | "places
       const w = workers.get(name);
       const person = text(w?.person) || name;
       const trade = text(w?.trade_group) || NO_TRADE;
+      const supervisor = owners.get(`${sheet}|${name}`) ?? NO_SUPERVISOR;
       const ot = Math.max(num(v.computed?.ot_raw) ?? 0, 0);
       const zidle = Math.max(num(v.computed?.zidle) ?? 0, 0);
       const lines: { code: string; hours: number }[] = [];
@@ -107,14 +115,14 @@ export function buildData(month: Month, master: Pick<Master, "workers" | "places
         const share = total > 0 ? l.hours / total : 0;
         const suffix = l.code === NO_CODE ? null : placeSuffix(l.code);
         slices.push({
-          sheet, day, kind, name, person, trade, code: l.code,
+          sheet, day, kind, name, person, trade, supervisor, code: l.code,
           place: (suffix && master.places?.[suffix]) || (suffix ? `-${suffix}` : NO_PLACE),
           hours: worked * share, ot: ot * share, share,
         }); // prettier-ignore
       }
       const codes = coded.map((a) => text(a.code));
       entries.push({
-        sheet, day, kind, name, person, trade, tin: num(e.time_in), tout: num(e.time_out), worked, ot, zidle, codes,
+        sheet, day, kind, name, person, trade, supervisor, tin: num(e.time_in), tout: num(e.time_out), worked, ot, zidle, codes,
         unknownCodes: master.check_activities && valid.size ? codes.filter((c) => !valid.has(c)) : [],
         issues: v.issues ?? [],
       }); // prettier-ignore
@@ -125,6 +133,7 @@ export function buildData(month: Month, master: Pick<Master, "workers" | "places
 
 export interface Filter {
   trade?: string;
+  supervisor?: string;
   place?: string;
   code?: string;
   from?: number;
@@ -134,7 +143,7 @@ export interface Filter {
 export function applyFilter(data: Data, f: Filter): { slices: Slice[]; entries: EntryRow[] } {
   const inDays = (d: number) => (f.from === undefined || d >= f.from) && (f.to === undefined || d <= f.to);
   const slices = data.slices.filter(
-    (s) => inDays(s.day) && (!f.trade || s.trade === f.trade) && (!f.place || s.place === f.place) && (!f.code || s.code === f.code),
+    (s) => inDays(s.day) && (!f.trade || s.trade === f.trade) && (!f.supervisor || s.supervisor === f.supervisor) && (!f.place || s.place === f.place) && (!f.code || s.code === f.code),
   );
   const keys = new Set(slices.map((s) => `${s.sheet}|${s.name}`));
   const entries = data.entries.filter((e) => keys.has(`${e.sheet}|${e.name}`));
@@ -193,6 +202,18 @@ function group(slices: Slice[], keyOf: (s: Slice) => string, subOf: (s: Slice) =
 export const byCode = (s: Slice[]) => group(s, (x) => x.code, (x) => x.trade);
 export const byPlace = (s: Slice[]) => group(s, (x) => x.place, (x) => x.trade);
 export const byTrade = (s: Slice[]) => group(s, (x) => x.trade, (x) => x.code);
+export const bySupervisor = (s: Slice[]) => group(s, (x) => x.supervisor, (x) => x.code);
+
+/** People per day on each supervisor's sheets: day -> supervisor -> people. */
+export function supervisorDays(slices: Slice[]): Map<number, Map<string, number>> {
+  const sets = new Map<number, Map<string, Set<string>>>();
+  for (const s of slices) {
+    const day = sets.get(s.day) ?? new Map<string, Set<string>>();
+    day.set(s.supervisor, (day.get(s.supervisor) ?? new Set()).add(s.person));
+    sets.set(s.day, day);
+  }
+  return new Map([...sets].map(([d, m]) => [d, new Map([...m].map(([k, v]) => [k, v.size]))]));
+}
 
 export interface Kpis {
   hours: number;

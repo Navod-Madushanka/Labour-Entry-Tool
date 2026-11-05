@@ -59,6 +59,18 @@ CREATE TABLE IF NOT EXISTS sheet_owners (
     entry        TEXT NOT NULL  -- the entry as pushed (JSON)
 );
 CREATE INDEX IF NOT EXISTS sheet_owners_book ON sheet_owners(workbook, sheet);
+CREATE TABLE IF NOT EXISTS sheet_reviews (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    user        TEXT NOT NULL,
+    workbook    TEXT NOT NULL,
+    sheet       TEXT NOT NULL,
+    supervisor  TEXT NOT NULL,
+    status      TEXT NOT NULL,  -- ok: matches the paper; problem: see note; cleared: taken back
+    note        TEXT,
+    fingerprint TEXT NOT NULL   -- what the sheet looked like when reviewed (changed since?)
+);
+CREATE INDEX IF NOT EXISTS sheet_reviews_book ON sheet_reviews(workbook);
 """
 
 
@@ -81,6 +93,20 @@ class Owned(BaseModel):
     user: str
     batch_id: int | None = None
     entry: dict  # as pushed (EntryInput)
+
+
+class Review(BaseModel):
+    """The latest review of a supervisor's sheet: checked against the paper."""
+
+    id: int
+    sheet: str
+    supervisor: str
+    status: Literal["ok", "problem", "cleared"]
+    note: str | None = None
+    user: str
+    created_at: dt.datetime
+    fingerprint: str
+    history: int = 1  # reviews of this sheet so far
 
 
 class Batch(BaseModel):
@@ -194,7 +220,37 @@ class AuditStore:
             cur = self._db.execute(
                 "UPDATE sheet_owners SET supervisor = ? WHERE supervisor = ?", (new, old)
             )
+            self._db.execute(
+                "UPDATE sheet_reviews SET supervisor = ? WHERE supervisor = ?", (new, old)
+            )
         return cur.rowcount
+
+    def review(self, user: str, workbook: str, sheet: str, supervisor: str, status: str,
+               note: str | None, fingerprint: str) -> None:  # fmt: skip
+        now = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO sheet_reviews (created_at, user, workbook, sheet, supervisor, status,"
+                " note, fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (now, user, workbook, sheet, supervisor, status, note, fingerprint),
+            )
+
+    def reviews(self, workbook: str) -> list[Review]:
+        """The latest review of each (sheet, supervisor) of the workbook."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM sheet_reviews WHERE workbook = ? ORDER BY id", (workbook,)
+            ).fetchall()
+        latest: dict[tuple[str, str], Review] = {}
+        for r in rows:
+            key = (r["sheet"], r["supervisor"])
+            before = latest[key].history if key in latest else 0
+            latest[key] = Review(
+                id=r["id"], sheet=r["sheet"], supervisor=r["supervisor"], status=r["status"],
+                note=r["note"], user=r["user"], created_at=r["created_at"],
+                fingerprint=r["fingerprint"], history=before + 1,
+            )  # fmt: skip
+        return list(latest.values())
 
     def supervisors(self) -> list[tuple[str, str]]:
         """(name, last used) of every supervisor in the log, most recent first."""

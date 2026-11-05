@@ -391,6 +391,19 @@ export interface Owned {
   entry: EntryInput; // as pushed
 }
 
+/** The latest review of a supervisor's sheet (checked against the paper). */
+export interface Review {
+  id: number;
+  sheet: string;
+  supervisor: string;
+  status: "ok" | "problem" | "cleared";
+  note: string | null;
+  user: string;
+  created_at: string;
+  fingerprint: string; // the sheet as reviewed: another one now means it changed since
+  history: number;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -542,6 +555,9 @@ export const api = {
   removeSupervisor: (name: string) => call<Supervisor[]>("POST", "/api/supervisors/remove", { name }),
   renameSupervisor: (old: string, name: string) => call<Supervisor[]>("POST", "/api/supervisors/rename", { old, new: name }),
   supervisorSheets: () => call<Owned[]>("GET", "/api/supervisor-sheets"),
+  supervisorReviews: () => call<Review[]>("GET", "/api/supervisor-reviews"),
+  reviewSheet: (r: { sheet: string; supervisor: string; status: Review["status"]; note?: string | null; fingerprint: string; user: string }) =>
+    call<Review[]>("POST", "/api/supervisor-reviews", r),
   reassignSheets: (ids: number[], supervisor: string) =>
     call<Owned[]>("POST", "/api/supervisor-sheets/reassign", { ids, supervisor }),
   batches: (limit = 20) => call<Batch[]>("GET", `/api/batches?limit=${limit}`),

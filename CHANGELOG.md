@@ -1,5 +1,27 @@
 # Changelog
 
+## Supervisors: search and review; supervisors in Analysis (5 Nov 2026)
+
+Asked for: search and review the supervisors' sheets; supervisor data in the Analysis section.
+
+- **Search** (Supervisors page): a worker (calling name or name), an activity code, a supervisor,
+  a sheet number or a date. Matching sheets are listed, the workers found are named ("AAA-03 on
+  sheet 4 (Kamal)") and highlighted on the sheet.
+- **Review**: on each sheet, "✓ Matches the paper" or "⚠ Problem…" (with a note); "Take back the
+  review" undoes it. The table shows each sheet's review, who did it and when; filter by Not
+  reviewed / Matches / Problem / Changed since review. A review remembers what the sheet looked
+  like: when it changes afterwards (edited in Excel, pushed again, moved to another supervisor)
+  it shows "Changed since review" until checked again. Kept in the change log (`sheet_reviews`);
+  renaming a supervisor renames their reviews too.
+- **Analysis**: a Supervisor filter (every view and the Excel export follow it), and a new
+  Supervisors view: hours, OT, people and days by supervisor, with their sheets, reviewed sheets
+  and problems; people per day by supervisor. Entries without a supervisor show as "No
+  supervisor". The export gets "Supervisors" and "Supervisor by activity" sheets.
+- Entry form fix: ↓ then Enter Enter at full speed could lose the last Enter (the code box took
+  the cursor back a frame later), so the worker was not added. It now keeps the cursor where the
+  Enter moved it.
+- Top bar: below 1500 px wide it wraps to a second line instead of running off the screen.
+
 ## Supervisors: each pushed manpower sheet belongs to a supervisor (5 Nov 2026)
 
 Asked for: when pushing to Excel, ask who the supervisor is, so a day's entries can be checked

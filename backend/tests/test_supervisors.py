@@ -88,3 +88,29 @@ def test_reassign_rename_and_the_list(client):
     client.post("/api/supervisors", json={"name": "Ruwan"})  # back on the list
     assert "Ruwan" in names()
     assert client.post("/api/supervisors", json={"name": "   "}).status_code == 422
+
+
+def test_reviews_latest_per_sheet(client):
+    push(client, [A, B], "Sunil")
+    body = {
+        "sheet": "1",
+        "supervisor": "Sunil",
+        "status": "ok",
+        "fingerprint": "f1",
+        "user": "Clerk",
+    }
+    assert client.post("/api/supervisor-reviews", json=body).status_code == 200
+    problem = {**body, "status": "problem", "note": "", "fingerprint": "f2"}
+    assert client.post("/api/supervisor-reviews", json=problem).status_code == 422  # say what
+    [r] = client.post(
+        "/api/supervisor-reviews", json={**problem, "note": "INC-02 out 17 on paper"}
+    ).json()
+    assert (r["status"], r["note"], r["fingerprint"], r["history"]) == (
+        "problem",
+        "INC-02 out 17 on paper",
+        "f2",
+        2,
+    )
+    client.post("/api/supervisors/rename", json={"old": "Sunil", "new": "Sunil Silva"})
+    [r] = client.get("/api/supervisor-reviews").json()
+    assert r["supervisor"] == "Sunil Silva"  # the review follows the name

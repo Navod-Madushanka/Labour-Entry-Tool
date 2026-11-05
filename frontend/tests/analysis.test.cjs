@@ -112,4 +112,16 @@ near(A.kpis(junk.slices).hours, 11, "single coded line without hours gets the wo
 // summary for month-to-month compare
 const s = A.summarise("Book.xlsb", "2026-10", data, new Date("2026-11-01T00:00:00Z"));
 assert.equal(s.people, 3); assert.equal(s.hours, 61); assert.equal(s.trades.Carpenter, 45);
+// supervisors: whose manpower sheet each entry came from (given at push)
+const owners = new Map([["1|AA-01", "Kamal"], ["1|AA-02", "Kamal"], ["2|AA-01 CH", "Nimal"]]);
+const sup = A.buildData(month, master, owners);
+const bySup = new Map(A.bySupervisor(sup.slices).map((g) => [g.key, g]));
+near(bySup.get("Kamal").hours, 22, "Kamal: AA-01 and AA-02 on day 1");
+near(bySup.get("Nimal").hours, 15, "Nimal: day 2");
+near(bySup.get(A.NO_SUPERVISOR).hours, 24, "the rest has no supervisor");
+assert.equal(bySup.get("Kamal").workers, 2);
+const kamal = A.applyFilter(sup, { supervisor: "Kamal" });
+assert.deepEqual([...new Set(kamal.entries.map((x) => x.name))].sort(), ["AA-01", "AA-02"]);
+assert.equal(A.supervisorDays(sup.slices).get(1).get("Kamal"), 2);
+assert.equal(A.buildData(month, master).slices.every((x) => x.supervisor === A.NO_SUPERVISOR), true);
 console.log("analysis: all passed");

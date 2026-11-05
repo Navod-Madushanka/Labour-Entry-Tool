@@ -9,7 +9,7 @@ const out = process.argv[2] || ".";
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });
-  const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("dialog", (d) => d.accept());
+  const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("dialog", (d) => d.accept(d.type() === "prompt" ? "AAA-02 out 18:00 on the paper" : undefined));
   await p.goto(BASE);
   await p.evaluate(() => { localStorage.setItem("labour.user", "Tester"); for (const k of Object.keys(localStorage)) if (k.startsWith("labour.queue")) localStorage.removeItem(k); });
   await p.reload();
@@ -22,7 +22,17 @@ const out = process.argv[2] || ".";
     const hint = await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder");
     if (!hint.includes("Enter to use")) await p.keyboard.press("ArrowDown");
     await p.keyboard.press("Enter"); await p.keyboard.press("Enter");
-    await p.waitForFunction((n) => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.textContent.includes(n)), name);
+    await p.waitForFunction((n) => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.textContent.includes(n)), name, { timeout: 10000 })
+      .catch(async (e) => {
+        const state = await p.evaluate(() => ({
+          focus: document.activeElement?.getAttribute("aria-label") || document.activeElement?.id,
+          inputs: [...document.querySelectorAll("input")].slice(0, 8).map((i) => `${i.getAttribute("aria-label") || i.id}=${i.value}`).join(" | "),
+          queue: document.querySelector(".queue tbody")?.innerText,
+        }));
+        console.log("STUCK at", name, "| hint:", hint, "|", JSON.stringify(state));
+        await p.screenshot({ path: `${out}/stuck.png` });
+        throw e;
+      });
   };
   const push = async (supervisor, { chip } = {}) => {
     await p.waitForFunction(() => !document.querySelector(".push-bar button")?.disabled);
@@ -66,6 +76,49 @@ const out = process.argv[2] || ".";
   const all = await (await p.request.get(BASE + "api/supervisor-sheets")).json();
   console.log("after move:", all.map((o) => `${o.calling_name}:${o.supervisor}`).join(", "));
   if (all.length !== 4 || all.some((o) => o.supervisor !== "Kamal Perera")) throw new Error("move failed");
+
+  // Search: a worker shows the sheets they are on, highlighted
+  await p.getByLabel("Search sheets").fill("aaa-03");
+  await p.waitForSelector(".sup-hits");
+  console.log("search:", (await p.locator(".sup-hits").innerText()).replace(/\s+/g, " "));
+  if (!(await p.locator(".manpower.record mark", { hasText: "AAA-03" }).count())) throw new Error("search hit not highlighted");
+  await p.getByLabel("Search sheets").fill("zzz");
+  await p.waitForSelector("text=No sheet matches.");
+  await p.getByLabel("Search sheets").fill("");
+
+  // Review: matches the paper, then a problem with a note
+  const sheet = p.locator('.mp-day[data-supervisor="Kamal Perera"]');
+  await sheet.getByRole("button", { name: "✓ Matches the paper" }).click();
+  await p.waitForSelector("table.sup-index >> text=✓ Matches the paper");
+  await sheet.getByRole("button", { name: "⚠ Problem…" }).click();
+  await p.waitForSelector("table.sup-index >> text=AAA-02 out 18:00 on the paper");
+  await p.getByLabel("Review").selectOption("problem");
+  if ((await p.locator("table.sup-index tbody tr").count()) !== 1) throw new Error("review filter");
+  await p.getByLabel("Review").selectOption("");
+  await sheet.getByRole("button", { name: "✓ Matches the paper" }).click();
+  await p.waitForSelector("text=all reviewed");
+  await p.screenshot({ path: `${out}/supervisor-review.png`, fullPage: true });
+  // the sheet changes after the review (a worker given to another supervisor): review again
+  const a4 = all.find((o) => o.calling_name === "AAA-04");
+  await p.request.post(BASE + "api/supervisor-sheets/reassign", { data: { ids: [a4.id], supervisor: "Nimal" } });
+  await p.reload(); await p.waitForSelector("table.sup-index tbody tr");
+  const idx = (await p.locator("table.sup-index").innerText()).replace(/\s+/g, " ");
+  console.log("after a change:", idx);
+  if (!idx.includes("Changed since review") || !idx.includes("Not reviewed")) throw new Error("change since review not shown");
+
+  // Analysis: hours by supervisor, and the supervisor filter
+  await p.getByRole("link", { name: "Analysis" }).click();
+  await p.getByRole("tab", { name: "Supervisors" }).click();
+  const table = (await p.locator(".analysis .card", { hasText: "Hours by supervisor" }).innerText()).replace(/\s+/g, " ");
+  console.log("analysis:", table.slice(0, 300));
+  if (!table.includes("Kamal Perera") || !table.includes("Nimal")) throw new Error("supervisors missing in analysis");
+  if (!/Kamal Perera 1 0 0 /.test(table)) throw new Error("Kamal's sheet changed after its review: not counted as reviewed");
+  await p.screenshot({ path: `${out}/supervisor-analysis-table.png`, fullPage: true });
+  const width = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (width > 0) throw new Error(`the page is ${width}px wider than the window`);
+  await p.getByLabel("Supervisor filter").selectOption("Nimal");
+  await p.getByRole("tab", { name: "Overview" }).click();
+  await p.screenshot({ path: `${out}/supervisor-analysis.png`, fullPage: true });
   console.log("supervisors e2e: ok; errors:", errs);
   await b.close();
-})().catch((e) => { console.log("FAILED", e.message); process.exit(1); });
+})().catch((e) => { console.log("FAILED", e.message, (e.stack || "").split("\n").find((l) => l.includes("supervisors.cjs"))); process.exit(1); });

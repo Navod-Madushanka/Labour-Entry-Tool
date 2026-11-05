@@ -2,23 +2,27 @@
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type ExportTable, type Master, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
+import { api, type ExportTable, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
   applyFilter,
   buildData,
   byCode,
   byPlace,
+  bySupervisor,
   byTrade,
   daily,
   heatmap,
   kpis,
   LONG_DAY,
   NO_CODE,
+  NO_SUPERVISOR,
   people,
   quality,
   round2,
   summarise,
+  supervisorDays,
+  type Slice,
   type BookSummary,
   type DayRow,
   type Filter,
@@ -26,13 +30,15 @@ import {
   type PersonRow,
 } from "../analysis";
 import { store } from "../store";
+import { fingerprint, recordColumns } from "./ManpowerSheet";
 import { formatShift } from "../time";
 
-type View = "overview" | "activities" | "places" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["activities", "Activities"],
   ["places", "Places & trades"],
+  ["supervisors", "Supervisors"],
   ["manpower", "Daily manpower"],
   ["timeline", "Task timeline"],
   ["overtime", "Overtime"],
@@ -62,13 +68,22 @@ export function Analysis({ master, month, loaded, total }: Props) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => store.set("labour.analysis.view", view), [view]);
 
-  const data = useMemo(() => buildData(month, master), [month, master]);
+  // whose manpower sheet each pushed entry came from (Supervisors page), and their reviews
+  const [owned, setOwned] = useState<Owned[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  useEffect(() => {
+    api.supervisorSheets().then(setOwned).catch(() => undefined);
+    api.supervisorReviews().then(setReviews).catch(() => undefined);
+  }, [month]);
+  const owners = useMemo(() => new Map(owned.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor])), [owned]);
+  const data = useMemo(() => buildData(month, master, owners), [month, master, owners]);
   const { slices, entries } = useMemo(() => applyFilter(data, filter), [data, filter]);
   const k = useMemo(() => kpis(slices), [slices]);
   const allDays = data.days;
   const trades = useMemo(() => [...new Set(data.slices.map((s) => s.trade))].sort(), [data]);
   const places = useMemo(() => byPlace(data.slices).map((g) => g.key), [data]);
   const codes = useMemo(() => byCode(data.slices).map((g) => g.key), [data]);
+  const supervisors = useMemo(() => bySupervisor(data.slices).map((g) => g.key), [data]);
   const complete = loaded >= total && total > 0;
 
   // Keep this workbook's summary for "Compare months" once the whole month is loaded.
@@ -78,7 +93,7 @@ export function Analysis({ master, month, loaded, total }: Props) {
   }, [complete, data, master.workbook, master.month]);
 
   const set = (patch: Partial<Filter>) => setFilter((f) => ({ ...f, ...patch }));
-  const filtered = Boolean(filter.trade || filter.place || filter.code || filter.from || filter.to);
+  const filtered = Boolean(filter.trade || filter.supervisor || filter.place || filter.code || filter.from || filter.to);
 
   const doExport = async () => {
     setExporting(true);
@@ -120,6 +135,15 @@ export function Analysis({ master, month, loaded, total }: Props) {
             {trades.map((t) => <option key={t}>{t}</option>)}
           </select>
         </label>
+        {owned.length > 0 && (
+          <label>
+            Supervisor
+            <select aria-label="Supervisor filter" value={filter.supervisor ?? ""} onChange={(e) => set({ supervisor: e.target.value || undefined })}>
+              <option value="">All supervisors</option>
+              {supervisors.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </label>
+        )}
         <label>
           Place
           <select value={filter.place ?? ""} onChange={(e) => set({ place: e.target.value || undefined })}>
@@ -173,6 +197,8 @@ export function Analysis({ master, month, loaded, total }: Props) {
         <Activities groups={byCode(slices)} onPick={(code) => set({ code })} withActivities={data.withActivities} />
       ) : view === "places" ? (
         <PlacesTrades places={byPlace(slices)} trades={byTrade(slices)} onPlace={(place) => set({ place })} onTrade={(trade) => set({ trade })} />
+      ) : view === "supervisors" ? (
+        <SupervisorsView slices={slices} days={daily(data, slices, filter)} owned={owned} reviews={reviews} month={month} onPick={(supervisor) => set({ supervisor })} />
       ) : view === "manpower" ? (
         <Manpower days={daily(data, slices, filter)} />
       ) : view === "timeline" ? (
@@ -338,6 +364,83 @@ function PlacesTrades({ places, trades, onPlace, onTrade }: { places: Group[]; t
           expand={(g) => (<><Breakdown g={g} label="By activity" /><button className="link small" onClick={() => onTrade(g.key)}>Filter by this trade</button></>)}
         />
       </div>
+    </>
+  );
+}
+
+/** Sheets and reviews per supervisor (all days of the month, whatever the filter). A review counts
+ * while the sheet is as it was when reviewed (as on the Supervisors page). */
+function sheetCounts(owned: Owned[], reviews: Review[], month: Month) {
+  const out = new Map<string, { sheets: number; ok: number; problem: number }>();
+  const sheets = new Map<string, Owned[]>();
+  for (const o of owned) sheets.set(`${o.sheet}|${o.supervisor}`, [...(sheets.get(`${o.sheet}|${o.supervisor}`) ?? []), o]);
+  for (const list of sheets.values()) {
+    const c = out.get(list[0].supervisor) ?? { sheets: 0, ok: 0, problem: 0 };
+    c.sheets += 1;
+    out.set(list[0].supervisor, c);
+  }
+  for (const r of reviews) {
+    const list = sheets.get(`${r.sheet}|${r.supervisor}`);
+    if (!list || r.status === "cleared" || fingerprint(recordColumns(list, month[r.sheet])) !== r.fingerprint) continue;
+    out.get(r.supervisor)![r.status] += 1;
+  }
+  return out;
+}
+
+function SupervisorsView({ slices, days, owned, reviews, month, onPick }: { slices: Slice[]; days: DayRow[]; owned: Owned[]; reviews: Review[]; month: Month; onPick: (s: string) => void }) {
+  const groups = bySupervisor(slices);
+  const counts = sheetCounts(owned, reviews, month);
+  const none = groups.find((g) => g.key === NO_SUPERVISOR);
+  const perDay = supervisorDays(slices);
+  const named = groups.filter((g) => g.key !== NO_SUPERVISOR).map((g) => g.key);
+  const top = named.slice(0, 8);
+  const cols = (key: string) => counts.get(key);
+  return (
+    <>
+      <div className="card">
+        <h3>Hours by supervisor</h3>
+        <p className="muted small">
+          Whose manpower sheet each entry came from, as given at push (Supervisors page).
+          {none ? ` ${pct(none.pct)} of the hours have no supervisor: pushed before supervisors were asked, or typed in Excel.` : ""}
+        </p>
+        {!owned.length ? (
+          <p className="muted">No supervisors yet: the tool asks for one at each push.</p>
+        ) : (
+          <SortTable
+            cols={groupCols("Supervisor", [
+              { key: "sheets", label: "Sheets", value: (g) => cols(g.key)?.sheets ?? 0, num: true, title: "Day sheets with entries from this supervisor (whole month)" },
+              { key: "ok", label: "Reviewed", value: (g) => cols(g.key)?.ok ?? 0, num: true, title: "Sheets checked against the paper and matching (not changed since)" },
+              { key: "problem", label: "Problems", value: (g) => cols(g.key)?.problem ?? 0, num: true, fmt: (v) => (v ? <span className="warn-text">{v as number}</span> : "0") },
+            ])}
+            rows={groups}
+            rowKey={(g) => g.key}
+            expand={(g) => (
+              <>
+                <Breakdown g={g} label="By activity" />
+                <button className="link small" onClick={() => onPick(g.key)}>
+                  Filter by this supervisor
+                </button>
+              </>
+            )}
+          />
+        )}
+      </div>
+      {top.length > 0 && (
+        <div className="card">
+          <h3>People by day, by supervisor</h3>
+          <SortTable
+            cols={[
+              { key: "day", label: "Day", value: (d: DayRow) => d.day, num: true, fmt: (_v, d) => dayLabel(d) },
+              ...top.map((t) => ({ key: `s-${t}`, label: t, value: (d: DayRow) => perDay.get(d.day)?.get(t) ?? 0, num: true })),
+              ...(none ? [{ key: "none", label: NO_SUPERVISOR, value: (d: DayRow) => perDay.get(d.day)?.get(NO_SUPERVISOR) ?? 0, num: true }] : []),
+              { key: "n", label: "All", value: (d: DayRow) => d.headcount, num: true },
+            ]}
+            rows={days.filter((d) => d.headcount)}
+            rowKey={(d) => d.sheet}
+            limit={31}
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -933,7 +1036,7 @@ function RowWithDetail({ open, cols, detail, onToggle, children }: { open: boole
 function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typeof applyFilter>["slices"], entries: ReturnType<typeof applyFilter>["entries"], filter: Filter, master: Master): ExportTable[] {
   const r = round2;
   const k = kpis(slices);
-  const f = [filter.trade && `trade ${filter.trade}`, filter.place && `place ${filter.place}`, filter.code && `activity ${filter.code}`,
+  const f = [filter.trade && `trade ${filter.trade}`, filter.supervisor && `supervisor ${filter.supervisor}`, filter.place && `place ${filter.place}`, filter.code && `activity ${filter.code}`,
     (filter.from || filter.to) && `days ${filter.from ?? "first"}–${filter.to ?? "last"}`].filter(Boolean).join(", "); // prettier-ignore
   const note = `${master.workbook} · ${master.month}${f ? ` · filtered: ${f}` : ""}`;
   const groupRows = (gs: Group[], withPlace = false) =>
@@ -952,6 +1055,9 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
     { name: "Activities", note, columns: ["Activity", "Place", ...groupColsX], rows: groupRows(byCode(slices), true) },
     { name: "Places", note, columns: ["Place", ...groupColsX], rows: groupRows(byPlace(slices)) },
     { name: "Trades", note, columns: ["Trade", ...groupColsX], rows: groupRows(byTrade(slices)) },
+    { name: "Supervisors", note, columns: ["Supervisor", ...groupColsX], rows: groupRows(bySupervisor(slices)) },
+    { name: "Supervisor by activity", note, columns: ["Supervisor", "Activity", "Hours"],
+      rows: bySupervisor(slices).flatMap((g) => g.breakdown.map((b) => [g.key, b.key, r(b.hours)])) },
     { name: "Activity by trade", note, columns: ["Activity", "Trade", "Hours"],
       rows: byCode(slices).flatMap((g) => g.breakdown.map((b) => [g.key, b.key, r(b.hours)])) },
     { name: "Daily manpower", note, columns: ["Day", "Date", "Day type", "People", ...top, ...(rest.size ? ["Other"] : []), "Hours", "OT"],
