@@ -161,8 +161,10 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Pr
   /** Run the selection, else the statement under the cursor (statements end with ";"). */
   const run = () => {
     const el = editor.current;
-    const sel = el && el.selectionEnd > el.selectionStart ? text.slice(el.selectionStart, el.selectionEnd) : null;
-    const parts = splitSql(sel ?? text);
+    // the box itself, not the last render's copy: Ctrl+Enter right after typing must run all of it
+    const now = el?.value ?? text;
+    const sel = el && el.selectionEnd > el.selectionStart ? now.slice(el.selectionStart, el.selectionEnd) : null;
+    const parts = splitSql(sel ?? now);
     if (!parts.length) return;
     const at = el?.selectionStart ?? 0;
     const one = sel ? parts : [parts.find((p) => at >= p.start && at <= p.end + 1) ?? parts[parts.length - 1]];
@@ -386,15 +388,23 @@ function Editor({ taRef: ref, text, setText, cursor, setCursor, ctx, errorAt, on
     if (gutter.current) gutter.current.scrollTop = el.scrollTop;
     setScroll({ top: el.scrollTop, left: el.scrollLeft });
   };
-  const accept = (word: string) => {
-    const next = `${text.slice(0, sugg.from)}${word}${text.slice(cursor)}`;
+  // Put text into the box at once, cursor and all, from what is in the box now (not the last
+  // render's copy): keys typed right after Tab must land after the completed word, in order.
+  const put = (next: string, pos: number) => {
+    const el = ref.current;
+    if (el) {
+      el.value = next;
+      el.setSelectionRange(pos, pos);
+    }
     setText(next);
-    const pos = sugg.from + word.length;
+    setCursor(pos);
+  };
+  const accept = (word: string) => {
+    const el = ref.current;
+    const now = el?.value ?? text;
+    const caret = el?.selectionStart ?? cursor;
     setPop(false);
-    requestAnimationFrame(() => {
-      ref.current?.setSelectionRange(pos, pos);
-      setCursor(pos);
-    });
+    put(`${now.slice(0, sugg.from)}${word}${now.slice(caret)}`, sugg.from + word.length);
   };
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const items = pop ? sugg.items : [];
@@ -422,8 +432,7 @@ function Editor({ taRef: ref, text, setText, cursor, setCursor, ctx, errorAt, on
       e.preventDefault(); // a tab in the editor is two spaces
       const el = e.currentTarget;
       const at = el.selectionStart;
-      setText(`${text.slice(0, at)}  ${text.slice(el.selectionEnd)}`);
-      requestAnimationFrame(() => el.setSelectionRange(at + 2, at + 2));
+      put(`${el.value.slice(0, at)}  ${el.value.slice(el.selectionEnd)}`, at + 2);
     }
   };
   return (

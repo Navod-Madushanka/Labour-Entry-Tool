@@ -12,6 +12,10 @@ Asked for: queries pasted into the SQL panel showed no rows.
   whole code (place ending too: use LIKE '…%'), and that entries.code holds all of a worker's
   codes joined with "+" (use the activities table, one row per code). If no code is like it:
   "check the code, or that the right workbook is open".
+- Editor fix: keys typed right after Tab took a completion could land in the wrong place
+  ("selectcalling_name…", the space lost): the cursor was put back a moment later from an old
+  copy. The completion and the Tab indent now go straight into the box. Run also reads the query
+  from the box itself, so Ctrl+Enter right after typing runs all of it.
 
 ## "Start the next month" removed; staying connected to Excel while printing (5 Nov 2026)
 
