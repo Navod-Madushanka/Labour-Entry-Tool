@@ -450,8 +450,60 @@ function display(v: Val, c: ColDef | null): string | number | null {
 
 // --- running -------------------------------------------------------------------------------------
 
+/** Text pasted from a chat, Word or a web page: curly quotes, look-alike dashes and odd spaces
+ * made plain (one character for one, so error positions still point at the right place). A code
+ * typed with a non-breaking hyphen looks the same but matches nothing. */
+export function cleanPasted(src: string): string {
+  return src
+    .replace(/[\u2018\u2019\u201a\u201b\u2032]/g, "'")
+    .replace(/[\u201c\u201d\u201e\u201f\u2033]/g, '"')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\ufe63\uff0d]/g, "-")
+    .replace(/[\u00a0\u2007\u202f\u2009\u200a]/g, " ")
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, " ");
+}
+
+/** A SELECT on a code found nothing: the codes in this workbook that look like the one asked for,
+ * and why "=" may have missed them. */
+function emptyCodeNotes(where: Expr, tableName: string, ctx: CommandContext): string[] {
+  const asked: string[] = [];
+  const isCode = (e: Expr) => e.k === "col" && e.name.toLowerCase() === "code";
+  const lit = (e: Expr) => (e.k === "lit" && typeof e.v === "string" ? e.v : null);
+  const walk = (e: Expr | null): void => {
+    if (!e) return;
+    if (e.k === "bin") {
+      if (e.op === "=" && isCode(e.l) && lit(e.r)) asked.push(lit(e.r)!);
+      else if (e.op === "=" && isCode(e.r) && lit(e.l)) asked.push(lit(e.l)!);
+      else { walk(e.l); walk(e.r); }
+    } else if (e.k === "like" && isCode(e.e) && lit(e.pat)) asked.push(lit(e.pat)!);
+    else if (e.k === "in" && isCode(e.e)) e.list.forEach((x) => lit(x) && asked.push(lit(x)!));
+    else if (e.k === "not") walk(e.e);
+  };
+  walk(where);
+  if (!asked.length) return [];
+  const used = new Map<string, number>();
+  for (const r of entryRows(ctx)) for (const a of r.input.activities) if (a.code) used.set(a.code.trim(), (used.get(a.code.trim()) ?? 0) + 1);
+  for (const c of ctx.activities) if (!used.has(c)) used.set(c, 0);
+  const norm = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const notes: string[] = [];
+  for (const q of [...new Set(asked)]) {
+    const key = norm(q.replace(/[%_]/g, ""));
+    if (!key) continue;
+    const like = [...used].filter(([c]) => norm(c).includes(key) || (norm(c).length >= 6 && key.includes(norm(c)))).sort((a, b) => b[1] - a[1]);
+    if (!like.length) {
+      notes.push(`No code like "${q}" is used or listed in this workbook (${used.size} codes). Check the code, or that the right workbook is open.`);
+      continue;
+    }
+    const shown = like.slice(0, 6).map(([c, n]) => `${c} (${n ? `${n} line${n === 1 ? "" : "s"}` : "listed, not used yet"})`).join(", ");
+    notes.push(`Codes like "${q}" in this workbook: ${shown}${like.length > 6 ? ", …" : ""}.`);
+    if (tableName === "entries")
+      notes.push(`In entries, "code" holds all of a worker's codes for the day joined with "+" (e.g. "${like[0][0]}+…"), so "=" only finds workers with that one code. Use the activities table (one row per code), or LIKE '%${q.replace(/[%_]/g, "")}%'.`);
+    else if (!q.includes("%")) notes.push(`"=" needs the whole code, place ending too: LIKE '${q}%' also finds ${like[0][0]}.`);
+  }
+  return notes;
+}
+
 export function parseSql(src: string, ctx: CommandContext): Statement {
-  const st = parseStatement(src);
+  const st = parseStatement(cleanPasted(src));
   const t = findTable(st.table);
   // resolve every column now, so a wrong name is reported before anything runs
   const walk = (e: Expr | null): void => {
@@ -533,6 +585,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
     if (st.limit !== null) table = table.slice(0, st.limit);
     res.table = { columns: items.map((x) => x.alias ?? (x.e.k === "col" ? findCol(t, x.e.name).name : x.text)), rows: table };
     res.summary = `${table.length} row${table.length === 1 ? "" : "s"} from ${t.name}. Nothing is changed.`;
+    if (!table.length && st.where) res.notes.push(...emptyCodeNotes(st.where, t.name, ctx));
     return res;
   }
 

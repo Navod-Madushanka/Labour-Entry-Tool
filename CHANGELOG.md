@@ -1,5 +1,18 @@
 # Changelog
 
+## SQL panel: pasted queries, and why a query found no rows (5 Nov 2026)
+
+Asked for: queries pasted into the SQL panel showed no rows.
+
+- Text pasted from a chat, Word or a web page often has curly quotes (‘ ’ “ ”), look-alike dashes
+  (a non-breaking hyphen or an en dash in a code looks like "-" but matches nothing) and
+  non-breaking spaces. They are made plain before a query or command runs.
+- A SELECT that finds no rows on a code now says why, under the result: the codes in this
+  workbook that look like the one asked for (with how often they are used), that "=" needs the
+  whole code (place ending too: use LIKE '…%'), and that entries.code holds all of a worker's
+  codes joined with "+" (use the activities table, one row per code). If no code is like it:
+  "check the code, or that the right workbook is open".
+
 ## "Start the next month" removed; staying connected to Excel while printing (5 Nov 2026)
 
 Asked for: the tool loses its connection to Excel now and then, most often when printing; remove

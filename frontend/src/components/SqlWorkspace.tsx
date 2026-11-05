@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type EntryInput } from "../api";
 import { CommandError, current, explain, parse, run as runCommand, suggest, tokenize, type CommandContext, type CommandResult } from "../commands";
-import { explainSql, isSql, looksSql, parseSql, runSql, splitSql, sqlRowCounts, SQL_SCHEMA, suggestSql } from "../sql";
+import { cleanPasted, explainSql, isSql, looksSql, parseSql, runSql, splitSql, sqlRowCounts, SQL_SCHEMA, suggestSql } from "../sql";
 import { formatClock } from "../time";
 import { store } from "../store";
 
@@ -129,7 +129,8 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Pr
   };
 
   /** Run one statement: SELECT -> grid; INSERT/UPDATE/DELETE -> pending changes to look at. */
-  const runOne = (sql: string, cell?: string): boolean => {
+  const runOne = (typed: string, cell?: string): boolean => {
+    const sql = cleanPasted(typed); // pasted from a chat or Word: curly quotes, look-alike dashes
     const started = performance.now();
     try {
       const res = sqlStatement(sql) ? runSql(parseSql(sql, ctx), ctx) : runCommand(parse(sql, ctx), ctx);

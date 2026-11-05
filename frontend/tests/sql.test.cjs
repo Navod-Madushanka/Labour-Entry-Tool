@@ -142,4 +142,17 @@ t("UPDATE written with FROM: the error gives the right order", () => {
   assert.match(err("UPDATE entries out = 20"), /After UPDATE entries comes SET/);
   assert.equal(sql("UPDATE entries SET code = 'ACT-002' WHERE code = 'ACT-001' AND day = 1").inputs.length, 4);
 });
+t("pasted text: curly quotes and look-alike dashes work; an empty result says why", () => {
+  const plain = sql("SELECT calling_name FROM activities WHERE code = 'ACT-002' AND day = 1").table.rows.length;
+  assert.ok(plain > 0);
+  assert.equal(sql("SELECT calling_name FROM activities WHERE code = \u2018ACT\u2011002\u2019 AND day = 1").table.rows.length, plain);
+  assert.equal(sql("SELECT calling_name\u00a0FROM activities WHERE code = \u201cACT\u2013002\u201d AND day = 1").table.rows.length, plain);
+  const part = sql("SELECT calling_name FROM activities WHERE code = 'ACT-00'");
+  assert.equal(part.table.rows.length, 0);
+  assert.match(part.notes.join(" "), /Codes like "ACT-00" in this workbook: ACT-00[12] \(\d+ lines\)/);
+  const none = sql("SELECT calling_name FROM entries WHERE code = 'ZZZ-9'");
+  assert.match(none.notes[0], /No code like "ZZZ-9"/);
+  const many = sql("SELECT calling_name FROM entries WHERE code = 'ACT-0'");
+  assert.match(many.notes.join(" "), /joined with "\+"/);
+});
 console.log(`sql: ${n} tests passed`);
