@@ -4,7 +4,7 @@
 // manpower sheet, pushed as one undoable batch). Column names are forgiving: `in times`,
 // InTime and in_time are all IN; ZIDAL is the employee code.
 import type { ActivityInput, EntryInput } from "./api";
-import { codeKey, CommandError, current, dateOf, didYouMean, whoOnAll, type CommandContext, type CommandResult, type Suggestion, type Token, type WordInfo } from "./commands";
+import { codeKey, mergeSameCodes, CommandError, current, dateOf, didYouMean, whoOnAll, type CommandContext, type CommandResult, type Suggestion, type Token, type WordInfo } from "./commands";
 import { placeName } from "./codes";
 import { clearInput, withTimes } from "./form";
 import { effectiveHours, formatClock, parseClock } from "./time";
@@ -771,7 +771,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
         // worker's other codes and every line's hours stay
         const hits = codes.length === 1 && whereCodes.length ? i.activities.filter((a) => a.code && whereCodes.some((m) => m(a.code!))) : [];
         if (hits.length) {
-          i.activities = i.activities.map((a) => (hits.includes(a) ? { ...a, code: codes[0] } : a));
+          i.activities = mergeSameCodes(i.activities.map((a) => (hits.includes(a) ? { ...a, code: codes[0] } : a)));
           continue;
         }
         const total = i.activities.reduce((sum, a) => sum + (a.hours ?? 0), 0) || null;

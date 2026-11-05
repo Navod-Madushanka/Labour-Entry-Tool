@@ -170,4 +170,15 @@ t("UPDATE … SET code WHERE code = old AND calling_name = (list): only that cod
   const notes = run("SELECT calling_name FROM entries WHERE calling_name IN (BBB, SSS-01)").notes.join(" ");
   assert.match(notes, /"BBB" is not a calling name: 4 start with it/);
 });
+t("a code change on workers with many lines: one line changes; a code twice is merged, hours added", () => {
+  const m = JSON.parse(JSON.stringify(month));
+  const lines = (l) => l.map(([code, hours], k) => ({ row: 9 + k, code, hours }));
+  m["1"].entries[0].entry.activities = lines([["ACT-001", 2], ["ACT-002", 3], ["ACT-003", 2], ["ACT-001", 2], ["ACT-003", 3]]);
+  m["1"].entries[1].entry.activities = lines([["ACT-003", 5], ["ACT-002", 7]]);
+  const x = { month: m };
+  const r = S.runSql(S.parseSql("update entries set code = 'ACT-003' where code = 'ACT-002' and day = 1 and calling_name in (BBB-01, BBB-02)", ctx(x)), ctx(x));
+  const by = Object.fromEntries(r.inputs.map((i) => [i.calling_name, i.activities.map((a) => [a.code, a.hours])]));
+  assert.deepEqual(by["BBB-01"], [["ACT-001", 4], ["ACT-003", 8]]); // 2+2 and 2+3+3: lines with the same code merged
+  assert.deepEqual(by["BBB-02"], [["ACT-003", 12]]); // had the new code: one line, 5 + 7
+});
 console.log(`sql: ${n} tests passed`);

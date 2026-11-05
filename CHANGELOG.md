@@ -13,6 +13,10 @@ name = (…)` for days 1 to 31.
 - `calling_name = (INB-01, INB-02)` is read as `IN (…)`; names in a list need no quotes;
   `calling name` with a space works. A name in the list that is no worker is said, with the
   workers it starts ("AAW" → "4 start with it … use calling_name LIKE 'AAW%'").
+- Workers with many activity lines (up to 5): only the matching lines change. When that leaves
+  a code on two lines (the old code was on two lines, or the worker had the new code already),
+  they become one line with the hours added; the line freed is emptied in Excel. The same for the
+  `replace` command.
 - The days: `AND day BETWEEN 1 AND 31` (or leave the day out for the whole month).
 - New example in Examples…: "Change a code for some workers (their other codes stay)".
 

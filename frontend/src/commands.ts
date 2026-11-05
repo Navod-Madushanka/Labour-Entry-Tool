@@ -30,6 +30,18 @@ export const codeKey = (code: unknown): string =>
     .replace(/[\u2010-\u2015\u2212\ufe63\uff0d]/g, "-")
     .replace(/[\s\u200b\u200c\u200d\ufeff]/g, "");
 
+/** After a code change two lines can carry the same code (the old code was on two lines, or the
+ * worker had the new one already): one line each, hours added, in the first one's place. */
+export function mergeSameCodes<T extends { code: string | null; hours: number | null }>(lines: T[]): T[] {
+  const out: T[] = [];
+  for (const a of lines) {
+    const same = a.code ? out.find((b) => b.code && codeKey(b.code) === codeKey(a.code)) : undefined;
+    if (!same) out.push({ ...a });
+    else if (a.hours !== null) same.hours = (same.hours ?? 0) + a.hours;
+  }
+  return out;
+}
+
 const VERB_INFO: Record<Verb, Omit<WordInfo, "name" | "kind">> = {
   SET: {
     text: "Changes entries that are already there: In, Out, code, hours, additional hours or remark. Hours follow new times.",
@@ -813,7 +825,7 @@ export function run(cmd: Command, ctx: CommandContext): CommandResult {
               for (const a of i.activities) if (a.code) seenCodes.set(a.code, (seenCodes.get(a.code) ?? 0) + 1);
               continue;
             }
-            i.activities = i.activities.map((a) => (codeKey(a.code) === old ? { ...a, code: String(r.new) } : a));
+            i.activities = mergeSameCodes(i.activities.map((a) => (codeKey(a.code) === old ? { ...a, code: String(r.new) } : a)));
           } else if (cmd.target === "in" || cmd.target === "out") {
             const now = cmd.target === "in" ? tin : tout === null ? null : tout >= 24 ? tout - 24 : tout;
             if (now === null || Math.abs(now - Number(r.old)) > 1e-6) continue;
