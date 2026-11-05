@@ -22,6 +22,14 @@ export interface WordInfo {
   synonyms: string[];
 }
 
+/** An activity code to compare by: case, spaces and look-alike dashes ignored ("01-51-23-00 ",
+ * "01‑51‑23‑00" typed with a non-breaking hyphen in Excel, and "01-51-23-00" are the same code). */
+export const codeKey = (code: unknown): string =>
+  String(code ?? "")
+    .toUpperCase()
+    .replace(/[\u2010-\u2015\u2212\ufe63\uff0d]/g, "-")
+    .replace(/[\s\u200b\u200c\u200d\ufeff]/g, "");
+
 const VERB_INFO: Record<Verb, Omit<WordInfo, "name" | "kind">> = {
   SET: {
     text: "Changes entries that are already there: In, Out, code, hours, additional hours or remark. Hours follow new times.",
@@ -659,6 +667,7 @@ export function run(cmd: Command, ctx: CommandContext): CommandResult {
   const res: CommandResult = { verb: cmd.verb, inputs: [], removeQueued: [], rows: null, summary: "", notes: [] };
   const skipped: Record<string, string[]> = {};
   const skip = (why: string, what: string) => (skipped[why] ??= []).push(what);
+  const seenCodes = new Map<string, number>(); // REPLACE found nothing: the codes those entries have
   const passes = (i: EntryInput) => cmd.conds.every((c) => matches(c, i));
   const v = cmd.verb;
   const transfer = v === "COPY" || v === "FILL" || v === "MOVE";
@@ -799,8 +808,12 @@ export function run(cmd: Command, ctx: CommandContext): CommandResult {
         } else if (v === "REPLACE") {
           const r = cmd.replace!;
           if (cmd.target === "code") {
-            if (!i.activities.some((a) => (a.code ?? "").toUpperCase() === r.old)) continue;
-            i.activities = i.activities.map((a) => ((a.code ?? "").toUpperCase() === r.old ? { ...a, code: String(r.new) } : a));
+            const old = codeKey(r.old);
+            if (!i.activities.some((a) => codeKey(a.code) === old)) {
+              for (const a of i.activities) if (a.code) seenCodes.set(a.code, (seenCodes.get(a.code) ?? 0) + 1);
+              continue;
+            }
+            i.activities = i.activities.map((a) => (codeKey(a.code) === old ? { ...a, code: String(r.new) } : a));
           } else if (cmd.target === "in" || cmd.target === "out") {
             const now = cmd.target === "in" ? tin : tout === null ? null : tout >= 24 ? tout - 24 : tout;
             if (now === null || Math.abs(now - Number(r.old)) > 1e-6) continue;
@@ -818,7 +831,16 @@ export function run(cmd: Command, ctx: CommandContext): CommandResult {
     res.summary = `${v}${what ? ` ${what}` : ""}: ${n} entr${n === 1 ? "y" : "ies"} (${describeWorkers(touched)}) on ${describeDays(cmd.days!)}${cmd.conds.length ? " that match" : ""}.`;
   }
   if (res.inputs.length + res.removeQueued.length > MAX_CHANGES) throw new CommandError(`That would change ${res.inputs.length} entries: more than ${MAX_CHANGES} at once. Narrow the workers or days.`);
-  if (!res.inputs.length && !res.removeQueued.length && !res.notes.length) res.notes.push("Nothing matches: no entry changes.");
+  if (!res.inputs.length && !res.removeQueued.length && !res.notes.length) {
+    res.notes.push("Nothing matches: no entry changes.");
+    if (cmd.verb === "REPLACE" && cmd.target === "code" && seenCodes.size) {
+      const key = codeKey(cmd.replace!.old).replace(/[^A-Z0-9]/g, "");
+      const like = [...seenCodes].filter(([c]) => { const k = codeKey(c).replace(/[^A-Z0-9]/g, ""); return k.includes(key) || key.includes(k); }).sort((a, b) => b[1] - a[1]);
+      res.notes.push(like.length
+        ? `No entry has exactly ${cmd.replace!.old} on those days. Codes like it there: ${like.slice(0, 6).map(([c, n]) => `"${c}" (${n})`).join(", ")}. Replace that one instead.`
+        : `No entry on those days has a code like ${cmd.replace!.old} (they have ${[...seenCodes].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c]) => c).join(", ")} …).`); // prettier-ignore
+    }
+  }
   for (const [why, what] of Object.entries(skipped)) res.notes.push(`${what.length} skipped (${why}): ${what.slice(0, 8).join(", ")}${what.length > 8 ? " …" : ""}`);
   return res;
 }

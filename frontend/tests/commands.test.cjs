@@ -142,4 +142,17 @@ t("suggest: verbs, then fields, workers, days, codes", () => {
   assert.ok(s("show all on 1 where ").includes("out"));
   assert.ok(s("show all on 1 where out ").includes(">"));
 });
+t("replace finds a code typed oddly in the sheet, and says what is there when nothing matches", () => {
+  const odd = JSON.parse(JSON.stringify(month));
+  odd["2"].entries[0].entry.activities = [{ row: 9, code: "03-11-00-00 ", hours: 5 }, { row: 10, code: "03-20-00-00", hours: 6 }]; // AAA-01: trailing space
+  odd["3"].entries[1].entry.activities = [{ row: 9, code: "03\u201111\u201100\u201100", hours: 11 }]; // AAA-02: non-breaking hyphens
+  const r = go("replace 03-11-00-00 with 03-11-00-00-P for AAA-01, AAA-02 on 2-3", { month: odd });
+  assert.equal(r.inputs.length, 4); // both workers on both days (the plain code too)
+  const a1 = r.inputs.find((i) => i.calling_name === "AAA-01" && i.sheet === "2");
+  assert.deepEqual(a1.activities.map((a) => [a.code, a.hours]), [["03-11-00-00-P", 5], ["03-20-00-00", 6]]); // the other code stays
+  assert.equal(r.inputs.find((i) => i.calling_name === "AAA-02" && i.sheet === "3").activities[0].code, "03-11-00-00-P");
+  const none = go("replace 03-11-00 with 03-11-00-00-P for all on 1-5");
+  assert.equal(none.inputs.length, 0);
+  assert.match(none.notes.join(" "), /Codes like it there: "03-11-00-00" \(\d+\)/);
+});
 console.log(`commands: ${n} tests passed`);

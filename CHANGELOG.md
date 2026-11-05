@@ -1,5 +1,17 @@
 # Changelog
 
+## Codes typed oddly in Excel are found by replace and SQL (5 Nov 2026)
+
+Asked for: "replace 01-51-23-00 with 01-51-23-00-P for all on 1-31" said "Nothing matches"
+although a SELECT showed rows with that code.
+
+- A code in the sheet with a trailing space, a non-breaking hyphen or an en dash (easy to get in
+  Excel) looks the same but did not match "replace" or "=" letter for letter. Codes are now
+  compared as codes: case, spaces and look-alike dashes ignored (REPLACE, and SQL =, IN and
+  comparisons on the code column). Replacing writes the clean new code, so such cells get fixed.
+- When REPLACE still finds nothing, it lists the codes those entries do have that look like the
+  one asked for ("Codes like it there: "01-51-23-00-P" (14)…").
+
 ## SQL panel: pasted queries, and why a query found no rows (5 Nov 2026)
 
 Asked for: queries pasted into the SQL panel showed no rows.

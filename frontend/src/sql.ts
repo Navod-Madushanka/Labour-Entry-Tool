@@ -4,7 +4,7 @@
 // manpower sheet, pushed as one undoable batch). Column names are forgiving: `in times`,
 // InTime and in_time are all IN; ZIDAL is the employee code.
 import type { ActivityInput, EntryInput } from "./api";
-import { CommandError, current, dateOf, didYouMean, whoOnAll, type CommandContext, type CommandResult, type Suggestion, type Token, type WordInfo } from "./commands";
+import { codeKey, CommandError, current, dateOf, didYouMean, whoOnAll, type CommandContext, type CommandResult, type Suggestion, type Token, type WordInfo } from "./commands";
 import { placeName } from "./codes";
 import { clearInput, withTimes } from "./form";
 import { effectiveHours, formatClock, parseClock } from "./time";
@@ -432,6 +432,8 @@ function compare(l: Expr, r: Expr, op: string, env: Env): boolean {
     else if (colVal >= 24 && lit.hours < 24) x = colVal - 24; // an overnight Out compared by its clock time
     [a, b] = timeSide === "l" ? [x, y] : [y, x];
   }
+  // a code compares as a code: case, spaces and look-alike dashes in the sheet ignored
+  if ((lc?.name === "code" || rc?.name === "code") && typeof a === "string" && typeof b === "string") [a, b] = [codeKey(a), codeKey(b)];
   if (typeof a === "number" && typeof b === "string" && b.trim() !== "" && !Number.isNaN(Number(b))) b = Number(b);
   if (typeof b === "number" && typeof a === "string" && a.trim() !== "" && !Number.isNaN(Number(a))) a = Number(a);
   const c = typeof a === "number" && typeof b === "number" ? (Math.abs(a - b) < 1e-6 ? 0 : a - b) : String(a).toUpperCase().localeCompare(String(b).toUpperCase());
