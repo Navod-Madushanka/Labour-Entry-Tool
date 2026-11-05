@@ -17,6 +17,7 @@ const EXAMPLES: [string, string][] = [
   ["Headcount per day", "SELECT day, COUNT(*) AS workers\nFROM entries\nGROUP BY day\nORDER BY day"],
   ["Who worked past 22:00", "SELECT day, calling_name, in, out\nFROM entries\nWHERE out > '22:00'\nORDER BY day"],
   ["Workers without a valid employee code", "SELECT calling_name, full_name, code_status\nFROM workers\nWHERE code_status <> 'valid'"],
+  ["Change a code for some workers (their other codes stay)", "UPDATE entries SET code = '03-11-00-00-P'\nWHERE code = '03-11-00-00'\n  AND calling_name IN (INB-01, INB-02, INB-05)\n  AND day BETWEEN 1 AND 31"],
   ["Change Time Out to 20:00 for one worker on days 1-10", "UPDATE entries SET out = '20:00'\nWHERE calling_name = 'INB-01' AND day BETWEEN 1 AND 10"],
   ["Command: copy two workers from day 26 to day 21", "copy INB-01, INB-02 from 26 to 21"],
   ["Command: fill a crew from day 20 into days 21-24", "fill crew of INB-03 from 20 to 21-24"],

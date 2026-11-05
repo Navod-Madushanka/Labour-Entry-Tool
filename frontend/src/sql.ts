@@ -246,16 +246,54 @@ function parseStatement(src: string): Statement {
     return { k: "col", name, raw: name };
   };
   const unary = (): Expr => primary();
+  // the table named so far (FROM / UPDATE / DELETE FROM come before WHERE): its column names
+  let tableCols: Set<string> | null = null;
+  const knowTable = (name: string) => {
+    try { tableCols = new Set(findTable(name).cols.map((c) => c.name.toLowerCase())); } catch { tableCols = null; }
+  };
+  /** One value of a list: (INB-01, 'INB-02', 26). A bare word that is not a column of the table is
+   * taken as text as typed, up to the next comma: names need no quotes in a list. */
+  const listItem = (): Expr => {
+    const t = peek();
+    if (t && /^[A-Za-z]/.test(t.text) && !(FNS.has(t.text.toLowerCase()) && peek(1)?.text === "(")) {
+      let j = i, depth = 0;
+      while (j < tokens.length && !(depth === 0 && (tokens[j].text === "," || tokens[j].text === ")"))) {
+        if (tokens[j].text === "(") depth++;
+        if (tokens[j].text === ")") depth--;
+        j++;
+      }
+      const raw = src.slice(t.start, tokens[j - 1].end).trim();
+      const asCol = raw.toLowerCase().replace(/\s+/g, "_");
+      if (!tableCols || !(tableCols.has(asCol) || tableCols.has(raw.toLowerCase()))) { i = j; return { k: "lit", v: raw }; }
+    }
+    return expr();
+  };
+  const list = (): Expr[] => { eat("("); const l = [listItem()]; while (accept(",")) l.push(listItem()); eat(")"); return l; };
+  /** "( a, b )" coming: a list (a comma at its own level), not a bracketed expression. */
+  const listAhead = (): boolean => {
+    if (peek()?.text !== "(") return false;
+    let depth = 0;
+    for (let j = i; j < tokens.length; j++) {
+      const x = tokens[j].text;
+      if (x === "(") depth++;
+      else if (x === ")") { depth--; if (!depth) return false; }
+      else if (x === "," && depth === 1) return true;
+    }
+    return false;
+  };
   const mul = (): Expr => { let e = unary(); while (["*", "/"].includes(peek()?.text ?? "")) { const op = tokens[i++].text; e = { k: "bin", op, l: e, r: unary() }; } return e; };
   const add = (): Expr => { let e = mul(); while (["+", "-", "||"].includes(peek()?.text ?? "")) { const op = tokens[i++].text; e = { k: "bin", op, l: e, r: mul() }; } return e; };
   const cmp = (): Expr => {
     const e = add();
     const neg = low() === "not" && ["like", "in", "between"].includes(low(1) ?? "") ? (i++, true) : false;
     if (accept("like")) return { k: "like", e, pat: add(), neg };
-    if (accept("in")) { eat("("); const list = [expr()]; while (accept(",")) list.push(expr()); eat(")"); return { k: "in", e, list, neg }; }
+    if (accept("in")) return { k: "in", e, list: list(), neg };
     if (accept("between")) { const lo = add(); eat("and"); return { k: "between", e, lo, hi: add(), neg }; }
     if (accept("is")) { const n = accept("not"); eat("null"); return { k: "isnull", e, neg: n }; }
     const op = peek()?.text;
+    // "calling_name = (INB-01, INB-02)": the same as IN (…)
+    if (op && ["=", "==", "!=", "<>"].includes(op) && (i++, listAhead())) return { k: "in", e, list: list(), neg: op === "!=" || op === "<>" };
+    if (op && ["=", "==", "!=", "<>"].includes(op)) i--;
     if (op && ["=", "==", "!=", "<>", "<", ">", "<=", ">="].includes(op)) { i++; return { k: "bin", op: op === "==" ? "=" : op === "<>" ? "!=" : op, l: e, r: add() }; }
     return e;
   };
@@ -284,6 +322,7 @@ function parseStatement(src: string): Statement {
     }
     eat("from");
     const table = ident();
+    knowTable(table);
     const where = accept("where") ? expr() : null;
     const group: Expr[] = [];
     if (accept("group")) { eat("by"); do group.push(expr()); while (accept(",")); }
@@ -318,12 +357,15 @@ function parseStatement(src: string): Statement {
       throw new CommandError(`After UPDATE ${name} comes SET, e.g. UPDATE ${name} SET out = '20:00' WHERE calling_name = 'INB-01'.`);
     }
     eat("set");
+    knowTable(table);
     const sets: Update["sets"] = [];
     do { const c = ident(); if (!accept("=")) eat("="); sets.push({ col: c, e: expr() }); } while (accept(","));
     st = { kind: "update", table, sets, where: accept("where") ? expr() : null };
   } else if (first === "delete") {
     i++; eat("from");
-    st = { kind: "delete", table: ident(), where: accept("where") ? expr() : null };
+    const table = ident();
+    knowTable(table);
+    st = { kind: "delete", table, where: accept("where") ? expr() : null };
   } else throw new CommandError(`"${peek()?.text}" does not start an SQL statement: use SELECT, INSERT, UPDATE or DELETE.`, peek());
   if (i < tokens.length) throw new CommandError(`"${tokens[i].text}" is not understood here.`, tokens[i]);
   return st;
@@ -432,6 +474,15 @@ function compare(l: Expr, r: Expr, op: string, env: Env): boolean {
     else if (colVal >= 24 && lit.hours < 24) x = colVal - 24; // an overnight Out compared by its clock time
     [a, b] = timeSide === "l" ? [x, y] : [y, x];
   }
+  // entries.code is all of a worker's codes for the day joined with "+": = finds the worker when
+  // the code is one of them, != when it is none of them
+  if ((op === "=" || op === "!=") && (lc?.name === "code" || rc?.name === "code") && typeof a === "string" && typeof b === "string") {
+    const [cell, want] = lc?.name === "code" ? [a, b] : [b, a];
+    if (cell.includes("+") && !want.includes("+")) {
+      const hit = cell.split("+").some((p) => codeKey(p) === codeKey(want));
+      return op === "=" ? hit : !hit;
+    }
+  }
   // a code compares as a code: case, spaces and look-alike dashes in the sheet ignored
   if ((lc?.name === "code" || rc?.name === "code") && typeof a === "string" && typeof b === "string") [a, b] = [codeKey(a), codeKey(b)];
   if (typeof a === "number" && typeof b === "string" && b.trim() !== "" && !Number.isNaN(Number(b))) b = Number(b);
@@ -462,6 +513,54 @@ export function cleanPasted(src: string): string {
     .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212\ufe63\uff0d]/g, "-")
     .replace(/[\u00a0\u2007\u202f\u2009\u200a]/g, " ")
     .replace(/[\u200b\u200c\u200d\ufeff]/g, " ");
+}
+
+/** Names in a WHERE (calling_name = 'X' / IN (…)) that are no worker in Labour Detail: said, with
+ * the workers they start, so "AAW" does not quietly match nothing. */
+function unknownNameNotes(where: Expr | null, ctx: CommandContext): string[] {
+  const names: string[] = [];
+  const isName = (e: Expr) => e.k === "col" && ["calling_name", "calling name"].includes(e.name.toLowerCase());
+  const lit = (e: Expr) => (e.k === "lit" && typeof e.v === "string" ? e.v : null);
+  const walk = (e: Expr | null): void => {
+    if (!e) return;
+    if (e.k === "bin" && (e.op === "and" || e.op === "or")) { walk(e.l); walk(e.r); }
+    else if (e.k === "bin" && e.op === "=" && isName(e.l) && lit(e.r)) names.push(lit(e.r)!);
+    else if (e.k === "in" && !e.neg && isName(e.e)) e.list.forEach((x) => lit(x) && names.push(lit(x)!));
+  };
+  walk(where);
+  const known = new Set(ctx.workers.map((w) => w.calling_name.toUpperCase()));
+  return names
+    .filter((n) => !known.has(n.trim().toUpperCase()))
+    .map((n) => {
+      const starts = ctx.workers.filter((w) => w.calling_name.toUpperCase().startsWith(n.trim().toUpperCase())).map((w) => w.calling_name);
+      const hint = didYouMean(n.trim().toUpperCase(), known);
+      return starts.length
+        ? `"${n}" is not a calling name: ${starts.length} start with it (${starts.slice(0, 5).join(", ")}${starts.length > 5 ? " …" : ""}). For all of them: calling_name LIKE '${n.trim()}%'.`
+        : `"${n}" is not a calling name in Labour Detail${hint ? ` (did you mean ${hint}?)` : ""}.`;
+    });
+}
+
+/** The codes a WHERE asks for (code = 'X', code IN (…), code LIKE 'X%'; not under NOT), as tests
+ * on one activity line's code. */
+function codeMatchers(where: Expr | null): ((code: string) => boolean)[] {
+  const out: ((code: string) => boolean)[] = [];
+  const isCode = (e: Expr) => e.k === "col" && e.name.toLowerCase() === "code";
+  const lit = (e: Expr) => (e.k === "lit" && typeof e.v === "string" ? e.v : null);
+  const eq = (v: string) => (c: string) => codeKey(c) === codeKey(v);
+  const walk = (e: Expr | null): void => {
+    if (!e) return;
+    if (e.k === "bin" && (e.op === "and" || e.op === "or")) { walk(e.l); walk(e.r); }
+    else if (e.k === "bin" && e.op === "=") {
+      const v = isCode(e.l) ? lit(e.r) : isCode(e.r) ? lit(e.l) : null;
+      if (v) out.push(eq(v));
+    } else if (e.k === "in" && !e.neg && isCode(e.e)) e.list.forEach((x) => { const v = lit(x); if (v) out.push(eq(v)); });
+    else if (e.k === "like" && !e.neg && isCode(e.e) && lit(e.pat)) {
+      const re = new RegExp(`^${lit(e.pat)!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`, "i");
+      out.push((c) => re.test(c.trim()));
+    }
+  };
+  walk(where);
+  return out;
 }
 
 /** A SELECT on a code found nothing: the codes in this workbook that look like the one asked for,
@@ -588,6 +687,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
     res.table = { columns: items.map((x) => x.alias ?? (x.e.k === "col" ? findCol(t, x.e.name).name : x.text)), rows: table };
     res.summary = `${table.length} row${table.length === 1 ? "" : "s"} from ${t.name}. Nothing is changed.`;
     if (!table.length && st.where) res.notes.push(...emptyCodeNotes(st.where, t.name, ctx));
+    res.notes.push(...unknownNameNotes(st.where, ctx));
     return res;
   }
 
@@ -647,6 +747,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
     if (COMPUTED_WHY[c.name]) throw new CommandError(`${c.name.toUpperCase()} cannot be set: ${COMPUTED_WHY[c.name]}`);
     if (!WRITABLE.has(c.name)) throw new CommandError(`${c.name} cannot be changed (it comes from Labour Detail or the sheet). Columns you can SET: ${[...WRITABLE].join(", ")}.`);
   }
+  const whereCodes = codeMatchers(st.where);
   for (const { row, input, inExcel } of matched) {
     let i: EntryInput = { ...input, activities: input.activities.map((a) => ({ ...a })), overwrite: inExcel || input.overwrite, acknowledged: [] };
     const env: Env = { t, row, group: null };
@@ -664,8 +765,15 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
         timesChanged = true;
       } else if (name === "code") {
         const codes = String(v ?? "").split(/[+,]/).map((x) => x.trim().toUpperCase()).filter(Boolean);
-        const unknown = codes.filter((x) => !ctx.activities.some((a) => a.toUpperCase() === x));
+        const unknown = codes.filter((x) => !ctx.activities.some((a) => codeKey(a) === codeKey(x)));
         if (unknown.length && ctx.withActivities) throw new CommandError(`${unknown.join(", ")} is not in the activity list.`);
+        // WHERE code = 'old' (or IN / LIKE) and one new code: only those lines change; the
+        // worker's other codes and every line's hours stay
+        const hits = codes.length === 1 && whereCodes.length ? i.activities.filter((a) => a.code && whereCodes.some((m) => m(a.code!))) : [];
+        if (hits.length) {
+          i.activities = i.activities.map((a) => (hits.includes(a) ? { ...a, code: codes[0] } : a));
+          continue;
+        }
         const total = i.activities.reduce((sum, a) => sum + (a.hours ?? 0), 0) || null;
         i.activities = codes.length === 1 ? [{ code: codes[0], hours: total }] : codes.map((x) => ({ code: x, hours: total === null ? null : Math.round((total / codes.length) * 4) / 4 }));
       } else if (name === "hours") {
@@ -686,6 +794,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
   }
   res.summary = `UPDATE: ${res.inputs.length} entr${res.inputs.length === 1 ? "y" : "ies"} changed (in the queue, to push).`;
   if (!matched.length) res.notes.push("No entry matches the WHERE.");
+  res.notes.push(...unknownNameNotes(st.where, ctx));
   return res;
 }
 

@@ -155,4 +155,19 @@ t("pasted text: curly quotes and look-alike dashes work; an empty result says wh
   const many = sql("SELECT calling_name FROM entries WHERE code = 'ACT-0'");
   assert.match(many.notes.join(" "), /joined with "\+"/);
 });
+t("UPDATE … SET code WHERE code = old AND calling_name = (list): only that code line changes", () => {
+  const m = JSON.parse(JSON.stringify(month));
+  m["1"].entries[0].entry.activities = [{ row: 9, code: "ACT-001 ", hours: 4 }, { row: 10, code: "ACT-003", hours: 4 }]; // BBB-01: two codes, a trailing space
+  const x = { month: m };
+  const run = (q) => S.runSql(S.parseSql(q, ctx(x)), ctx(x));
+  const r = run("update entries set code = 'ACT-002' where code = 'ACT-001' and calling name = (BBB-01, bbb-02) and day between 1 and 2");
+  const b1 = r.inputs.find((i) => i.calling_name === "BBB-01" && i.sheet === "1");
+  assert.deepEqual(b1.activities.map((a) => [a.code, a.hours]), [["ACT-002", 4], ["ACT-003", 4]]); // the other code and the hours stay
+  assert.deepEqual(r.inputs.map((i) => `${i.calling_name}@${i.sheet}`).sort(), ["BBB-01@1", "BBB-01@2", "BBB-02@1", "BBB-02@2"]);
+  // entries.code = X finds a worker who has X among several codes
+  assert.ok(run("SELECT calling_name FROM entries WHERE code = 'ACT-003' AND day = 1").table.rows.some((row) => row[0] === "BBB-01"));
+  // a name that is no worker is said, with the ones it starts
+  const notes = run("SELECT calling_name FROM entries WHERE calling_name IN (BBB, SSS-01)").notes.join(" ");
+  assert.match(notes, /"BBB" is not a calling name: 4 start with it/);
+});
 console.log(`sql: ${n} tests passed`);

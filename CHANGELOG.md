@@ -1,5 +1,21 @@
 # Changelog
 
+## SQL: change one code for chosen workers with UPDATE (5 Nov 2026)
+
+Asked for: `update entries set code = '03-11-00-00-P' where code = '03-11-00-00' and calling
+name = (…)` for days 1 to 31.
+
+- `UPDATE entries SET code = 'new' WHERE code = 'old' …` now changes only the matching code line:
+  a worker's other codes that day and every line's hours stay (it used to put the new code in
+  place of all of them). Also with `code IN (…)` and `code LIKE '…%'` in the WHERE.
+- `WHERE code = 'X'` on entries finds a worker who has X among several codes that day
+  (entries.code shows them joined with "+"); `!=` means none of them.
+- `calling_name = (INB-01, INB-02)` is read as `IN (…)`; names in a list need no quotes;
+  `calling name` with a space works. A name in the list that is no worker is said, with the
+  workers it starts ("AAW" → "4 start with it … use calling_name LIKE 'AAW%'").
+- The days: `AND day BETWEEN 1 AND 31` (or leave the day out for the whole month).
+- New example in Examples…: "Change a code for some workers (their other codes stay)".
+
 ## Codes typed oddly in Excel are found by replace and SQL (5 Nov 2026)
 
 Asked for: "replace 01-51-23-00 with 01-51-23-00-P for all on 1-31" said "Nothing matches"
