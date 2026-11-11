@@ -1,5 +1,15 @@
 # Changelog
 
+## Manpower sheet: crisper grid, quiet Discard (11 Nov 2026)
+
+Asked for (visual polish of the manpower sheet).
+
+- Every line inside the sheet is now one solid, clearly visible grid colour. The faint dashed
+  lines between activity rows are gone, and the row under the mouse is lightly highlighted.
+- "Discard sheet N" is a quiet grey outline button. It turns red only when you point at it.
+- "Push N entries to Excel" is a little larger, with a soft orange glow, so it is the one
+  obvious next step.
+
 ## Medical leave dialog: tiers and a clear button (11 Nov 2026)
 
 Asked for (design review of the Medical leave dialog).

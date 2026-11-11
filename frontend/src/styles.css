@@ -918,3 +918,12 @@ button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, tran
 .med-days-tier .med-presets button { min-width: 3.2em; padding: 3px 8px; }
 .med-days-tier .med-days small { grid-column: 1 / -1; }
 .med-tier .check { align-self: center; margin-bottom: 4px; }
+
+/* Manpower grid: crisper inner lines; Discard is a quiet secondary action, Push the one bright path */
+.manpower { --grid: color-mix(in srgb, var(--text) 62%, var(--panel)); }
+.manpower td, .manpower th { border-color: var(--grid); }
+.mp-grid tbody td { border-top: 1px solid var(--grid); }
+.mp-grid tbody tr:hover td { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.mp-discard button.danger-outline { color: var(--muted); border-color: var(--field-line); background: transparent; font-weight: 500; }
+.mp-discard button.danger-outline:hover:not(:disabled) { color: var(--block); border-color: var(--block); background: var(--block-bg); }
+.push-bar button.primary.big { font-size: 17px; padding: 12px 28px; box-shadow: 0 2px 0 var(--accent-hover), 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
