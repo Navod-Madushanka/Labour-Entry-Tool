@@ -14,7 +14,8 @@ from pydantic import BaseModel, Field
 from app.domain.codes import parse_calling_name
 
 MEDICAL_ROLE = "M"
-DEFAULT_DAYS = 10
+DEFAULT_DAYS = 10  # what the dialog starts with; the report decides (2, 14, 20 …)
+MAX_DAYS = 90  # days past the month end are listed for next month's workbook
 DEFAULT_IN, DEFAULT_OUT = 7.0, 16.0
 DEFAULT_ACTIVITY = "00-00-10-00"
 

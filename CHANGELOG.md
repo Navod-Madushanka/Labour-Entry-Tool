@@ -1,5 +1,15 @@
 # Changelog
 
+## Medical leave: any number of days (11 Nov 2026)
+
+Asked for: the medical leave days vary with the report (14, 10, 2, 20 …); make them adjustable.
+
+- "Days of leave" is a number box (1 to 90 working days; it was capped at 31) with one-click
+  counts: 2, 3, 5, 7, 10, 14, 20, 30. It still starts at 10.
+- Under it: the first and last sheet of the leave, and how many days fall in next month's
+  workbook ("Sheet 10 to 31, then 6 more in next month's workbook"). Sundays never count;
+  holidays only when "Skip holidays too" is ticked.
+
 ## "Start day from previous days" removed (11 Nov 2026)
 
 Asked for: remove "⟲ Start day from previous days".

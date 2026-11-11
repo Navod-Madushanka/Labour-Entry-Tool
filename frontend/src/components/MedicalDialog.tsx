@@ -14,6 +14,9 @@ interface Props {
 
 const isBase = (name: string) => /^[A-Z]{2,3}[A-Z]{0,2}-\d{2,3}$/.test(name);
 
+const MAX_DAYS = 90; // as the backend allows; days past the month end go to next month's list
+const PRESETS = [2, 3, 5, 7, 10, 14, 20, 30];
+
 /** Medical leave: '<base> M' line (added to Labour Detail if new) with N days, Sundays skipped. */
 export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onClose }: Props) {
   const [base, setBase] = useState(initialWorker && isBase(initialWorker) ? initialWorker : "");
@@ -29,12 +32,21 @@ export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onCl
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const daysBad = !(Number.isInteger(Number(days)) && Number(days) >= 1 && Number(days) <= MAX_DAYS);
+  // "until sheet 20" and how many fall in next month's workbook (from the preview)
+  const lastDay = useMemo(() => {
+    if (!plan || !plan.plans.length) return "Working days, as the medical report says (Sundays skipped).";
+    const last = plan.plans[plan.plans.length - 1].input.sheet;
+    const later = plan.later.length;
+    return `Sheet ${plan.plans[0].input.sheet} to ${last}${later ? `, then ${later} more in next month's workbook` : ""}.`;
+  }, [plan]);
+
   const bases = useMemo(() => master.workers.filter((w) => isBase(w.calling_name)), [master.workers]);
   const req: MedicalRequest | null = useMemo(() => {
     const tin = parseClock(timeIn);
     const tout = parseClock(timeOut);
     const n = Number(days);
-    if (!bases.some((w) => w.calling_name === base) || tin === null || tout === null || !(n >= 1 && n <= 31)) return null;
+    if (!bases.some((w) => w.calling_name === base) || tin === null || tout === null || !Number.isInteger(n) || n < 1 || n > MAX_DAYS) return null;
     return { base, start, days: n, time_in: tin, time_out: tout <= tin ? tout + 24 : tout, activity: activity.trim(),
              remark: null, skip_holidays: skipHolidays, acknowledged: acks };
   }, [base, start, days, timeIn, timeOut, activity, skipHolidays, acks, bases]);
@@ -115,9 +127,20 @@ export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onCl
               ))}
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="med-days">Days</label>
-            <input id="med-days" inputMode="numeric" size={4} value={days} onChange={(e) => setDays(e.target.value)} />
+          <div className="field med-days">
+            <label htmlFor="med-days">Days of leave</label>
+            <input id="med-days" type="number" min={1} max={MAX_DAYS} step={1} value={days} onChange={(e) => setDays(e.target.value)}
+                   aria-invalid={daysBad} />
+            <span className="med-presets" role="group" aria-label="Common numbers of days">
+              {PRESETS.map((n) => (
+                <button key={n} type="button" className={`small${Number(days) === n ? " on" : ""}`} onClick={() => setDays(String(n))}>
+                  {n}
+                </button>
+              ))}
+            </span>
+            <small className={daysBad ? "error-text" : "hint"}>
+              {daysBad ? `Type a whole number of days, 1 to ${MAX_DAYS}.` : lastDay}
+            </small>
           </div>
           <div className="field">
             <label htmlFor="med-in">In</label>

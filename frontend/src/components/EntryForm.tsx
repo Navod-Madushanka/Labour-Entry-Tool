@@ -311,7 +311,7 @@ export function EntryForm(props: Props) {
           </h2>
           <div className="tools" role="group" aria-label="Quick fill">
             {withActs && (
-              <button onClick={onMedical} title="10 days of medical leave">
+              <button onClick={onMedical} title="Medical leave for any number of days (as the medical report says)">
                 ✚ Medical leave
               </button>
             )}

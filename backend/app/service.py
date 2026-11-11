@@ -35,6 +35,7 @@ from app.domain.crosscheck import add_cross_entry_issues
 from app.domain.medical import (
     DEFAULT_ACTIVITY,
     DEFAULT_DAYS,
+    MAX_DAYS,
     DEFAULT_IN,
     DEFAULT_OUT,
     medical_dates,
@@ -152,7 +153,7 @@ class CodeWriteResult(BaseModel):
 class MedicalRequest(BaseModel):
     base: str  # the worker's calling name, e.g. INC-08 (the medical line is INC-08 M)
     start: str  # first day sheet
-    days: int = Field(DEFAULT_DAYS, ge=1, le=31)
+    days: int = Field(DEFAULT_DAYS, ge=1, le=MAX_DAYS)  # working days, as the medical report says
     time_in: float = DEFAULT_IN
     time_out: float = DEFAULT_OUT
     activity: str = DEFAULT_ACTIVITY

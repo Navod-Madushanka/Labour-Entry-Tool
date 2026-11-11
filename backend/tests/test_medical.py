@@ -129,3 +129,17 @@ def test_start_sheet_outside_the_month(small_snapshot, tmp_path):
     svc = EntryService(lambda: fake, Config(month="2026-11"), AuditStore(), BackupManager(tmp_path))
     plan = svc.medical_preview(MedicalRequest(base="INB-01", start="31"))
     assert plan.problems == ["Sheet 31 is not a day of 2026-11."] and plan.plans == []
+
+
+def test_any_number_of_days_the_report_gives():
+    from pydantic import ValidationError
+
+    for n in (2, 14, 20):
+        d = medical_dates(dt.date(2026, 10, 1), n, OCT)
+        assert len(d.days) + len(d.later) == n  # working days: Sundays never count
+    d = medical_dates(dt.date(2026, 10, 1), 40, OCT)  # longer than the month: the rest is listed
+    assert len(d.days) == 27 and len(d.later) == 13 and min(d.later) >= dt.date(2026, 11, 1)
+    assert MedicalRequest(base="INB-01", start="1", days=90).days == 90
+    for bad in (0, 91):
+        with pytest.raises(ValidationError):
+            MedicalRequest(base="INB-01", start="1", days=bad)

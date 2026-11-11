@@ -751,3 +751,8 @@ details.card > summary .badge { margin-left: 6px; }
 .mate-trade { padding-top: 6px; }
 .mate-row:first-of-type { border-top: none; }
 .mate-trade { min-width: 13ch; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+/* Medical leave: the number of days, with common counts one click away */
+.med-days input[type="number"] { width: 7ch; }
+.med-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.med-presets button { padding: 1px 8px; }
+.med-presets button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
