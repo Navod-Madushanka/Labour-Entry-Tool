@@ -35,6 +35,31 @@ export function SupervisorDialog({
   const typed = name.replace(/\s+/g, " ").trim();
   const known = list?.find((s) => s.name.toLowerCase() === typed.toLowerCase());
   const chosen = known?.name ?? typed; // "kamal" when "Kamal" is known: the known spelling
+  // Recent: the last three used, on top; then everyone else A–Z, a row per first letter. Typing a
+  // name that is not on the list yet narrows the buttons to the ones containing it.
+  const filtering = Boolean(typed) && !known;
+  const shown = (list ?? []).filter((s) => !filtering || s.name.toLowerCase().includes(typed.toLowerCase()));
+  const recent = (list ?? []).filter((s) => s.last_used).slice(0, 3).filter((s) => shown.includes(s)); // the server lists them latest first
+  const letters: [string, Supervisor[]][] = [];
+  for (const s of shown.filter((x) => !recent.includes(x)).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))) {
+    const letter = /[a-z]/i.test(s.name[0]) ? s.name[0].toUpperCase() : "#";
+    const row = letters[letters.length - 1];
+    if (row && row[0] === letter) row[1].push(s);
+    else letters.push([letter, [s]]);
+  }
+  const chip = (s: Supervisor) => (
+    <button
+      key={s.name}
+      role="radio"
+      aria-checked={chosen === s.name}
+      className={`chip${chosen === s.name ? " on" : ""}`}
+      onClick={() => setName(s.name)}
+      onDoubleClick={() => onPush(s.name)}
+      disabled={busy}
+    >
+      {s.name}
+    </button>
+  );
   const push = () => {
     if (chosen && !busy) onPush(chosen);
   };
@@ -54,19 +79,19 @@ export function SupervisorDialog({
         </p>
         {list && list.length > 0 && (
           <div className="sup-choices" role="radiogroup" aria-label="Supervisors">
-            {list.map((s) => (
-              <button
-                key={s.name}
-                role="radio"
-                aria-checked={chosen === s.name}
-                className={`chip${chosen === s.name ? " on" : ""}`}
-                onClick={() => setName(s.name)}
-                onDoubleClick={() => onPush(s.name)}
-                disabled={busy}
-              >
-                {s.name}
-              </button>
+            {recent.length > 0 && (
+              <div className="sup-row" role="group" aria-label="Recent supervisors">
+                <span className="sup-row-label">Recent</span>
+                <span className="sup-row-chips">{recent.map(chip)}</span>
+              </div>
+            )}
+            {letters.map(([letter, names]) => (
+              <div key={letter} className="sup-row" role="group" aria-label={`Supervisors ${letter}`}>
+                <span className="sup-row-label">{letter}</span>
+                <span className="sup-row-chips">{names.map(chip)}</span>
+              </div>
             ))}
+            {filtering && !recent.length && !letters.length && <p className="muted small">No supervisor on the list matches "{typed}".</p>}
           </div>
         )}
         <label className="field">

@@ -204,11 +204,22 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
           Supervisor
           <select aria-label="Supervisor" value={who} onChange={(e) => setWho(e.target.value)}>
             <option value="">Everyone</option>
-            {names.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.name} ({counts.get(s.name) ?? 0} {counts.get(s.name) === 1 ? "sheet" : "sheets"})
-              </option>
-            ))}
+            {(() => {
+              // the last three used on top, then everyone A–Z
+              const recent = names.filter((s) => s.last_used).slice(0, 3);
+              const rest = names.filter((s) => !recent.includes(s)).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+              const option = (s: Supervisor) => (
+                <option key={s.name} value={s.name}>
+                  {s.name} ({counts.get(s.name) ?? 0} {counts.get(s.name) === 1 ? "sheet" : "sheets"})
+                </option>
+              );
+              return (
+                <>
+                  {recent.length > 0 && <optgroup label="Recent">{recent.map(option)}</optgroup>}
+                  <optgroup label="All supervisors (A–Z)">{rest.map(option)}</optgroup>
+                </>
+              );
+            })()}
             {[...counts.keys()]
               .filter((n) => !names.some((s) => s.name === n))
               .map((n) => (

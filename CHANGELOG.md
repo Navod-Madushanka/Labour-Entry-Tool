@@ -1,5 +1,16 @@
 # Changelog
 
+## Supervisors: the last three on top, everyone else A–Z (11 Nov 2026)
+
+Asked for: with many supervisors they are hard to find; put them in alphabetical order with the
+last three used on top.
+
+- The question at push ("Whose manpower sheet is this?"): a **Recent** row with the last three
+  supervisors used (latest first), then everyone else A–Z in a row per first letter. Typing a
+  name that is not on the list narrows the buttons to those containing it.
+- The supervisor filter on the Supervisors page: "Recent" (the last three) and "All supervisors
+  (A–Z)" groups.
+
 ## Medical leave: any number of days (11 Nov 2026)
 
 Asked for: the medical leave days vary with the report (14, 10, 2, 20 …); make them adjustable.
