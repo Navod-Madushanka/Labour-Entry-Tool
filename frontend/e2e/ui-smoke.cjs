@@ -74,23 +74,6 @@ async function crewEditHeader(out) {
   await p.waitForSelector('.modal', { state: 'detached' });
   await p.waitForFunction(() => !document.body.innerText.includes('Loading month'), null, { timeout: 30000 });
   console.log('month fully loaded');
-  // crew entry on sheet 28 with the form's times
-  await p.getByRole('tab', { name: '28', exact: true }).click();
-  const code = await p.evaluate(async () => (await (await fetch('/api/master')).json()).activities[0]);
-  await p.locator('#in').fill('07:00'); await p.locator('#out').fill('17:00');
-  await p.locator('[aria-label="Activity 1"]').fill(code); await p.locator('[aria-label="Hours 1"]').fill('9');
-  await p.getByRole('button', { name: /Crew entry/ }).click();
-  await p.getByLabel('Trade group').selectOption('Rigger');
-  await p.getByRole('button', { name: /Select all shown/ }).click();
-  await p.getByRole('button', { name: /^Queue \d+ with/ }).click();
-  await p.waitForFunction(() => document.querySelectorAll('.queue tbody tr').length >= 6);
-  const n = await p.locator('.queue tbody tr').count();
-  await p.waitForFunction(() => !document.body.innerText.includes('checking…'));
-  console.log('crew queued', n, 'ready', await p.locator('.queue .pill.ok').count());
-  await p.getByRole('button', { name: new RegExp(`Push ${n} entries`) }).click();
-  await p.getByLabel("Supervisor", { exact: true }).fill("Test Supervisor"); await p.keyboard.press("Enter"); // whose manpower sheet
-  await p.waitForSelector('.result.ok');
-  console.log('crew result:', await p.locator('.result-head strong').textContent());
   // copy yesterday (sheet 28 <- 27 empty, so use sheet 2 <- 1): suggestion button for a worker
   await p.getByRole('tab', { name: '25', exact: true }).click();
   await p.locator('#worker').fill('INB-03'); await p.keyboard.press('Enter');
@@ -98,8 +81,14 @@ async function crewEditHeader(out) {
   console.log('copy-yesterday suggestion:', await copy.textContent());
   await copy.click();
   console.log('form after copy: in', await p.locator('#in').inputValue(), 'out', await p.locator('#out').inputValue());
-  // edit an existing entry from the day list (overwrite) and see E08 not blocking
-  await p.getByRole('tab', { name: '28', exact: true }).click();
+  // edit an existing entry from the day list (overwrite) and see E08 not blocking: on the first
+  // sheet that has entries
+  const filled = await p.evaluate(async () => {
+    const { sheets } = await (await fetch('/api/master')).json();
+    for (const s of sheets) if ((await (await fetch(`/api/days/${s}`)).json()).entries.length) return s;
+    return null;
+  });
+  await p.getByRole('tab', { name: filled, exact: true }).click();
   await p.locator('.daylist tbody tr').first().getByRole('button', { name: 'Edit' }).click();
   await p.waitForSelector('text=Editing the existing entry');
   await p.locator('#out').fill('18:00'); await p.locator('#out').press('Enter');

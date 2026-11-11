@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Master, type Status, type Worker } from "./api";
+import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Master, type Status } from "./api";
 import { Batches } from "./components/Batches";
-import { CrewDialog } from "./components/CrewDialog";
 import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
 import { EntryForm } from "./components/EntryForm";
@@ -23,10 +22,9 @@ import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
 import { StoryNote, StoryReader } from "./components/StoryCorner";
 import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
-import { clearInput, emptyForm, forWorker, fromEntry, fromInput, isOvernight, toInput, type FormState } from "./form";
+import { clearInput, emptyForm, fromEntry, fromInput, type FormState } from "./form";
 import { carryOver, crewMismatch, topActivities, usualPartners, type Month, type TodayEntry } from "./history";
 import { loadQueue, pruneOldDays, saveQueue, store } from "./store";
-import { formatShift, parseClock } from "./time";
 
 const HEADER_RULES = ["H01", "H02"];
 const FIX_FIELD: Record<string, string> = { H01: "date", H02: "day_type", H03: "sheet_no" };
@@ -67,7 +65,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [batches, setBatches] = useState<Batch[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [crewOpen, setCrewOpen] = useState(false);
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
   const pageOf = (hash: string) =>
@@ -538,13 +535,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     [queue, sheet],
   );
 
-  const formIn = parseClock(form.timeIn);
-  const formOut = parseClock(form.timeOut);
-  const firstCode = form.lines.find((l) => l.code.trim())?.code.trim();
-  const formSummary =
-    formIn !== null && formOut !== null
-      ? `${formatShift(formIn, formOut + (isOvernight(form) ? 24 : 0))}${firstCode ? `, ${firstCode}` : ""}`
-      : null;
 
   return (
     <>
@@ -686,11 +676,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               onQueue={onQueue}
               queued={new Set(queue.filter((q) => q.input.sheet === sheet).map((q) => q.input.calling_name))}
               queuedToday={queuedToday}
-              onCrew={() => setCrewOpen(true)}
               onMedical={() => setMedicalOpen(true)}
               onBuild={() => setBuilderOpen(true)}
               focusToken={focusToken}
-              dialogOpen={askName || crewOpen || medicalOpen || builderOpen}
+              dialogOpen={askName || medicalOpen || builderOpen}
             />
             <ManpowerSheet
               items={queue}
@@ -792,30 +781,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                   refreshStatus();
                 }}
                 onClose={() => setMedicalOpen(false)}
-              />
-            )}
-            {crewOpen && (
-              <CrewDialog
-                master={master}
-                sheet={sheet}
-                day={day}
-                month={suggestMonth}
-                formSummary={formSummary}
-                onSameAsForm={(workers: Worker[]) => {
-                  addToQueue(workers.map((w) => toInput(forWorker(form, w), sheet)!));
-                  setCrewOpen(false);
-                }}
-                onCopyYesterday={(workers: Worker[]) => {
-                  const prev = month[String(Number(sheet) - 1)];
-                  const inputs = workers.flatMap((w) => {
-                    const e = prev?.entries.find((v) => v.entry.calling_name === w.calling_name)?.entry;
-                    const exists = day?.entries.some((v) => v.entry.calling_name === w.calling_name);
-                    return e ? [toInput(fromEntry(e, w, Boolean(exists)), sheet)!] : [];
-                  });
-                  addToQueue(inputs);
-                  setCrewOpen(false);
-                }}
-                onClose={() => setCrewOpen(false)}
               />
             )}
           </>

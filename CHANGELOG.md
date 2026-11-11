@@ -1,5 +1,16 @@
 # Changelog
 
+## Crew entry removed (11 Nov 2026)
+
+Asked for: remove the crew feature; it has never been used.
+
+- Removed: the "☰ Crew entry" button and its dialog (pick workers by trade or search, save named
+  crews, queue them with the form's times or yesterday's), and the "+ crew …" buttons of saved
+  crews under "Same entry also for". Saved crews in the browser are no longer read.
+- Kept (they need nothing set up, they come from the days already entered): the "Crew today"
+  suggestion, the ⚠ crew mark on the manpower sheet, "Start day from previous days", and
+  "crew of INB-03" in commands.
+
 ## Suggested workers in rows by trade (11 Nov 2026)
 
 Asked for: the suggestion box is hard to read; put the suggested workers in rows by trade

@@ -183,7 +183,8 @@ and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** 
   check. Red (BLOCK) cannot be written; amber warnings need a tick in the queue.
 - **Write to Excel** writes the whole queue as one batch, then shows Excel's read-back.
 - Suggestions: the worker's usual times, a copy of yesterday, the crew's activity today, recent
-  activity codes. **Crew entry** queues many workers at once (by trade, search or saved crew).
+  activity codes. **Same entry also for** adds more workers with the same entry (suggested by
+  trade, or searched).
 - The day list shows what is already on the sheet (Edit = overwrite, Clear). Recent batches can be
   undone. A wrong sheet header shows a red banner with **Fix** (writes F3/H3/F4 after you confirm)
   or **Header is right, write anyway**.
@@ -210,7 +211,7 @@ the same warning over and over.
 
 ## Medical leave
 
-**Medical leave…** (next to Crew entry) gives a worker a medical line `<calling name> M`, e.g.
+**Medical leave…** (above the worker box) gives a worker a medical line `<calling name> M`, e.g.
 `INC-08 M`, with one entry per working day: In 07:00, Out 16:00, activity `00-00-10-00`, hours =
 the effective hours (8). Defaults: 10 days from the chosen first day, **Sundays skipped**
 (holidays only when *Skip holidays too* is ticked); all fields can be changed.

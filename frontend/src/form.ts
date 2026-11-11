@@ -163,11 +163,6 @@ export function fromEntry(e: Entry, worker: Worker, overwrite: boolean): FormSta
   };
 }
 
-/** Same times and activities for another worker (crew entry, "keep" after queueing). */
-export function forWorker(f: FormState, worker: Worker | null): FormState {
-  return { ...f, worker, also: [], alsoTimes: {}, query: worker?.calling_name ?? "", overwrite: false, acknowledged: [] };
-}
-
 /** Back from a queued EntryInput to the form (Edit in the queue). */
 export function fromInput(i: EntryInput, worker: Worker): FormState {
   const lines = emptyLines();

@@ -21,7 +21,6 @@ import { placeName } from "../codes";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
 import { formulaValue, settleFormula } from "../calc";
-import { loadCrews } from "./CrewDialog";
 import { IssueList } from "./IssueList";
 
 interface Props {
@@ -36,7 +35,6 @@ interface Props {
   onQueue: (inputs: EntryInput[]) => void; // the main worker first, then the "also for" workers
   queued: Set<string>; // workers waiting to go to Excel for this sheet
   queuedToday: TodayEntry[]; // those entries, for the code suggestions
-  onCrew: () => void;
   onMedical: () => void;
   onBuild: () => void;
   focusToken: number; // changes when the worker field should take focus
@@ -52,7 +50,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function EntryForm(props: Props) {
-  const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onCrew, onMedical, onBuild } = props;
+  const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onMedical, onBuild } = props;
   const withActs = master.check_activities; // off: a workbook kept without activity codes
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -315,9 +313,6 @@ export function EntryForm(props: Props) {
           <div className="tools" role="group" aria-label="Quick fill">
             <button onClick={onBuild} title="Fill today from the workers' last days">
               ⟲ Start day from previous days
-            </button>
-            <button onClick={onCrew} title="Same times and activity for a group of workers">
-              ☰ Crew entry
             </button>
             {withActs && (
               <button onClick={onMedical} title="10 days of medical leave">
@@ -872,7 +867,6 @@ function AlsoFor({
   // shown in rows by trade: the arrows go through them in the order shown
   const foundRows = byTrade(found, (w) => w, main);
   const options = foundRows.flatMap(([, list]) => list);
-  const crews = Object.entries(loadCrews()).filter(([, names]) => names.length);
   // Workers who usually share this record: not yet entered or waiting for this day.
   const byName = new Map(workers.map((w) => [w.calling_name, w]));
   // Worked out only when its inputs change (not on every keystroke elsewhere in the form).
@@ -1035,11 +1029,6 @@ function AlsoFor({
           <span className="muted small">Type a calling name or a name to add another worker with the same entry.</span>
         )}
       </div>
-      {crews.map(([name, names]) => (
-        <button key={name} className="small" title={names.join(", ")} onClick={() => add(workers.filter((w) => names.includes(w.calling_name)))}>
-          + crew {name} ({names.length})
-        </button>
-      ))}
     </div>
   );
 }
