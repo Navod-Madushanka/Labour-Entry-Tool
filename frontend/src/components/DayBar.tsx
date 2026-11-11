@@ -47,9 +47,10 @@ export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick
         ))}
       </div>
       <div className="day-legend" aria-hidden>
-        <span><i style={{ background: "var(--sat-bg)", border: "1px solid var(--sat)" }} />Saturday</span>
-        <span><i style={{ background: "var(--sun-bg)", border: "1px solid var(--sun)" }} />Sunday / holiday</span>
-        <span><i style={{ background: "var(--ok)", borderRadius: "50%", width: 6, height: 6 }} />has entries</span>
+        <span><b className="lg-sat">S</b>Saturday</span>
+        <span><b className="lg-sun">S</b>Sunday / holiday</span>
+        <span><i className="lg-has" />has entries</span>
+        <span><i className="lg-active" />this day</span>
       </div>
       <div className="dayinfo">
         {h ? (

@@ -1,5 +1,19 @@
 # Changelog
 
+## Entry page: calmer day strip, the day so far, two-column form, key caps (11 Nov 2026)
+
+Asked for (a design review of the entry page).
+
+- Day strip: one signal per meaning. The day you are on: solid orange. Days with entries: green
+  tint and edge. Saturday / Sunday or holiday: the number in amber / red only. No more dots or a
+  second fill colour. The legend says so.
+- The side panel before a worker is picked: **This day so far**, with the workers entered on
+  the sheet, their hours and overtime, how many have hours without an activity code, and how many
+  wait to be pushed. With a worker it shows their day, as before.
+- The form in two equal columns: Time In | Time Out (Next day under it), Activity code | Hours,
+  Additional hours | Remark; the worker box across the top.
+- Keyboard hints as key caps (Enter, Esc, ↑ ↓, Alt ← →): a raised key with a lighter face.
+
 ## Ready list: warnings stand out and have a quick fix (11 Nov 2026)
 
 Asked for (a design review of the Ready step): a warning among the green ticks is read past;

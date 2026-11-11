@@ -705,6 +705,10 @@ export function EntryForm(props: Props) {
         <Preview
           plan={plan}
           error={error}
+          day={day}
+          sheet={sheet}
+          waiting={props.queued.size}
+          withActs={withActs}
           onDinner={() => {
             setForm((f) => ({ ...f, additional: "-1", remark: f.remark.trim() || "dinner" }));
             focus("remark"); // Enter there adds the worker
@@ -1057,7 +1061,37 @@ function normaliseClock(text: string): string {
   return value === null ? text.trim() : formatClock(value);
 }
 
-function Preview({ plan, error, onDinner }: { plan: EntryPlan | null; error: string | null; onDinner: () => void }) {
+/** Before a worker is picked: the day so far (who is entered, hours, overtime), not an empty box. */
+function DaySummary({ day, sheet, waiting, withActs }: { day: DayView | undefined; sheet: string; waiting: number; withActs: boolean }) {
+  const done = (day?.entries ?? []).filter((v) => v.entry.calling_name && v.computed);
+  const hours = done.reduce((n, v) => n + (v.computed?.effective ?? 0), 0);
+  const ot = done.reduce((n, v) => n + Math.max(v.computed?.ot_raw ?? 0, 0), 0);
+  const noCode = withActs ? done.filter((v) => (v.computed?.zidle ?? 0) > 0).length : 0; // without codes all is ZIDLE
+  return (
+    <>
+      <div className="big-number">
+        {done.length} <span>worker{done.length === 1 ? "" : "s"} entered on sheet {sheet}</span>
+      </div>
+      <dl>
+        <dt>Hours</dt>
+        <dd>{fmtHours(hours)} h</dd>
+        <dt>Overtime</dt>
+        <dd>{ot ? `${fmtHours(ot)} h` : "none"}</dd>
+        {noCode > 0 && (
+          <>
+            <dt>No activity</dt>
+            <dd className="warn-text">{noCode} worker{noCode === 1 ? "" : "s"}</dd>
+          </>
+        )}
+        <dt>Waiting</dt>
+        <dd>{waiting ? `${waiting} to push` : "none"}</dd>
+      </dl>
+      <p className="muted small">Pick a worker: their hours show here as you type.</p>
+    </>
+  );
+}
+
+function Preview({ plan, error, onDinner, day, sheet, waiting, withActs }: { plan: EntryPlan | null; error: string | null; onDinner: () => void; day: DayView | undefined; sheet: string; waiting: number; withActs: boolean }) {
   const p = plan?.preview;
   const ot = p && p.ot_raw !== null ? Math.max(p.ot_raw, 0) : null;
   const blocked = plan?.blocking.length ?? 0;
@@ -1066,7 +1100,7 @@ function Preview({ plan, error, onDinner }: { plan: EntryPlan | null; error: str
   const issues = (plan?.issues ?? []).filter((i) => i.rule !== "W10");
   return (
     <div className={`preview${plan ? (blocked ? " bad" : issues.some((i) => i.severity === "WARN") ? " warn" : " good") : ""}`} aria-live="polite">
-      <h3>This worker's day</h3>
+      <h3>{p ? "This worker's day" : "This day so far"}</h3>
       {error && <p className="error-text">{error}</p>}
       {p ? (
         <>
@@ -1092,7 +1126,7 @@ function Preview({ plan, error, onDinner }: { plan: EntryPlan | null; error: str
           {!issues.some((i) => i.severity !== "INFO") && <p className="ok-text small">✓ Looks right. Press Enter to add.</p>}
         </>
       ) : (
-        <p className="muted small">Pick a worker and type Time In and Time Out to see the hours here.</p>
+        <DaySummary day={day} sheet={sheet} waiting={waiting} withActs={withActs} />
       )}
       {plan && <IssueList issues={issues} />}
       {plan?.issues.some((i) => i.rule === "W05") && (

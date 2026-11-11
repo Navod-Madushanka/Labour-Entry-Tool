@@ -823,3 +823,35 @@ details.card > summary .badge { margin-left: 6px; }
 .quick-fix { align-self: center; white-space: nowrap; border-color: currentColor; }
 .checks li.warn .quick-fix { color: var(--warn); }
 .checks li.fail .quick-fix { color: var(--block); }
+
+/* Entry page (design review): one signal per meaning on the day strip, a two-column form,
+   the day so far in the side panel, real key caps. */
+/* day strip: the day you are on = solid orange; has entries = green tint; weekend = coloured
+   number only (no dots, no second fill) */
+.daybar .day { background: var(--panel); border: 1px solid var(--line); color: var(--text); }
+.daybar .day::after { display: none; }
+.daybar .day.sat { background: var(--panel); color: var(--sat); border-color: var(--line); }
+.daybar .day.sun { background: var(--panel); color: var(--sun); border-color: var(--line); }
+.daybar .day.has { background: color-mix(in srgb, var(--ok) 16%, var(--panel)); border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+.daybar .day.active, .daybar .day.active.sat, .daybar .day.active.sun, .daybar .day.active.has { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.day-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.day-legend b { font-weight: 700; }
+.lg-sat { color: var(--sat); }
+.lg-sun { color: var(--sun); }
+.day-legend i.lg-has { background: color-mix(in srgb, var(--ok) 16%, var(--panel)); border: 1px solid color-mix(in srgb, var(--ok) 55%, transparent); }
+.day-legend i.lg-active { background: var(--accent); }
+
+/* form: Time In | Time Out, Activity | Hours, Additional | Remark in two equal columns */
+.entry-main .times { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; align-items: start; }
+.entry-main .times .field input { width: 100%; }
+.entry-main .times > label.check { grid-column: 2; margin-top: -2px; }
+.entry-main table.lines { width: 100%; table-layout: fixed; border-spacing: 0; }
+.entry-main table.lines td, .entry-main table.lines th { width: 50%; padding-right: 16px; }
+.entry-main table.lines td:last-child, .entry-main table.lines th:last-child { padding-right: 0; }
+.entry-main table.lines td input { width: 100% !important; }
+
+/* key caps */
+kbd { display: inline-block; font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; min-width: 1.6em; text-align: center; padding: 0 5px; border-radius: 4px; border: 1px solid var(--field-line); border-bottom-width: 2px; background: var(--row); color: var(--text); opacity: 1; }
+@media (prefers-color-scheme: dark) { kbd { background: #2a2e39; border-color: #3a404d; color: #e8eaee; } }
+.keys kbd { opacity: 1; }
+button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, transparent); border-color: color-mix(in srgb, var(--accent-text) 35%, transparent); color: inherit; }
