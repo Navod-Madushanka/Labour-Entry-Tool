@@ -904,3 +904,17 @@ button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, tran
 .empty-state p { margin: 2px 0 0; font-size: 14px; }
 .batches .batch-id, .batches .batch-what { color: var(--text); font-weight: 700; }
 .batches .batch-meta { color: var(--muted); font-size: 13px; }
+
+/* Medical leave (design review): a short info strip, then three tiers: who and from when, how
+   many days, the times and code */
+.med-intro { margin: 2px 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--info-bg); color: var(--text); font-size: 14px; line-height: 1.45; border-left: 3px solid var(--info); }
+.med-intro code { font-size: 12px; }
+.med-tier { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.med-tier:first-of-type { border-top: none; }
+.med-days-tier .med-days { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 12px; padding: 10px 12px; border-radius: 10px; background: var(--row); border: 1px solid var(--line); width: 100%; }
+.med-days-tier .med-days > label { grid-column: 1 / -1; }
+.med-days-tier .med-days input { width: 8ch; font-size: 16px; }
+.med-days-tier .med-presets { margin: 0; gap: 6px; }
+.med-days-tier .med-presets button { min-width: 3.2em; padding: 3px 8px; }
+.med-days-tier .med-days small { grid-column: 1 / -1; }
+.med-tier .check { align-self: center; margin-bottom: 4px; }

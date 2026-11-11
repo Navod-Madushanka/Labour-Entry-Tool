@@ -1,5 +1,17 @@
 # Changelog
 
+## Medical leave dialog: tiers and a clear button (11 Nov 2026)
+
+Asked for (design review of the Medical leave dialog).
+
+- The intro is a short info strip: "One entry per working day on the worker's medical line …
+  Sundays are skipped; holidays too if you tick it."
+- Three tiers: worker and first day; the days of leave (box, one-click counts and the span
+  under them) in one panel; In, Out, activity and "Skip holidays too".
+- The button says what it will do: "Generate medical leave entries" until there is something to
+  write (never "Write 0 days"), then "Write 14 days of medical leave for INC-08 M" or "Add INC-08
+  M and write 14 days"; larger, solid orange.
+
 ## Manpower help, empty waiting list, batch log (11 Nov 2026)
 
 Asked for (design review of the lower entry page).

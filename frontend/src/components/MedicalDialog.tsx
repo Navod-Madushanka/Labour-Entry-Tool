@@ -102,11 +102,11 @@ export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onCl
             Close
           </button>
         </div>
-        <p className="muted small">
-          The worker gets a medical line <code>&lt;calling name&gt; M</code> (added to Labour Detail if it is new) with one
-          entry per working day. Sundays are skipped.
-        </p>
-        <div className="row">
+        <div className="med-intro">
+          <b>One entry per working day</b> on the worker's medical line (<code>INC-08 M</code>, added to Labour Detail if
+          new). Sundays are skipped; holidays too if you tick it.
+        </div>
+        <div className="med-tier">
           <div className="field">
             <label htmlFor="med-worker">Worker</label>
             <input id="med-worker" list="med-workers" value={base} placeholder="INC-08" autoFocus
@@ -127,6 +127,8 @@ export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onCl
               ))}
             </select>
           </div>
+        </div>
+        <div className="med-tier med-days-tier">
           <div className="field med-days">
             <label htmlFor="med-days">Days of leave</label>
             <input id="med-days" type="number" min={1} max={MAX_DAYS} step={1} value={days} onChange={(e) => setDays(e.target.value)}
@@ -142,6 +144,8 @@ export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onCl
               {daysBad ? `Type a whole number of days, 1 to ${MAX_DAYS}.` : lastDay}
             </small>
           </div>
+        </div>
+        <div className="med-tier">
           <div className="field">
             <label htmlFor="med-in">In</label>
             <input id="med-in" size={6} value={timeIn} onChange={(e) => setTimeIn(e.target.value)}
@@ -235,8 +239,12 @@ export function MedicalDialog({ master, sheet, user, initialWorker, onDone, onCl
           </div>
         )}
         <div className="actions">
-          <button className="primary" disabled={!ready || busy || result?.status === "written"} onClick={write}>
-            {plan?.new_row ? `Add ${plan.name ?? "line"} and write ${plan.plans.length} days` : `Write ${plan?.plans.length ?? 0} days`}
+          <button className="primary big" disabled={!ready || busy || result?.status === "written"} onClick={write}>
+            {!plan || !plan.plans.length
+              ? "Generate medical leave entries"
+              : plan.new_row
+                ? `Add ${plan.name ?? "the medical line"} and write ${plan.plans.length} day${plan.plans.length === 1 ? "" : "s"}`
+                : `Write ${plan.plans.length} day${plan.plans.length === 1 ? "" : "s"} of medical leave for ${plan.name}`}
           </button>
           {plan && !ready && plan.plans.some((p) => p.unconfirmed.length) && (
             <span className="warn-text small">Tick the warnings to confirm them.</span>
