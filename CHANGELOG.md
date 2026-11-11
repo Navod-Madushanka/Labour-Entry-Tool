@@ -1,5 +1,16 @@
 # Changelog
 
+## Suggested workers in rows by trade (11 Nov 2026)
+
+Asked for: the suggestion box is hard to read; put the suggested workers in rows by trade
+(Barbenders in one row, Carpenters in another).
+
+- "Same entry also for": the usual-crew suggestions ("Usually on the same record") and the search
+  results ("Found:") are in rows by trade, labelled (BARBENDER, CARPENTER …), the trade of the
+  worker being entered first, then the biggest groups. Each suggested row has "add these N";
+  "add all" adds every suggestion. The trade is the one from the calling name's letter (else
+  Labour Detail's column). The arrow keys go through the found workers in the order shown.
+
 ## Trade from the calling name's letter, Labour Detail's column as the fallback (11 Nov 2026)
 
 Asked for: take the trade from the last letter of the calling name (INR-01 is a Rigger, ADB-100

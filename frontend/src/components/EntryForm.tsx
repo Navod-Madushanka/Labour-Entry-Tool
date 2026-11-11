@@ -868,7 +868,10 @@ function AlsoFor({
   const [editing, setEditing] = useState<string | null>(null); // whose own times are open
   const [hi, setHi] = useState(0);
   const taken = new Set([main.calling_name, ...also.map((w) => w.calling_name)]);
-  const options = q.trim() ? searchWorkers(workers, q, 40).filter((w) => !taken.has(w.calling_name)).slice(0, 12) : [];
+  const found = q.trim() ? searchWorkers(workers, q, 40).filter((w) => !taken.has(w.calling_name)).slice(0, 12) : [];
+  // shown in rows by trade: the arrows go through them in the order shown
+  const foundRows = byTrade(found, (w) => w, main);
+  const options = foundRows.flatMap(([, list]) => list);
   const crews = Object.entries(loadCrews()).filter(([, names]) => names.length);
   // Workers who usually share this record: not yet entered or waiting for this day.
   const byName = new Map(workers.map((w) => [w.calling_name, w]));
@@ -975,32 +978,58 @@ function AlsoFor({
         {q.trim() ? (
           <>
             <span className="also-label">{options.length ? "Found:" : "No other worker matches."}</span>
-            {options.map((w, i) => (
-              <button
-                key={w.row}
-                className={`mate${i === hi ? " active" : ""}`}
-                title={`${String(w.name ?? "")}${entered(w.calling_name) ? " · already entered for this day" : ""}`}
-                onMouseDown={(e) => e.preventDefault()} // keep typing in the search box
-                onClick={() => add([w], true)}
-              >
-                + {w.calling_name} <span className="muted small">{String(w.name ?? "")}</span>
-                {entered(w.calling_name) && <span className="badge small">entered</span>}
-              </button>
+            {foundRows.map(([trade, list]) => (
+              <div key={trade} className="mate-row" role="group" aria-label={`Found: ${trade}`}>
+                <span className="mate-trade">{trade}</span>
+                <span className="mate-list">
+                {list.map((w) => {
+                  const i = options.indexOf(w);
+                  return (
+                    <button
+                      key={w.row}
+                      className={`mate${i === hi ? " active" : ""}`}
+                      title={`${String(w.name ?? "")}${entered(w.calling_name) ? " · already entered for this day" : ""}`}
+                      onMouseDown={(e) => e.preventDefault()} // keep typing in the search box
+                      onClick={() => add([w], true)}
+                    >
+                      + {w.calling_name} <span className="muted small">{String(w.name ?? "")}</span>
+                      {entered(w.calling_name) && <span className="badge small">entered</span>}
+                    </button>
+                  );
+                })}
+                </span>
+              </div>
             ))}
           </>
         ) : suggested.length > 0 ? (
           <>
-            <span className="also-label">Usually on the same record (last 10 days):</span>
-            {suggested.map((c) => (
-              <button key={c.name} className="mate" title={`${String(byName.get(c.name)?.name ?? "")} · same entry on ${c.days} of the last 10 days`} onClick={() => add([byName.get(c.name)!])}>
-                + {c.name} <span className="muted small">{c.days}/10</span>
-              </button>
+            <span className="also-label">
+              Usually on the same record (last 10 days):
+              {suggested.length > 1 && (
+                <button className="link small" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
+                  add all {suggested.length}
+                </button>
+              )}
+            </span>
+            {byTrade(suggested, (c) => byName.get(c.name)!, main).map(([trade, list]) => (
+              <div key={trade} className="mate-row" role="group" aria-label={`Suggested: ${trade}`}>
+                <span className="mate-trade">
+                  {trade} <span className="muted small">({list.length})</span>
+                </span>
+                <span className="mate-list">
+                {list.map((c) => (
+                  <button key={c.name} className="mate" title={`${String(byName.get(c.name)?.name ?? "")} · same entry on ${c.days} of the last 10 days`} onClick={() => add([byName.get(c.name)!])}>
+                    + {c.name} <span className="muted small">{c.days}/10</span>
+                  </button>
+                ))}
+                {list.length > 1 && (
+                  <button className="link small" onClick={() => add(list.map((c) => byName.get(c.name)!))}>
+                    add these {list.length}
+                  </button>
+                )}
+                </span>
+              </div>
             ))}
-            {suggested.length > 1 && (
-              <button className="link small" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
-                add all {suggested.length}
-              </button>
-            )}
           </>
         ) : (
           <span className="muted small">Type a calling name or a name to add another worker with the same entry.</span>
@@ -1013,6 +1042,19 @@ function AlsoFor({
       ))}
     </div>
   );
+}
+
+/** Workers in rows by trade (from the calling name's letter, else Labour Detail): the main
+ * worker's trade first, then the biggest groups; the order inside a row is kept. */
+function byTrade<T>(items: T[], worker: (x: T) => Worker, main: Worker): [string, T[]][] {
+  const tradeOf = (w: Worker) => String(w.trade_group ?? "").trim() || "Other";
+  const rows = new Map<string, T[]>();
+  for (const x of items) {
+    const t = tradeOf(worker(x));
+    rows.set(t, [...(rows.get(t) ?? []), x]);
+  }
+  const own = tradeOf(main);
+  return [...rows].sort((a, b) => Number(b[0] === own) - Number(a[0] === own) || b[1].length - a[1].length || a[0].localeCompare(b[0]));
 }
 
 /** "= 9" under a box while an Excel-style sum is typed in it ("= 07:30" for a time). */

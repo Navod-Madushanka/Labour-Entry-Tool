@@ -753,3 +753,9 @@ details.card > summary .badge { margin-left: 6px; }
 .trade-table { width: auto; }
 .trade-table input { width: 9ch; }
 .trade-table td:nth-child(2) input { width: 26ch; }
+/* "Same entry also for": suggested and found workers in rows by trade */
+.mate-row { display: grid; grid-template-columns: 14ch 1fr; align-items: start; gap: 8px; width: 100%; padding: 4px 0; border-top: 1px dashed var(--line); }
+.mate-list { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.mate-trade { padding-top: 6px; }
+.mate-row:first-of-type { border-top: none; }
+.mate-trade { min-width: 13ch; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
