@@ -164,7 +164,7 @@ def test_upload_real_workbook(app):
         report = c.post("/api/setup/check").json()
         assert report["stats"]["workers"] > 100
         ready = c.get("/api/setup/readiness").json()
-        assert {x["id"] for x in ready["checks"]} >= {"workbook", "headers", "daybuilder"}
+        assert {x["id"] for x in ready["checks"]} >= {"workbook", "headers", "backups"}
 
 
 def test_start_page_does_not_wait_forever_for_excel(app, monkeypatch):

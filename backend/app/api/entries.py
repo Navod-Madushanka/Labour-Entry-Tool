@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.audit.store import Batch
-from app.domain.daybuilder import DayBuild
 from app.domain.writes import EntryInput, EntryPlan
 from app.excel.adapter import NotConnectedError, WorkbookError
 from app.service import (
@@ -130,12 +129,6 @@ async def previous_month(request: Request) -> PreviousMonth:
     prev = await run_service(request, lambda s: s.previous_source())
     await run_in_threadpool(service.load_previous, prev)
     return service.previous_month_view()
-
-
-@router.get("/days/{sheet}/build", response_model=DayBuild)
-async def day_build(sheet: str, request: Request, window: int = 3) -> DayBuild:
-    """Crews for an empty sheet from each worker's last entry (up to ``window`` days back)."""
-    return await run_service(request, lambda s: s.day_build(sheet, min(max(window, 1), 7)))
 
 
 @router.post("/days/{sheet}/header-fix", response_model=HeaderFixResult)

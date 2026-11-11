@@ -37,7 +37,7 @@ answers and can load Excel's COM parts, and zips it. Tag `v1.0.0` (etc.) to publ
      employee codes** in the registration files you drop on it. The rest it lists by sheet and
      cell, to fix in Excel and press *Check again*;
    - then it checks what the automation needs (workers, activity list, medical code, formulas
-     agreeing with Excel, "start day from previous days", backup folder) and says **Ready**.
+     agreeing with Excel, backup folder) and says **Ready**.
      *Start entering data* opens the entry screen at the next day to enter.
 
 Tick **Practice mode** to try everything on a copy in memory: Excel and the file are not changed.
@@ -195,16 +195,6 @@ and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** 
 October's data is very repetitive: 84% of a day's workers also worked the day before, 82% of
 entries are identical to at least 5 others that day (crews), crews change together (Out and/or
 activity; In is 07:00 in 99% of entries), and 100% of entries book all effective hours.
-
-**Start day from previous days…** builds the whole sheet: each worker's last entry (up to 3 days
-back), grouped into crews. Untick who is absent, change a crew's times or activity once for all its
-members, and split off (⤴) anyone who did something else; then **Add to the queue** and write as
-usual. Workers from the last 2 days start ticked; on a Sunday, last Sunday's workers are ticked
-and crews get the usual Sunday shift (07:00–16:00 in October).
-
-Replayed on October: 98% of each day's workers are proposed (about 3 a day to type new) and 78%
-of the attendance ticks are right by default. Roughly 165 small actions a day replace about 845
-typed fields.
 
 In the queue, **Confirm a warning for every entry that has it** (e.g. `W01 × 8`) replaces ticking
 the same warning over and over.

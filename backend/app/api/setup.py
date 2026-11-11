@@ -46,7 +46,6 @@ from app.setup import (
     Readiness,
     guess_month,
     month_from_name,
-    next_sheet,
     readiness,
     uses_activity_codes,
 )
@@ -628,13 +627,6 @@ async def get_readiness(request: Request) -> Readiness:
             days=[service.day(s) for s in service.workbook.day_sheet_names()],
         )
         config = service.config
-        crews = None
-        if (start := next_sheet(snap)) is not None and start.isdigit():
-            try:
-                build = service.day_build(start)
-                crews = (build.candidates, len(build.crews))
-            except (KeyError, ValueError):
-                pass
         out = readiness(
             snap,
             config.month_start,
@@ -642,7 +634,6 @@ async def get_readiness(request: Request) -> Readiness:
             config.template,
             service.mode,
             service.backups.directory,
-            crews,
             check_activities=config.check_activities,
         )
         if not session.book.month_confirmed:

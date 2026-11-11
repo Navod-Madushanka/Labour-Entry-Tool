@@ -113,7 +113,6 @@ def readiness(
     template,
     mode: str,
     backup_dir: Path,
-    crews: tuple[int, int] | None = None,  # (workers, crews) the day builder proposes
     check_activities: bool = True,
 ) -> Readiness:
     checks: list[Check] = []
@@ -222,20 +221,6 @@ def readiness(
         )
 
     start = next_sheet(snapshot)
-    if crews and crews[0]:
-        add(
-            "daybuilder",
-            "ok",
-            "Start day from previous days",
-            f"Ready for sheet {start}: {crews[0]} workers in {crews[1]} crews from the last days.",
-        )
-    else:
-        add(
-            "daybuilder",
-            "ok",
-            "Start day from previous days",
-            "Nothing to copy yet; it works once earlier days have entries.",
-        )
 
     ok = writable_dir(backup_dir)
     add(

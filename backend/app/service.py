@@ -32,7 +32,6 @@ from app.domain.codes import (
     trade_from_name,
 )
 from app.domain.crosscheck import add_cross_entry_issues
-from app.domain.daybuilder import DEFAULT_WINDOW, DayBuild, build_day
 from app.domain.medical import (
     DEFAULT_ACTIVITY,
     DEFAULT_DAYS,
@@ -944,21 +943,6 @@ class EntryService:
                          for e in d.entries],
             ) for d in days},
         )  # fmt: skip
-
-    # --- day builder: start a sheet from the previous days (crews of identical entries) ---
-
-    def day_build(self, sheet: str, window: int = DEFAULT_WINDOW) -> DayBuild:
-        target = self.day(sheet)
-        names = set(self.workbook.day_sheet_names())
-        if not sheet.isdigit():
-            raise KeyError(f"sheet {sheet!r} is not a day number")
-        n = int(sheet)
-        # the window plus the Sundays/holidays in it, and the last two weeks for the last Sunday
-        wanted = {str(n - g) for g in range(1, 15)}
-        days = {s: self.day(s) for s in sorted(wanted & names, key=int)}
-        if n <= 14:  # the previous month's last days as sheets 0, -1, …
-            days.update({d.header.sheet: d for d in self.previous_month_days()})
-        return build_day(target, days, window)
 
     # --- medical leave (office practice): a "<base> M" line with N days, Sundays skipped ---
 

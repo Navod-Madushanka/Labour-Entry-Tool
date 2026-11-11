@@ -7,7 +7,6 @@ import datetime as dt
 
 from app.carryover import kind_of, month_of, previous_days, previous_workbook
 from app.config import TemplateConfig
-from app.domain.daybuilder import build_day
 from app.domain.models import DayHeader, DaySheet, MasterData, SnapshotMeta, WorkbookSnapshot
 from app.excel.fake_adapter import save_snapshot
 from tests.conftest import make_entry
@@ -62,15 +61,3 @@ def test_previous_file_and_last_days(tmp_path):
     assert [d.header.sheet for d in days] == ["0", "-1", "-2"]  # 29, 28, 26 (27 had nobody)
     assert [d.header.date.day for d in days] == [29, 28, 26]
     assert all(e.sheet == d.header.sheet for d in days for e in d.entries)
-
-
-def test_day_builder_on_the_first_uses_the_previous_month(tmp_path):
-    sep = save_snapshot(
-        snap(9, [29, 30]), tmp_path / "Labour Entry Sheet September 2026 - INDIAN.json"
-    )
-    prev = {d.header.sheet: d for d in previous_days(sep, TemplateConfig())}
-    first = snap(10, [])
-    b = build_day(first.days[0], prev)
-    assert [(m.calling_name, m.ticked, m.from_sheet) for c in b.crews for m in c.members] == [
-        ("A-01", True, "0")
-    ]

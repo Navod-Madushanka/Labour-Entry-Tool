@@ -36,7 +36,6 @@ interface Props {
   queued: Set<string>; // workers waiting to go to Excel for this sheet
   queuedToday: TodayEntry[]; // those entries, for the code suggestions
   onMedical: () => void;
-  onBuild: () => void;
   focusToken: number; // changes when the worker field should take focus
   dialogOpen: boolean; // never steal focus from a dialog
 }
@@ -50,7 +49,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function EntryForm(props: Props) {
-  const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onMedical, onBuild } = props;
+  const { master, sheet, day, month, form, setForm, headerAcks, activityOrder, onQueue, onMedical } = props;
   const withActs = master.check_activities; // off: a workbook kept without activity codes
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -311,9 +310,6 @@ export function EntryForm(props: Props) {
             </span>
           </h2>
           <div className="tools" role="group" aria-label="Quick fill">
-            <button onClick={onBuild} title="Fill today from the workers' last days">
-              ⟲ Start day from previous days
-            </button>
             {withActs && (
               <button onClick={onMedical} title="10 days of medical leave">
                 ✚ Medical leave

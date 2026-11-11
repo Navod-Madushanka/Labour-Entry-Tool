@@ -15,7 +15,6 @@ way the paper sheet is typed). Measured per book:
 - worker search: keys typed until the worker is first in the list; the empty-box list
 - "same entry also for" chips: how many shown, how many right
 - crew mismatch warning: how often it would fire
-- day builder: ticks right, workers carried exactly right, crew fields to edit per day
 
 Real workbooks and everything derived from them stay in fixtures/private (git-ignored); only this
 script is committed. The browser code is measured as it ships (frontend/src, bundled by esbuild).
@@ -28,7 +27,6 @@ import datetime as dt
 import json
 import subprocess
 import sys
-from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,8 +34,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from app.carryover import kind_of, month_of  # noqa: E402
 from app.config import load_config  # noqa: E402
-from app.domain.codes import employee_code_status, normalise_activity, person_key  # noqa: E402
-from app.domain.daybuilder import build_day  # noqa: E402
+from app.domain.codes import employee_code_status, person_key  # noqa: E402
 from app.domain.rules import compute_entry  # noqa: E402
 from app.domain.validators import calendar_day_type, intended_date  # noqa: E402
 from app.excel.fake_adapter import load_snapshot, save_snapshot  # noqa: E402
@@ -109,72 +106,15 @@ def month_json(xlsb: Path, snap) -> dict:
     }  # fmt: skip
 
 
-def day_builder_metrics(snap, prev=None) -> dict:
-    """Build each sheet from the days before it (the real sheet emptied) and compare."""
-    days = {d.header.sheet: d for d in snap.days}
-    if prev is not None:  # previous month's last week as sheets 0, -1, -2, …
-        last = sorted((d for d in prev.days if d.entries), key=lambda d: int(d.header.sheet))[-7:]
-        for i, d in enumerate(reversed(last)):
-            days[str(-i)] = d.model_copy(
-                update={"header": d.header.model_copy(update={"sheet": str(-i)})}
-            )
-    tot = Counter()
-    for sheet in sorted((d for d in snap.days if d.entries), key=lambda d: int(d.header.sheet)):
-        n = int(sheet.header.sheet)
-        if n < 1:
-            continue
-        target = sheet.model_copy(deep=True)
-        real = {e.calling_name: e for e in target.entries if e.calling_name}
-        target.entries = []
-        b = build_day(target, days)
-        tot["days"] += 1
-        proposed = {}
-        for c in b.crews:
-            for mbr in c.members:
-                proposed[mbr.calling_name] = (c, mbr)
-        for name, (c, mbr) in proposed.items():
-            came = name in real
-            tot["ticks"] += 1
-            tot["tick_right"] += mbr.ticked == came
-            tot["tick_wrong"] += mbr.ticked != came
-            if mbr.ticked and came:
-                e = real[name]
-                acts = tuple((normalise_activity(a.code), a.hours) for a in e.activities if a.code)
-                carried = tuple((a.code, a.hours) for a in c.activities)
-                same_times = (c.time_in, c.time_out) == (e.time_in, e.time_out)
-                same_codes = tuple(a for a, _ in acts) == tuple(a for a, _ in carried)
-                tot["kept"] += 1
-                tot["exact"] += same_times and same_codes
-                tot["edit_times"] += not same_times
-                tot["edit_codes"] += not same_codes
-                tot["edit_workers"] += not (same_times and same_codes)
-        tot["to_type"] += len(set(real) - {n for n, (_, m) in proposed.items() if m.ticked})
-        tot["entries"] += len(real)
-    d = max(tot["days"], 1)
-    return {
-        "builder.ticks_right": pct(tot["tick_right"], tot["ticks"]),
-        "builder.carried_exact": pct(tot["exact"], tot["kept"]),
-        "builder.edit_times_per_day": round(tot["edit_times"] / d, 1),
-        "builder.edit_codes_per_day": round(tot["edit_codes"] / d, 1),
-        "builder.to_type_per_day": round(tot["to_type"] / d, 1),
-        # what the user does to finish the day: fix wrong ticks, edit carried workers, type the rest
-        "builder.actions_per_day": round(
-            (tot["tick_wrong"] + tot["edit_workers"] + tot["to_type"]) / d, 1
-        ),
-        "builder.days": tot["days"],
-    }
-
-
 def pct(a: int, b: int) -> float | None:
     return round(100 * a / b, 1) if b else None
 
 
 # Metrics where lower is better (the rest: higher is better). INFO: counts and trade-off parts
-# that are not judged on their own (the day builder is judged by its actions per day; how often a
-# code fills the box is a choice, judged by how often a fill is wrong).
-LOWER = {"builder.actions_per_day", "search.keys", "mismatch.fires", "codes.prefill_wrong"}
-INFO = {"builder.days", "codes.n", "times.n", "chips.entries", "record.n", "chips.shown",
-        "builder.edit_times_per_day", "builder.edit_codes_per_day", "builder.to_type_per_day",
+# that are not judged on their own (how often a code fills the box is a choice, judged by how
+# often a fill is wrong).
+LOWER = {"search.keys", "mismatch.fires", "codes.prefill_wrong"}
+INFO = {"codes.n", "times.n", "chips.entries", "record.n", "chips.shown",
         "codes.prefill_rate", "codes.prefill_right", "carry.used", "mismatch.catches"}  # fmt: skip
 
 
@@ -232,19 +172,6 @@ def main(argv=None) -> int:
         print(node.stdout, node.stderr)
         return 2
     results: dict[str, dict] = json.loads(node.stdout)
-
-    # Day builder (server side), with the previous month of the same kind when it is there.
-    by_kind: dict[str, list[Path]] = {}
-    for b in books:
-        by_kind.setdefault(kind_of(b.name), []).append(b)
-    for b, snap in snaps.items():
-        same = [
-            x
-            for x in by_kind[kind_of(b.name)]
-            if month_of(x.name) and month_of(b.name) and month_of(x.name) < month_of(b.name)
-        ]
-        prev = snaps[max(same, key=lambda x: month_of(x.name))] if same else None
-        results.setdefault(b.name, {}).update(day_builder_metrics(snap, prev))
 
     if args.json:  # numbers only, no baseline check (for experiments)
         print(json.dumps(results, indent=1))

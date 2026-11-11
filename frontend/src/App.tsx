@@ -16,7 +16,6 @@ import { SupervisorDialog } from "./components/SupervisorDialog";
 import { TradeLettersEditor } from "./components/TradeLettersEditor";
 import { Supervisors } from "./components/Supervisors";
 import { MedicalDialog } from "./components/MedicalDialog";
-import { DayBuilder } from "./components/DayBuilder";
 import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
@@ -66,7 +65,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [medicalOpen, setMedicalOpen] = useState(false);
-  const [builderOpen, setBuilderOpen] = useState(false);
   const pageOf = (hash: string) =>
     hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : hash === "#analysis" ? "analysis" : hash === "#supervisors" ? "supervisors" : "entry";
   const [page, setPage] = useState<"entry" | "codes" | "cards" | "analysis" | "supervisors">(() => pageOf(window.location.hash));
@@ -677,9 +675,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               queued={new Set(queue.filter((q) => q.input.sheet === sheet).map((q) => q.input.calling_name))}
               queuedToday={queuedToday}
               onMedical={() => setMedicalOpen(true)}
-              onBuild={() => setBuilderOpen(true)}
               focusToken={focusToken}
-              dialogOpen={askName || medicalOpen || builderOpen}
+              dialogOpen={askName || medicalOpen}
             />
             <ManpowerSheet
               items={queue}
@@ -758,16 +755,6 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               onClear={(v) => v.entry.calling_name && addToQueue([clearInput(sheet, v.entry.calling_name)])}
             />
             <Batches batches={batches} busy={busy} onUndo={undo} />
-            {builderOpen && (
-              <DayBuilder
-                sheet={sheet}
-                onQueue={(entries) => {
-                  addToQueue(entries);
-                  setBuilderOpen(false);
-                }}
-                onClose={() => setBuilderOpen(false)}
-              />
-            )}
             {medicalOpen && (
               <MedicalDialog
                 master={master}

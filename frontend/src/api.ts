@@ -285,22 +285,6 @@ export interface MedicalResult {
   error: string | null;
 }
 
-export interface DayBuild {
-  sheet: string;
-  day_type: string | null;
-  window: number;
-  sunday_shift: [number, number] | null;
-  crews: {
-    time_in: number;
-    time_out: number;
-    activities: { code: string; hours: number | null }[];
-    members: { calling_name: string; from_sheet: string; ticked: boolean }[];
-  }[];
-  already_entered: number;
-  candidates: number;
-  ticked: number;
-}
-
 export interface BookInfo {
   name: string;
   mode: "live" | "demo";
@@ -553,8 +537,6 @@ export const api = {
   medicalPreview: (req: MedicalRequest) => call<MedicalPlan>("POST", "/api/medical/preview", req),
   medical: (req: MedicalRequest, user: string) =>
     call<MedicalResult>("POST", "/api/medical", { ...req, user, approve: true }),
-  dayBuild: (sheet: string, window = 3) =>
-    call<DayBuild>("GET", `/api/days/${encodeURIComponent(sheet)}/build?window=${window}`),
   rules: () => call<Record<string, { severity: Severity; title: string }>>("GET", "/api/rules"),
   registration: () => call<RegistrationReport>("GET", "/api/registration"),
   codes: () => call<CodesResponse>("GET", "/api/codes"),

@@ -1,5 +1,15 @@
 # Changelog
 
+## "Start day from previous days" removed (11 Nov 2026)
+
+Asked for: remove "⟲ Start day from previous days".
+
+- Removed: the button and its dialog (a whole sheet proposed from the workers' last days, in
+  crews to tick), the `/api/days/{sheet}/build` endpoint, `app/domain/daybuilder.py` and its
+  tests, the start page's "Start day from previous days" readiness line, and the day-builder
+  numbers in `scripts/replay.py`. Nothing else used them.
+- The previous month's last days are still read for the suggestions on the 1st (carry-over).
+
 ## Crew entry removed (11 Nov 2026)
 
 Asked for: remove the crew feature; it has never been used.
