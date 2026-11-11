@@ -1,5 +1,17 @@
 # Changelog
 
+## Ready list: warnings stand out and have a quick fix (11 Nov 2026)
+
+Asked for (a design review of the Ready step): a warning among the green ticks is read past;
+there is no way to fix it from there.
+
+- A row with a warning (amber) or a failure (red) is tinted, with a coloured edge and a frame,
+  and its text is brighter, so it stands out from the green ticks.
+- Its button goes straight to the fix: **Fix codes** (the employee-code card, where the
+  registration files fill them in), **Fix sheets** (dates and day types), **See them** (Excel's
+  formulas disagreeing), **Set the month**. Back on Check and fix the page scrolls to that card;
+  nothing is read again.
+
 ## Check and fix: colour by severity, structured rows, buttons in reach (11 Nov 2026)
 
 Asked for (a design review of the check page): real errors must stand out from notes; the

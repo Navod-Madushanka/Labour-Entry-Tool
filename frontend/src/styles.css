@@ -810,3 +810,16 @@ details.card > summary .badge { margin-left: 6px; }
 /* Check again / Continue stay in reach while the lists are long */
 .sticky-actions { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 8px; margin: 0 -8px 16px; padding: 10px 8px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(6px); border-top: 1px solid var(--line); }
 .sticky-summary { margin-right: auto; }
+
+/* Ready list: a warning or a failure is its own tinted row, so it is not read past among the
+   green ticks; the button in it goes to the fix */
+.checks li { align-items: flex-start; }
+.checks li .check-text { flex: 1; }
+.checks li.warn, .checks li.fail { margin: 4px 0; padding: 10px 12px; border-radius: 8px; border-top-color: transparent; }
+.checks li.warn { background: color-mix(in srgb, var(--warn) 9%, var(--panel)); box-shadow: inset 4px 0 0 var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+.checks li.fail { background: color-mix(in srgb, var(--block) 9%, var(--panel)); box-shadow: inset 4px 0 0 var(--block); border: 1px solid color-mix(in srgb, var(--block) 45%, transparent); }
+.checks li.warn .muted, .checks li.fail .muted { color: var(--text); opacity: 0.85; }
+.checks li + li.warn, .checks li + li.fail, .checks li.warn + li, .checks li.fail + li { border-top-color: transparent; }
+.quick-fix { align-self: center; white-space: nowrap; border-color: currentColor; }
+.checks li.warn .quick-fix { color: var(--warn); }
+.checks li.fail .quick-fix { color: var(--block); }

@@ -219,6 +219,19 @@ export function StartPage({
     onDone(s);
   };
 
+  // A warning on the Ready list: back to the card that fixes it (the report is kept, nothing is
+  // read again), or the month question.
+  const goFix = (id: string) => {
+    if (id === "month") {
+      setMonthOpen(true);
+      setStep("check");
+      return;
+    }
+    setStep("check");
+    const target = { codes: "fix-codes", headers: "fix-sheets", formulas: "fix-excel" }[id];
+    if (target) setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
+
   return (
     <main className="start">
       <header className="start-head">
@@ -425,15 +438,23 @@ export function StartPage({
         <section className="card">
           <h2>{ready.ready ? "Ready to enter data" : "Not ready yet"}</h2>
           <ul className="checks">
-            {ready.checks.map((c) => (
-              <li key={c.id} className={c.status}>
-                <span className="icon">{ICON[c.status]}</span>
-                <div>
-                  <b>{c.title}</b>
-                  <div className="muted">{c.detail}</div>
-                </div>
-              </li>
-            ))}
+            {ready.checks.map((c) => {
+              const fix = c.status !== "ok" ? QUICK_FIX[c.id] : undefined;
+              return (
+                <li key={c.id} className={c.status}>
+                  <span className="icon">{ICON[c.status]}</span>
+                  <div className="check-text">
+                    <b>{c.title}</b>
+                    <div className="muted">{c.detail}</div>
+                  </div>
+                  {fix && (
+                    <button className="small quick-fix" onClick={() => goFix(c.id)}>
+                      {fix}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           {ready.ready ? (
             <div className="go">
@@ -785,7 +806,7 @@ function CheckStep({
       )}
 
       {bySheet.length > 0 && (
-        <section className="card sev-block">
+        <section className="card sev-block" id="fix-sheets">
           <div className="section-head">
             <h2>Sheet dates and day types: the tool can fix these</h2>
             <button
@@ -906,7 +927,7 @@ function ExcelIssues({
   mode: SetupState["mode"];
 }) {
   return (
-    <section className="card sev-block">
+    <section className="card sev-block" id="fix-excel">
       <h2>
         <span className="sev-badge BLOCK">Error</span> Mistakes to correct in Excel
       </h2>
@@ -1053,7 +1074,7 @@ function CodeFixer({
   };
 
   return (
-    <section className="card">
+    <section className="card" id="fix-codes">
       <h2>Employee codes</h2>
       <p>
         {workers > 0
@@ -1237,4 +1258,12 @@ function FileIcon({ big = false }: { big?: boolean }) {
     </svg>
   );
 }
+
+/** Ready list: the warnings that have a fix on the Check and fix step. */
+const QUICK_FIX: Record<string, string> = {
+  codes: "Fix codes",
+  headers: "Fix sheets",
+  formulas: "See them",
+  month: "Set the month",
+};
 
