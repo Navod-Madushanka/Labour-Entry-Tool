@@ -1,5 +1,15 @@
 # Changelog
 
+## Worker list and scrollbars (11 Nov 2026)
+
+Asked for (design review): the worker list ran onto the Add worker button; scrollbars too dark
+to see.
+
+- The worker list is at most 300 px or a third of the window high (whichever is smaller), so
+  on a zoomed or small screen it ends above the buttons; it has a clear edge and a deeper shadow,
+  and the buttons have more room above them.
+- Scrollbars: thin, with a lighter thumb (#3A3F4C in dark) that brightens on hover.
+
 ## Entry page with a worker picked: clearer who, cleaner suggestions, codes by the box (11 Nov 2026)
 
 Asked for (a design review of the entry page with a worker picked).

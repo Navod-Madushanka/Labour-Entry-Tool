@@ -873,3 +873,21 @@ button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, tran
 
 /* the suggested codes right under the activity boxes, where the eye already is */
 .entry-main .code-chips { margin-top: 8px; }
+
+/* the worker list floats over the form: shorter on small or zoomed screens, so it ends above the
+   Add worker button, with a clear edge and shadow; the buttons get room above them */
+.worker-field .dropdown { max-height: min(300px, 34vh); border-color: var(--field-line); box-shadow: 0 10px 28px #0000004d, 0 0 0 1px var(--line); }
+@media (prefers-color-scheme: dark) { .worker-field .dropdown { background: #1f232c; box-shadow: 0 12px 32px #000000a6, 0 0 0 1px #2a2e39; } }
+.entry-main > .actions { margin-top: 22px; }
+
+/* scrollbars you can see: a lighter thumb, brighter on hover */
+* { scrollbar-width: thin; scrollbar-color: #c3bcae transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c3bcae; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #a39b8c; background-clip: padding-box; border: 2px solid transparent; }
+@media (prefers-color-scheme: dark) {
+  * { scrollbar-color: #3a3f4c transparent; }
+  ::-webkit-scrollbar-thumb { background: #3a3f4c; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #565d6e; background-clip: padding-box; }
+}
