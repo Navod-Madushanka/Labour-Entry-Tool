@@ -1,5 +1,22 @@
 # Changelog
 
+## Start page: clearer first step, crisper dark theme (11 Nov 2026)
+
+Asked for (a design review of the start page): more contrast between page, card, fields and the
+drop zone; a stronger title and readable helper text; one clear way in instead of two
+competing ones.
+
+- A workbook already open in Excel shows first, as a "Detected in Excel" card with its name and
+  a **Use this workbook** button; "or open another workbook" and the drop zone come below it.
+  With nothing detected the drop zone is the main way in (its Browse… is the main button).
+- The drop zone has a file icon, a visible dashed edge, a glow on hover, and the whole zone opens
+  the file choice (click, Enter or Space).
+- Title bigger and bolder with room around it; the steps sit under it. Helper text 14 px in a
+  readable grey instead of small dim text; the practice-mode line larger.
+- Dark theme (every page): page #121417, cards #1A1D24 with a #2A2E39 edge, input boxes sunk
+  into the card with a crisp edge, orange #FF7A00, secondary text #9CA3AF. The light theme keeps
+  its look.
+
 ## Supervisors: the last three on top, everyone else A–Z (11 Nov 2026)
 
 Asked for: with many supervisors they are hard to find; put them in alphabetical order with the

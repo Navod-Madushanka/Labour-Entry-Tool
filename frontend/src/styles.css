@@ -25,6 +25,8 @@
   --sun: #b91c1c;
   --sun-bg: #fde4e4;
   --row: #faf8f4;
+  --field: #ffffff; /* input boxes */
+  --field-line: #d9d3c7;
   --shadow: 0 1px 2px #1d233014, 0 2px 8px #1d23300d;
   --focus: #e8590c40;
   --c1: #2f6fb3;
@@ -38,13 +40,15 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #13161b;
-    --panel: #1b2028;
+    --bg: #121417; /* the page */
+    --panel: #1a1d24; /* cards, lifted off the page */
     --text: #e8eaee;
-    --muted: #9aa1ad;
-    --line: #2e3440;
-    --accent: #fb8c3c;
-    --accent-hover: #fda466;
+    --muted: #9ca3af;
+    --line: #2a2e39;
+    --field: #121417; /* input boxes: sunk into the card, crisp edge */
+    --field-line: #3a404d;
+    --accent: #ff7a00;
+    --accent-hover: #ff9533;
     --accent-text: #1a1206;
     --brand: #0c1016;
     --brand-2: #1a222d;
@@ -95,8 +99,8 @@ kbd { font: 11px ui-monospace, monospace; border: 1px solid currentColor; border
 
 input, select, button { font: inherit; color: inherit; }
 input, select {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--field);
+  border: 1px solid var(--field-line);
   border-radius: 6px;
   padding: 6px 8px;
   min-width: 0;
@@ -260,17 +264,33 @@ details > summary { padding: 8px 10px; cursor: pointer; }
 
 /* Start page: choose the workbook, check and fix, ready */
 main.start { max-width: 860px; }
-.start-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 8px 0 12px; }
-.start-head h1 { font-size: 20px; margin: 0; }
+.start-head { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: 18px 0 20px; }
+.start-head h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; margin: 0; }
 .steps { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
-.steps li { padding: 3px 10px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); font-size: 13px; }
+.steps li { padding: 3px 10px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); font-size: 13px; font-weight: 500; }
 .steps li.active { color: var(--accent-text); background: var(--accent); border-color: var(--accent); }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 0 0 12px; }
 .chosen { margin: 0 0 12px; }
 .block { display: block; }
 .busy { color: var(--muted); font-style: italic; }
 .name-field { max-width: 320px; margin-bottom: 12px; }
-.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px; text-align: center; background: var(--row); }
+.drop { border: 2px dashed var(--field-line); border-radius: 12px; padding: 28px 16px; text-align: center; background: var(--row); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s; }
+.drop:not(.disabled):hover, .drop:not(.disabled):focus-visible { border-color: var(--accent); box-shadow: 0 0 0 4px var(--focus); outline: none; }
+.drop.disabled { cursor: default; }
+.file-icon { color: var(--muted); flex: none; }
+.file-icon.big { color: var(--accent); margin-bottom: 6px; }
+
+/* a workbook already open in Excel: the first, one-click way in */
+.detected { border: 1px solid var(--accent); border-radius: 12px; padding: 14px 16px; background: color-mix(in srgb, var(--accent) 7%, var(--panel)); }
+.detected-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+.detected-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 30%, transparent); }
+.detected-book { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 6px 0; }
+.detected-book + .detected-book { border-top: 1px solid var(--line); }
+.detected-name { flex: 1 1 260px; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.detected-note { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+.or-line { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted); font-size: 13px; }
+.or-line::before, .or-line::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.helper { font-size: 14px; line-height: 1.5; color: var(--muted); margin: 6px 0 0; }
 .drop.over { border-color: var(--accent); background: var(--info-bg); }
 .drop.disabled { opacity: 0.6; }
 .drop p { margin: 4px 0; }
@@ -278,7 +298,7 @@ main.start { max-width: 860px; }
 .small-drop { padding: 12px; margin: 8px 0; }
 .open-books { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .open-books h3 { margin: 0; width: 100%; }
-.practice { margin-top: 14px; display: block; }
+.practice { margin-top: 18px; display: block; font-size: 15px; }
 .holidays { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .fix-list { list-style: none; margin: 0; padding: 0; }
 .fix-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
@@ -474,9 +494,10 @@ section.batches { border-top-color: #8b8577; }
 .card { border-top: 4px solid var(--accent); box-shadow: var(--shadow); }
 .start-head h1 { color: var(--text); }
 .start-head h1::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 10px; border-radius: 3px; background: var(--brand-accent); box-shadow: 5px 5px 0 var(--accent); vertical-align: 1px; }
-.drop { border-color: #d6cfc2; background: var(--row); }
+.drop { border-color: #cfc6b6; background: var(--row); }
 .drop.over { border-color: var(--accent); background: #fff1e8; }
-@media (prefers-color-scheme: dark) { .drop { border-color: var(--line); } .drop.over { background: #2c2017; } }
+/* dark: the drop zone a step lighter than its card, with a clearly visible dashed edge */
+@media (prefers-color-scheme: dark) { .drop { border-color: #4a5160; background: #20242c; } .drop.over { background: #2c2017; } }
 
 /* Time cards */
 section.timecards { border-top-color: var(--brand); }

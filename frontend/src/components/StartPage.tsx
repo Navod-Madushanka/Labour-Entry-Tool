@@ -561,8 +561,39 @@ function ChooseStep(props: ChooseProps) {
         />
       </div>
 
+      {live && setup.open_workbooks.length > 0 && (
+        <div className="detected" role="group" aria-label="Open in Excel now">
+          <div className="detected-head">
+            <span className="detected-dot" aria-hidden /> Detected in Excel
+          </div>
+          {setup.open_workbooks.map((name, n) => (
+            <div key={name} className="detected-book">
+              <FileIcon />
+              <span className="detected-name">{name}</span>
+              <button className={n === 0 ? "primary" : ""} onClick={() => onOpen(name)} disabled={busy || nameMissing} aria-label={`Use ${name}`}>
+                Use this workbook
+              </button>
+            </div>
+          ))}
+          <p className="detected-note">Entries go straight into this open workbook.</p>
+        </div>
+      )}
+      {live && setup.open_workbooks.length > 0 && <div className="or-line">or open another workbook</div>}
+
       <div
         className={`drop${over ? " over" : ""}${busy || nameMissing ? " disabled" : ""}`}
+        role="button"
+        tabIndex={busy || nameMissing ? -1 : 0}
+        aria-label="Choose the workbook file"
+        onClick={(e) => {
+          if (!busy && !nameMissing && !(e.target as HTMLElement).closest("button")) browse();
+        }}
+        onKeyDown={(e) => {
+          if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && !busy && !nameMissing) {
+            e.preventDefault();
+            browse();
+          }
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setOver(true);
@@ -575,12 +606,11 @@ function ChooseStep(props: ChooseProps) {
           if (f && !busy && !nameMissing) onFile(f);
         }}
       >
-        <p className="drop-title">
-          Drop the labour entry workbook (.xlsb) here
-        </p>
-        <p className="muted">or</p>
+        <FileIcon big />
+        <p className="drop-title">Drop the labour entry workbook (.xlsb) here</p>
+        <p className="muted">or click to choose it</p>
         <button
-          className="primary"
+          className={live && setup.open_workbooks.length > 0 ? "" : "primary"}
           onClick={browse}
           disabled={busy || nameMissing}
         >
@@ -602,21 +632,6 @@ function ChooseStep(props: ChooseProps) {
         )}
       </div>
 
-      {live && setup.open_workbooks.length > 0 && (
-        <div className="open-books">
-          <h3>Open in Excel now</h3>
-          {setup.open_workbooks.map((name) => (
-            <button
-              key={name}
-              onClick={() => onOpen(name)}
-              disabled={busy || nameMissing}
-            >
-              Use {name}
-            </button>
-          ))}
-        </div>
-      )}
-
       <label className="check practice">
         <input
           type="checkbox"
@@ -627,7 +642,7 @@ function ChooseStep(props: ChooseProps) {
         Practice mode: work on a copy in memory, Excel and the file are not
         changed
       </label>
-      <p className="muted small">
+      <p className="helper">
         {!setup.live_available
           ? "Excel can't be used from this computer, so the tool runs in practice mode."
           : live
@@ -1185,3 +1200,16 @@ function monthText(month: string): string {
       })
     : month;
 }
+
+/** A spreadsheet file, for the workbook choices. */
+function FileIcon({ big = false }: { big?: boolean }) {
+  const size = big ? 40 : 22;
+  return (
+    <svg className={`file-icon${big ? " big" : ""}`} width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M14 2v5h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M8 12h8M8 15.5h8M8 19h5M11 12v7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
