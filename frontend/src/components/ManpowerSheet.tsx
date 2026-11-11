@@ -196,12 +196,17 @@ export function ManpowerSheet(props: Props) {
             Manpower sheet <span className="muted">({items.length} waiting to go to Excel)</span>
           </h2>
         </div>
-        <p className="muted small">
-          Every entry you add appears here, laid out like the paper form. Compare it with the paper, then push it to
-          Excel at the bottom. Click a time, hours or code to change it. Tick a worker on up to {MAX_TICKS} codes: the worked
-          hours are shared equally over the ticked codes (type a new code in "+ code" for a row of its own). For another
-          split, ✎ moves a worker back into the form; ✕ removes them.
-        </p>
+        <details className="howto">
+          <summary>How it works</summary>
+          <ul>
+            <li>Every entry you add shows here, laid out like the paper form: compare, then push at the bottom.</li>
+            <li>Click a time, hours or code to change it.</li>
+            <li>Tick a worker on up to {MAX_TICKS} codes: the worked hours are shared equally. "+ code" adds a row.</li>
+            <li>
+              <b>✎</b> back into the form (another split) · <b>✕</b> remove
+            </li>
+          </ul>
+        </details>
         <label className="check wrap">
           <input type="checkbox" checked={withExcel} onChange={(e) => setWithExcel(e.target.checked)} /> Also show
           workers already in Excel for these days (grey)

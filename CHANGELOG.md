@@ -1,5 +1,16 @@
 # Changelog
 
+## Manpower help, empty waiting list, batch log (11 Nov 2026)
+
+Asked for (design review of the lower entry page).
+
+- Manpower sheet: the paragraph of instructions is a closed **How it works** drawer with four
+  short points.
+- Waiting to go to Excel, when empty: a count badge (0) and a dashed panel with an icon,
+  "Nothing waiting yet" and one line on what comes here, instead of an empty box.
+- Recent batches: the batch number and what it did (write, header fix, undo of #…) bold and
+  bright, then the sheet and cells; the time and the user dimmed at the end.
+
 ## Worker list and scrollbars (11 Nov 2026)
 
 Asked for (design review): the worker list ran onto the Add worker button; scrollbars too dark

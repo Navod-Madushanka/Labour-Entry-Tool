@@ -18,9 +18,14 @@ export function Batches({ batches, busy, onUndo }: Props) {
         {batches.map((b) => (
           <li key={b.id} className={b.undone_by ? "undone" : ""}>
             <span>
-              <b>#{b.id}</b> {new Date(b.created_at).toLocaleTimeString()} · {b.user} ·{" "}
-              {b.kind === "undo" ? `undo of #${b.undo_of}` : ["header fix", "employee codes", "new worker"].includes(b.note ?? "") ? b.note : "write"} · sheet{" "}
-              {b.sheets.join(", ")} · {b.cells} cells
+              <b className="batch-id">#{b.id}</b>{" "}
+              <b className="batch-what">
+                {b.kind === "undo" ? `undo of #${b.undo_of}` : ["header fix", "employee codes", "new worker"].includes(b.note ?? "") ? b.note : "write"}
+              </b>{" "}
+              · sheet {b.sheets.join(", ")} · {b.cells} cells{" "}
+              <span className="batch-meta">
+                · {new Date(b.created_at).toLocaleTimeString()} · {b.user}
+              </span>
               {b.calling_names.length > 0 && (
                 <span className="muted small">
                   {" "}

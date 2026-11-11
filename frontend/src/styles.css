@@ -891,3 +891,16 @@ button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, tran
   ::-webkit-scrollbar-thumb { background: #3a3f4c; background-clip: padding-box; }
   ::-webkit-scrollbar-thumb:hover { background: #565d6e; background-clip: padding-box; }
 }
+
+/* lower entry page (design review) */
+.howto { margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
+.howto > summary { cursor: pointer; width: fit-content; color: var(--accent); font-weight: 600; }
+.howto ul { margin: 6px 0 0; padding-left: 18px; }
+.howto li { margin: 2px 0; }
+.queue.empty .badge { vertical-align: 2px; }
+.empty-state { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px dashed var(--field-line); border-radius: 10px; background: var(--row); color: var(--muted); }
+.empty-state svg { flex: none; color: var(--ok); opacity: 0.8; }
+.empty-state b { color: var(--text); }
+.empty-state p { margin: 2px 0 0; font-size: 14px; }
+.batches .batch-id, .batches .batch-what { color: var(--text); font-weight: 700; }
+.batches .batch-meta { color: var(--muted); font-size: 13px; }

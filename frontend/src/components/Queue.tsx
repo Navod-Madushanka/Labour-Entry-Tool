@@ -27,8 +27,19 @@ export function Queue({ items, busy, onAck, onAckAll, onOverwrite, onEdit, onRem
   if (!items.length)
     return (
       <section className="queue empty">
-        <h2>Waiting to go to Excel</h2>
-        <p className="muted">Workers you add appear here and on the manpower sheet above.</p>
+        <h2>
+          Waiting to go to Excel <span className="badge small">0</span>
+        </h2>
+        <div className="empty-state">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            <path d="M14 2v5h5M8 13h8M8 17h5M12 13v-2.5M10.5 11.5 12 10l1.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div>
+            <b>Nothing waiting yet</b>
+            <p>Add entries with the form above: they wait here (and on the manpower sheet) until you push them to Excel.</p>
+          </div>
+        </div>
       </section>
     );
   const blocked = items.filter((i) => !i.plan || i.plan.blocking.length).length;
