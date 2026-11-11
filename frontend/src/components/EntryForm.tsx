@@ -405,7 +405,8 @@ export function EntryForm(props: Props) {
 
         {worker && (
           <div className="worker-card">
-            <b>{worker.calling_name}</b> {String(worker.name ?? "")} · {String(worker.trade_group ?? "")} ·{" "}
+            <b className="wc-id">{worker.calling_name}</b> <b className="wc-name">{String(worker.name ?? "")}</b> ·{" "}
+            <b className="wc-trade">{String(worker.trade_group ?? "")}</b> ·{" "}
             {worker.code_status === "valid" ? (
               String(worker.employee_code)
             ) : (
@@ -636,7 +637,33 @@ export function EntryForm(props: Props) {
               ))}
             </tbody>
           </table>
-        ) : (
+        ) : null}
+        {withActs && worker && (
+          <>
+            {suggested.length > 0 && (
+              <div className="chips code-chips">
+                <span className="muted small">Suggested codes (↓ in the box):</span>
+                {suggested.map((sg) => (
+                  <button
+                    key={sg.code}
+                    className="chip"
+                    title={sg.why}
+                    onClick={() => {
+                      const i = form.lines.findIndex((l) => !l.code.trim());
+                      setLine(i === -1 ? 0 : i, { code: sg.code });
+                      focus(`hours${i === -1 ? 0 : i}`);
+                    }}
+                  >
+                    {sg.code}
+                    {placeName(sg.code, places) && <span className="place"> · {placeName(sg.code, places)}</span>}
+                    <span className="why"> {sg.why}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {withActs ? null : (
           <p className="muted small no-activities">
             No activity codes in this workbook: the worked hours go to ZIDLE. <kbd>Enter</kbd> on Time Out adds the
             worker.
@@ -745,28 +772,7 @@ export function EntryForm(props: Props) {
                 <span className="muted">({crew.count} {String(worker.trade_group ?? "")})</span>
               </button>
             )}
-            {suggested.length > 0 && (
-              <div className="chips code-chips">
-                <span className="muted small">Codes:</span>
-                {suggested.map((sg) => (
-                  <button
-                    key={sg.code}
-                    className="chip"
-                    title={sg.why}
-                    onClick={() => {
-                      const i = form.lines.findIndex((l) => !l.code.trim());
-                      setLine(i === -1 ? 0 : i, { code: sg.code });
-                      focus(`hours${i === -1 ? 0 : i}`);
-                    }}
-                  >
-                    {sg.code}
-                    {placeName(sg.code, places) && <span className="place"> · {placeName(sg.code, places)}</span>}
-                    <span className="why"> {sg.why}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {!usual && !yesterday && !suggested.length && <p className="muted small">No history this month yet.</p>}
+            {!usual && !yesterday && !crew && <p className="muted small">No history this month yet.</p>}
           </div>
         )}
       </aside>
@@ -1000,8 +1006,8 @@ function AlsoFor({
             <span className="also-label">
               Usually on the same record (last 10 days):
               {suggested.length > 1 && (
-                <button className="link small" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
-                  add all {suggested.length}
+                <button className="primary small add-all" onClick={() => add(suggested.map((c) => byName.get(c.name)!))}>
+                  + Add all {suggested.length}
                 </button>
               )}
             </span>
@@ -1013,7 +1019,7 @@ function AlsoFor({
                 <span className="mate-list">
                 {list.map((c) => (
                   <button key={c.name} className="mate" title={`${String(byName.get(c.name)?.name ?? "")} · same entry on ${c.days} of the last 10 days`} onClick={() => add([byName.get(c.name)!])}>
-                    + {c.name} <span className="muted small">{c.days}/10</span>
+                    + <b>{c.name}</b> <span className="mate-ratio">{c.days}/10</span>
                   </button>
                 ))}
                 {list.length > 1 && (
@@ -1123,7 +1129,7 @@ function Preview({ plan, error, onDinner, day, sheet, waiting, withActs }: { pla
             <dt>Counts as</dt>
             <dd>{plan?.day_count === 1 ? "1 day" : plan?.day_count === 0.5 ? "half a day" : plan?.day_count === 0 ? "no day" : "—"}</dd>
           </dl>
-          {!issues.some((i) => i.severity !== "INFO") && <p className="ok-text small">✓ Looks right. Press Enter to add.</p>}
+          {!issues.some((i) => i.severity !== "INFO") && <p className="ok-text small">✓ Looks right. Press <kbd>Enter</kbd> to add.</p>}
         </>
       ) : (
         <DaySummary day={day} sheet={sheet} waiting={waiting} withActs={withActs} />

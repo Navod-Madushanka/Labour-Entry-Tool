@@ -855,3 +855,21 @@ kbd { display: inline-block; font: 600 11px ui-monospace, SFMono-Regular, Menlo,
 @media (prefers-color-scheme: dark) { kbd { background: #2a2e39; border-color: #3a404d; color: #e8eaee; } }
 .keys kbd { opacity: 1; }
 button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, transparent); border-color: color-mix(in srgb, var(--accent-text) 35%, transparent); color: inherit; }
+
+/* worker picked (design review): who it is, at a glance */
+.worker-card { padding: 10px 12px; font-size: 14px; }
+.worker-card .wc-id { color: var(--accent); }
+.worker-card .wc-name, .worker-card .wc-trade { color: var(--text); font-weight: 700; }
+@media (prefers-color-scheme: dark) { .worker-card { background: #1e2430; border-color: #2e3646; } }
+
+/* co-worker suggestions: lighter pills, the ID bright, how often in its own quiet tag */
+.add-all { margin-left: 8px; padding: 2px 10px; }
+.usual-mates .mate b { font-weight: 700; }
+.mate-ratio { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--info-bg); color: var(--info); }
+@media (prefers-color-scheme: dark) {
+  .usual-mates .mate { background: #2b303c; border-color: #3a4152; color: #f3f4f6; }
+  .usual-mates .mate:hover { border-color: var(--accent); color: #fff; }
+}
+
+/* the suggested codes right under the activity boxes, where the eye already is */
+.entry-main .code-chips { margin-top: 8px; }

@@ -1,5 +1,19 @@
 # Changelog
 
+## Entry page with a worker picked: clearer who, cleaner suggestions, codes by the box (11 Nov 2026)
+
+Asked for (a design review of the entry page with a worker picked).
+
+- The worker card: the calling name in orange, the name and the trade bold and bright, on its
+  own tinted strip with an orange edge, so the right person is confirmed at a glance.
+- "Usually on the same record": a solid **+ Add all N** button at the top; the pills lighter with
+  the calling name bright and the "5/10" in a small blue tag; still in rows by trade, each with
+  "add these N".
+- The suggested activity codes are under the Activity code boxes ("Suggested codes (↓ in the
+  box)") instead of in the side panel, next to where the code is typed. The side panel keeps the
+  usual times and the copy of yesterday.
+- "✓ Looks right. Press Enter to add." shows Enter as a key cap.
+
 ## Entry page: calmer day strip, the day so far, two-column form, key caps (11 Nov 2026)
 
 Asked for (a design review of the entry page).
