@@ -785,7 +785,7 @@ function CheckStep({
       )}
 
       {bySheet.length > 0 && (
-        <section className="card">
+        <section className="card sev-block">
           <div className="section-head">
             <h2>Sheet dates and day types: the tool can fix these</h2>
             <button
@@ -859,8 +859,9 @@ function CheckStep({
       {other.length > 0 && <ExcelIssues issues={other} mode={setup.mode} />}
 
       {warns.length > 0 && (
-        <details className="card">
+        <details className="card sev-warn">
           <summary>
+            <span className="sev-badge WARN">Check</span>
             {warns.length} thing{warns.length === 1 ? "" : "s"} worth checking
             on days already entered (not required): click to see
           </summary>
@@ -869,8 +870,9 @@ function CheckStep({
       )}
 
       {info.length > 0 && (
-        <details className="card">
+        <details className="card sev-info">
           <summary>
+            <span className="sev-badge INFO">Note</span>
             {info.length} small note{info.length === 1 ? "" : "s"} (nothing to
             do): click to see
           </summary>
@@ -878,7 +880,15 @@ function CheckStep({
         </details>
       )}
 
-      <div className="actions footer">
+      <div className="actions footer sticky-actions">
+        <span className="sticky-summary">
+          {other.length || header.length ? (
+            <span className="sev-badge BLOCK">{other.length + header.length} to correct</span>
+          ) : (
+            <span className="sev-badge OK">No mistakes</span>
+          )}
+          {warns.length > 0 && <span className="muted small"> · {warns.length} worth checking</span>}
+        </span>
         <button onClick={onChanged}>Check again</button>
         <button className="primary" onClick={onContinue}>
           {other.length || header.length ? "Continue anyway" : "Continue"}
@@ -896,8 +906,10 @@ function ExcelIssues({
   mode: SetupState["mode"];
 }) {
   return (
-    <section className="card">
-      <h2>Mistakes to correct in Excel</h2>
+    <section className="card sev-block">
+      <h2>
+        <span className="sev-badge BLOCK">Error</span> Mistakes to correct in Excel
+      </h2>
       <p className="muted small">
         {mode === "live"
           ? "Correct them in the open workbook, then press Check again. They are on days already entered, so you can also go on and enter new days first."
@@ -906,6 +918,13 @@ function ExcelIssues({
       <IssueGroups issues={issues} />
     </section>
   );
+}
+
+/** "Labour Detail sheet, row 62, ID number column (cell D62), worker INB-59" -> one pill each,
+ * so the place reads at a glance and the problem gets its own line. */
+function wherePills(where: string): string[] {
+  const parts = where.split(/,\s*(?![^()]*\))/).map((p) => p.trim()).filter(Boolean);
+  return parts.length ? parts : [where];
 }
 
 function IssueGroups({ issues }: { issues: PlainIssue[] }) {
@@ -940,8 +959,14 @@ function IssueGroup({ title, list }: { title: string; list: PlainIssue[] }) {
       <ul className="issues plain">
         {shown.map((i, n) => (
           <li key={n} className={`issue ${i.severity}`}>
-            <div className="where">{i.plain.where}</div>
-            <div>{i.plain.what}</div>
+            <div className="where" aria-label={i.plain.where}>
+              {wherePills(i.plain.where).map((p, k) => (
+                <span key={k} className="loc-pill">
+                  {p}
+                </span>
+              ))}
+            </div>
+            <div className="what">{i.plain.what}</div>
             {!sameFix && <div className="todo">What to do: {i.plain.fix}</div>}
           </li>
         ))}

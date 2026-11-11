@@ -782,3 +782,31 @@ details.card > summary .badge { margin-left: 6px; }
 .sup-row:first-child { border-top: none; }
 .sup-row-label { padding-top: 5px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
 .sup-row-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Check and fix: colour says how serious it is. Red: a mistake to correct; amber: worth
+   checking; slate/blue: a note, nothing to do. */
+:root { --note-bg: #eef1f6; --note-line: #c9d2e0; }
+@media (prefers-color-scheme: dark) { :root { --note-bg: #1e222b; --note-line: #343b4a; } }
+.card.sev-block { border-top-color: var(--block); background: color-mix(in srgb, var(--block) 5%, var(--panel)); }
+.card.sev-warn { border-top-color: var(--warn); }
+.card.sev-info { border-top-color: var(--note-line); background: var(--note-bg); box-shadow: none; }
+.sev-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 1px; margin-right: 6px; }
+.sev-badge.BLOCK { background: var(--block-bg); color: var(--block); }
+.sev-badge.WARN { background: var(--warn-bg); color: var(--warn); }
+.sev-badge.INFO { background: var(--info-bg); color: var(--info); }
+.sev-badge.OK { background: var(--ok-bg); color: var(--ok); }
+
+/* one issue: where (pills) on top, what is wrong under it, what to do last */
+.issues.plain { display: flex; flex-direction: column; gap: 6px; }
+.issues.plain li.issue { display: block; padding: 8px 12px; border-radius: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-left: 4px solid var(--line); }
+.issues.plain li.issue.BLOCK { border-left-color: var(--block); background: color-mix(in srgb, var(--block) 6%, var(--panel)); }
+.issues.plain li.issue.WARN { border-left-color: var(--warn); }
+.issues.plain li.issue.INFO { border-left-color: var(--info); background: var(--note-bg); }
+.issues.plain .where { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 4px; font-weight: 400; }
+.loc-pill { padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--row); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.issues.plain .what { font-size: 14px; line-height: 1.45; }
+.issues.plain .todo { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+
+/* Check again / Continue stay in reach while the lists are long */
+.sticky-actions { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 8px; margin: 0 -8px 16px; padding: 10px 8px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(6px); border-top: 1px solid var(--line); }
+.sticky-summary { margin-right: auto; }

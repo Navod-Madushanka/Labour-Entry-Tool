@@ -1,5 +1,18 @@
 # Changelog
 
+## Check and fix: colour by severity, structured rows, buttons in reach (11 Nov 2026)
+
+Asked for (a design review of the check page): real errors must stand out from notes; the
+issue rows are hard to scan; Continue is buried under long lists.
+
+- Colour means severity: **red** (with an "Error" badge) for mistakes to correct and the sheet
+  dates/day types to fix; **amber** ("Check") for things worth checking; quiet **slate/blue**
+  ("Note") for small notes with nothing to do.
+- Each issue: where it is as pills (sheet · row · column/cell · worker), what is wrong on its own
+  line under them, and what to do last; a coloured left edge per severity.
+- "Check again" and "Continue" stay at the bottom of the window while scrolling, with a short
+  summary ("No mistakes · 925 worth checking", or "3 to correct").
+
 ## Start page: clearer first step, crisper dark theme (11 Nov 2026)
 
 Asked for (a design review of the start page): more contrast between page, card, fields and the
