@@ -1,5 +1,21 @@
 # Changelog
 
+## Trade from the calling name's letter, Labour Detail's column as the fallback (11 Nov 2026)
+
+Asked for: take the trade from the last letter of the calling name (INR-01 is a Rigger, ADB-100
+a Barbender), and fall back to Labour Detail's trade column when the letter does not tell it.
+
+- A worker's trade = the trade of the last letter before the "-" (INR-01 → R → Rigger, ADB-100 →
+  B → Barbender, INB-04 CH → B); a two-letter group like PL is looked up whole first. A letter not
+  in the list, or a name that does not follow the pattern, takes the trade column (as before).
+- Letters to start with: B Barbender, C Carpenter, H Helper, M Mason, R Rigger, S Supervisor.
+- **Codes & registration → Trades by calling-name letter**: change, add or remove letters (kept
+  in the settings file, for every workbook); it lists Labour Detail's letters that have no trade
+  yet and how many workers take the column now. "Back to the tool's list" restores the six.
+- Used everywhere the trade is shown: Analysis (trade filter, hours by trade, daily manpower,
+  exports), the SQL panel's `trade` column, crews. Excel is not changed; the API also gives
+  `trade_column` (Labour Detail's value) and `trade_source` ("name" or "column").
+
 ## SQL: change one code for chosen workers with UPDATE (5 Nov 2026)
 
 Asked for: `update entries set code = '03-11-00-00-P' where code = '03-11-00-00' and calling

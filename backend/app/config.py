@@ -146,6 +146,9 @@ class Config(BaseModel):
     holidays: list[dt.date] = []
     check_activities: bool = True  # activity codes and their hours are checked (per workbook)
     places: dict[str, str] = {}  # activity-code suffix -> place name, e.g. "P": "Parking area"
+    # calling-name trade letter -> trade ("R": "Rigger"); a worker's trade comes from it, else
+    # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
+    trade_letters: dict[str, str] | None = None
     settings_file: Path | None = None  # per-workbook settings (app/books.py); None: not kept
     server: ServerConfig = ServerConfig()
     backups: BackupConfig = BackupConfig()

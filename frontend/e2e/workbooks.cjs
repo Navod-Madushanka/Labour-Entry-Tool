@@ -14,9 +14,13 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForSelector(".book-current");
   // a workbook's month is asked once: say yes to the suggestion when the card is there
   const confirmMonth = async () => {
+    // the check runs first; the month question (asked once per workbook) comes after it, if at all
     const yes = p.getByRole("button", { name: /^Yes, / });
-    await yes.or(p.getByRole("button", { name: /^Continue/ })).first().waitFor();
-    if (await yes.count()) { await yes.click(); await p.getByRole("button", { name: /^Continue/ }).waitFor(); }
+    if (await yes.waitFor({ timeout: 8000 }).then(() => true, () => false)) {
+      await yes.click();
+      await yes.waitFor({ state: "detached" });
+    }
+    await p.getByRole("button", { name: /^Continue/ }).waitFor();
   };
   const switchTo = async (name) => {
     await p.locator(".book-current").click();

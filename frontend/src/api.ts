@@ -31,9 +31,18 @@ export interface Worker {
   calling_name: string;
   person: string;
   name: CellValue;
-  trade_group: CellValue;
+  trade_group: CellValue; // from the calling name's letter (INR-01: Rigger), else trade_column
+  trade_column?: CellValue; // what Labour Detail's trade column says
+  trade_source?: "name" | "column";
   employee_code: CellValue;
   code_status: CodeStatus;
+}
+
+/** Calling-name trade letters (R: Rigger) and Labour Detail's letters with no trade yet. */
+export interface TradeLetters {
+  letters: Record<string, string>;
+  known: Record<string, string>;
+  unmatched: Record<string, number>;
 }
 
 export interface Master {
@@ -519,6 +528,8 @@ export const api = {
     call<{ plans: EntryPlan[] }>("POST", "/api/preview", { entries }).then((r) => r.plans),
   commit: (entries: EntryInput[], user: string, dryRun = false, supervisor?: string) =>
     call<CommitResult>("POST", "/api/entries", { entries, user, dry_run: dryRun, supervisor: supervisor ?? null }),
+  tradeLetters: () => call<TradeLetters>("GET", "/api/setup/trade-letters"),
+  saveTradeLetters: (letters: Record<string, string>) => call<TradeLetters>("POST", "/api/setup/trade-letters", { letters }),
   supervisors: () => call<Supervisor[]>("GET", "/api/supervisors"),
   addSupervisor: (name: string) => call<Supervisor[]>("POST", "/api/supervisors", { name }),
   removeSupervisor: (name: string) => call<Supervisor[]>("POST", "/api/supervisors/remove", { name }),

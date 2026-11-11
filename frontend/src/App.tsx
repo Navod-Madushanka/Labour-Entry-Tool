@@ -14,6 +14,7 @@ import { PlacesEditor } from "./components/PlacesEditor";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
 import { SupervisorDialog } from "./components/SupervisorDialog";
+import { TradeLettersEditor } from "./components/TradeLettersEditor";
 import { Supervisors } from "./components/Supervisors";
 import { MedicalDialog } from "./components/MedicalDialog";
 import { DayBuilder } from "./components/DayBuilder";
@@ -647,6 +648,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               }}
             />
             {master.check_activities && <PlacesEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
+            <TradeLettersEditor master={master} onChanged={() => api.master(true).then(setMaster).catch(fail)} />
             <MasterTools
               user={user}
               onChanged={() => {

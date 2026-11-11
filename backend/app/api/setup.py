@@ -190,6 +190,9 @@ class Session:
             update["check_activities"] = book.check_activities is not False
             if book.places_key:
                 update["places"] = self.settings.get_key(book.places_key).get("places", {})
+        saved = self.settings.get_key(TRADE_KEY).get("letters")
+        if isinstance(saved, dict):
+            update["trade_letters"] = {str(k): str(v) for k, v in saved.items()}
         return self.base.model_copy(update=update)
 
     def decide(self, book: Book, snapshot: WorkbookSnapshot | None) -> None:
@@ -720,3 +723,68 @@ def set_places(body: PlacesRequest, request: Request) -> SetupState:
     session.settings.set_key(book.places_key, places=names, asked=asked)
     _apply(request, session)
     return session.sync()
+
+
+# --- trades by calling-name letter ("INR-01" is a Rigger) ----------------------------------------
+
+TRADE_KEY = (
+    "trade_letters"  # in the settings file: {"letters": {"R": "Rigger", …}} for every workbook
+)
+
+
+class TradeLetters(BaseModel):
+    letters: dict[str, str]  # letter (or two, like "PL") -> trade
+    known: dict[str, str]  # the tool's own list, for "back to the defaults"
+    unmatched: dict[str, int]  # letters in Labour Detail with no trade yet -> workers
+
+
+class TradeLettersRequest(BaseModel):
+    letters: dict[str, str]
+
+
+def _letters_view(session: Session) -> TradeLetters:
+    from app.domain.codes import TRADE_NAMES
+
+    saved = session.settings.get_key(TRADE_KEY).get("letters")
+    letters = dict(saved) if isinstance(saved, dict) else dict(TRADE_NAMES)
+    return TradeLetters(letters=letters, known=dict(TRADE_NAMES), unmatched={})
+
+
+@router.get("/trade-letters", response_model=TradeLetters)
+async def get_trade_letters(request: Request) -> TradeLetters:
+    """The calling-name letters and their trades, and Labour Detail's letters with none yet."""
+    from app.domain.codes import parse_calling_name, trade_from_name
+
+    session = _session(request)
+    view = _letters_view(session)
+    if request.app.state.has_service():
+        workers = await run_service(request, lambda s: s.master().workers)
+        for w in workers:
+            if (
+                isinstance(w.calling_name, str)
+                and trade_from_name(w.calling_name, view.letters) is None
+            ):
+                parsed = parse_calling_name(re.sub(r"\s+", " ", w.calling_name.strip().upper()))
+                if parsed:
+                    view.unmatched[parsed.trade[-1]] = view.unmatched.get(parsed.trade[-1], 0) + 1
+    return view
+
+
+@router.post("/trade-letters", response_model=TradeLetters)
+async def set_trade_letters(body: TradeLettersRequest, request: Request) -> TradeLetters:
+    """Save the letters (every workbook uses them): a worker's trade comes from their calling
+    name's letter, else from Labour Detail's trade column."""
+    letters: dict[str, str] = {}
+    for k, v in body.letters.items():
+        key, trade = k.strip().upper(), re.sub(r"\s+", " ", v).strip()
+        if not key or not trade:
+            continue
+        if not re.fullmatch(r"[A-Z]{1,2}", key):
+            raise HTTPException(
+                422, f"{k!r} is not a trade letter: one or two letters, like R or PL."
+            )
+        letters[key] = trade[:40]
+    session = _session(request)
+    session.settings.set_key(TRADE_KEY, letters=letters)
+    _apply(request, session)
+    return await get_trade_letters(request)

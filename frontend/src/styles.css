@@ -750,3 +750,6 @@ details.card > summary .badge { margin-left: 6px; }
 .sup-review { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
 .sup-badge { font-weight: 600; }
 .manpower.record mark { background: var(--warn-bg, #fff3bf); color: inherit; padding: 0 2px; border-radius: 3px; font-weight: 700; }
+.trade-table { width: auto; }
+.trade-table input { width: 9ch; }
+.trade-table td:nth-child(2) input { width: 26ch; }

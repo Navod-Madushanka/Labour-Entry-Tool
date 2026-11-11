@@ -102,3 +102,18 @@ def test_is_excel_error():
     assert codes.is_excel_error("#N/A")
     assert not codes.is_excel_error("N/A")
     assert not codes.is_excel_error(0.0)
+
+
+def test_trade_from_name():
+    letters = codes.TRADE_NAMES
+    assert codes.trade_from_name("INR-01", letters) == "Rigger"
+    assert codes.trade_from_name("ADB-100", letters) == "Barbender"
+    assert codes.trade_from_name("INB-04 CH", letters) == "Barbender"  # the role does not count
+    assert codes.trade_from_name(" inh-22 ", letters) == "Helper"  # loosely typed
+    assert (
+        codes.trade_from_name("INPL-01", {"PL": "Plumber", "L": "Labourer"}) == "Plumber"
+    )  # both letters first
+    assert codes.trade_from_name("INPL-01", {"L": "Labourer"}) == "Labourer"  # then the last one
+    assert codes.trade_from_name("INX-01", letters) is None  # unknown letter: the column decides
+    assert codes.trade_from_name("Foreman Silva", letters) is None  # not the pattern
+    assert codes.trade_from_name(None, letters) is None

@@ -23,11 +23,13 @@ from app.audit.store import AuditStore, Batch, Change
 from app.carryover import previous_days, previous_workbook
 from app.config import Config
 from app.domain.codes import (
+    TRADE_NAMES,
     EmployeeCodeStatus,
     cell_text,
     employee_code_status,
     is_excel_error,
     person_key,
+    trade_from_name,
 )
 from app.domain.crosscheck import add_cross_entry_issues
 from app.domain.daybuilder import DEFAULT_WINDOW, DayBuild, build_day
@@ -205,7 +207,9 @@ class WorkerView(BaseModel):
     calling_name: str
     person: str  # base code: a calling name and its role-suffix codes share it
     name: CellValue = None
-    trade_group: CellValue = None
+    trade_group: CellValue = None  # from the calling name's letter, else Labour Detail's column
+    trade_column: CellValue = None  # what Labour Detail's trade column says
+    trade_source: Literal["name", "column"] = "column"
     employee_code: CellValue = None
     code_status: EmployeeCodeStatus
 
@@ -280,6 +284,11 @@ class EntryService:
         self._master = None
         self._days.clear()
 
+    @property
+    def trade_letters(self) -> dict[str, str]:
+        """Calling-name trade letters: the ones set on the Codes page, else the known ones."""
+        return self.config.trade_letters if self.config.trade_letters is not None else TRADE_NAMES
+
     def set_config(self, config: Config) -> None:
         """New month / holidays / registration files from the start page (same layout)."""
         self.config = config
@@ -340,10 +349,12 @@ class EntryService:
             workers=[
                 WorkerView(row=w.row, block=t.block_for_master_row(w.row),
                            calling_name=w.calling_name, person=person_key(w.calling_name),
-                           name=w.name, trade_group=w.trade_group,
+                           name=w.name, trade_group=trade or w.trade_group,
+                           trade_column=w.trade_group, trade_source="name" if trade else "column",
                            employee_code=w.employee_code,
                            code_status=employee_code_status(w.employee_code))
                 for w in m.workers
+                for trade in [trade_from_name(w.calling_name, self.trade_letters)]
             ],
             activities=list(dict.fromkeys(a.code for a in m.activities)),
             day_types=m.day_types,

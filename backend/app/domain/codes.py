@@ -68,6 +68,19 @@ class CallingName:
         return TRADE_NAMES.get(self.trade)
 
 
+def trade_from_name(value: CellValue, letters: dict[str, str]) -> str | None:
+    """The trade a calling name's letter stands for: 'INR-01' -> Rigger, 'ADB-100' -> Barbender,
+    'INB-04 CH' -> Barbender. The whole trade part is tried first ('PL'), then its last letter.
+    None when the name does not follow the pattern or the letter is not in ``letters``."""
+    if not isinstance(value, str):
+        return None
+    parsed = parse_calling_name(re.sub(r"\s+", " ", value.strip().upper()))
+    if parsed is None:
+        return None
+    keys = {k.strip().upper(): v for k, v in letters.items() if k.strip() and str(v).strip()}
+    return keys.get(parsed.trade) or keys.get(parsed.trade[-1])
+
+
 def parse_calling_name(value: CellValue) -> CallingName | None:
     """Strict parse of the entry-sheet form (no trimming, uppercase only)."""
     if not isinstance(value, str):
