@@ -1,5 +1,23 @@
 # Changelog
 
+## Codes & registration: three sub-tabs, a dark SQL editor, clearer edit boxes (12 Nov 2026)
+
+Asked for (design review of the Codes & registration tab).
+
+- The tab has three sub-tabs instead of one long page:
+  - **SQL & data**: the SQL panel, always open there.
+  - **Trades, places & activity codes**: trade letters and place names side by side on a wide
+    screen, with the new activity codes below.
+  - **Validation & fixes**: employee codes, registration vs Labour Detail, registration check.
+  Each part is its own card with a coloured top edge. The tool remembers the last sub-tab; links
+  `#codes/sql`, `#codes/places` and `#codes/checks` open one directly. Ctrl+K still jumps to
+  the SQL editor from any tab.
+- The SQL editor is a dark code box (#0D1117, crisp border, blue focus ring) with its own
+  syntax colours in both themes. Table names in the tree are bold with a small TABLE tag.
+- The boxes in the trade-letter and place-name tables all have the same padding and a stronger
+  border, so they read as editable; endings are shown as small code chips.
+- Recent batches (undo) shows on the two other sub-tabs, not on SQL & data.
+
 ## Manpower sheet: crisper grid, quiet Discard (11 Nov 2026)
 
 Asked for (visual polish of the manpower sheet).

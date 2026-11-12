@@ -82,12 +82,14 @@ interface Props {
   waiting: number;
   onReview: () => void;
   focusToken: number; // Ctrl+K from any tab: open the panel, cursor in the editor
+  docked?: boolean; // on its own sub-tab: always open, no collapse toggle
 }
 
 let handledFocus = 0;
 
-export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Props) {
-  const [open, setOpen] = useState(() => store.get("labour.sql.open") !== "0");
+export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken, docked }: Props) {
+  const [openState, setOpen] = useState(() => store.get("labour.sql.open") !== "0");
+  const open = docked || openState; // on its own sub-tab the panel is always open
   const [tab, setTab] = useState<"query" | "data">("query");
   const [text, setText] = useState(() => store.get("labour.sql.text") ?? EXAMPLES[0][1]);
   const [cursor, setCursor] = useState(0);
@@ -110,7 +112,7 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Pr
       editor.current?.scrollIntoView({ block: "center" });
     }, 0);
   }, [focusToken]);
-  useEffect(() => store.set("labour.sql.open", open ? "1" : "0"), [open]);
+  useEffect(() => store.set("labour.sql.open", openState ? "1" : "0"), [openState]);
   const counts = useMemo(() => (open ? sqlRowCounts(ctx) : {}), [ctx, open]);
 
   const insertAtCursor = (word: string) => {
@@ -223,10 +225,10 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Pr
     );
 
   return (
-    <section className="sqlws" onKeyDown={onPanelKey}>
+    <section className={`sqlws${docked ? " docked" : ""}`} onKeyDown={onPanelKey}>
       <div className="sqlws-head">
         <h2>
-          <button className="link" onClick={() => setOpen(false)} aria-expanded="true">▾ SQL panel</button>{" "}
+          {docked ? "SQL panel" : <button className="link" onClick={() => setOpen(false)} aria-expanded="true">▾ SQL panel</button>}{" "}
           <span className="muted small">SQL or a command (copy, fill, move, set, …) · Ctrl+Enter or F9 runs · Ctrl+K from any tab · changes wait for you below</span>
         </h2>
       </div>
@@ -240,7 +242,7 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken }: Pr
                   {expanded[tb.name] ? "▾" : "▸"}
                 </button>
                 <button className="tree-name" title={`${tb.help}\nClick: browse it in the Data tab`} onClick={() => runData(tb.name, "")}>
-                  ▦ {tb.name}
+                  <span className="tree-tag" aria-hidden="true">TABLE</span> <span className="tree-label">{tb.name}</span>
                 </button>
                 <span className="tree-count">{(counts[tb.name] ?? 0).toLocaleString()}</span>
               </div>

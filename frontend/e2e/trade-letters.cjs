@@ -16,6 +16,7 @@ const out = process.argv[2] || ".";
   if (before.trade_source !== "column") throw new Error("A is not a known letter: the column should decide");
 
   await p.getByRole("link", { name: "Codes & registration" }).click();
+  await p.getByRole("tab", { name: "Trades, places & activity codes" }).click();
   const card = p.locator(".trade-letters");
   await card.waitFor();
   await card.locator("text=Letters in Labour Detail with no trade here").waitFor();
@@ -39,6 +40,7 @@ const out = process.argv[2] || ".";
 
   // back to the tool's list: A is unknown again, the column decides
   await p.getByRole("link", { name: "Codes & registration" }).click();
+  await p.getByRole("tab", { name: "Trades, places & activity codes" }).click();
   await p.locator(".trade-letters").getByRole("button", { name: "Back to the tool's list" }).click();
   await p.locator(".trade-letters >> text=Saved.").waitFor();
   const back = (await master()).find((w) => w.calling_name === "AAA-01");

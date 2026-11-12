@@ -46,6 +46,22 @@ interface AppProps {
   onChangeMonth: () => void;
 }
 
+type CodesTab = "sql" | "places" | "checks";
+const CODES_TABS: [CodesTab, string, string][] = [
+  ["sql", "SQL & data", "Query console and the tables of this month"],
+  ["places", "Trades, places & activity codes", "Trade letters, place names of the code endings, new activity codes"],
+  ["checks", "Validation & fixes", "Employee codes, registration conflicts and checks"],
+];
+const codesTabOf = (hash: string): CodesTab => {
+  const t = hash.split("/")[1];
+  if (t === "sql" || t === "places" || t === "checks") {
+    store.set("labour.codes.tab", t);
+    return t;
+  }
+  const last = store.get("labour.codes.tab");
+  return last === "places" || last === "checks" ? last : "sql";
+};
+
 export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkbook, onChangeMonth }: AppProps) {
   const [user, setUser] = useState(() => store.get("labour.user") ?? "");
   const [askName, setAskName] = useState(() => !store.get("labour.user"));
@@ -66,8 +82,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [message, setMessage] = useState<string | null>(null);
   const [medicalOpen, setMedicalOpen] = useState(false);
   const pageOf = (hash: string) =>
-    hash === "#codes" ? "codes" : hash === "#cards" ? "cards" : hash === "#analysis" ? "analysis" : hash === "#supervisors" ? "supervisors" : "entry";
+    hash.startsWith("#codes") ? "codes" : hash === "#cards" ? "cards" : hash === "#analysis" ? "analysis" : hash === "#supervisors" ? "supervisors" : "entry";
   const [page, setPage] = useState<"entry" | "codes" | "cards" | "analysis" | "supervisors">(() => pageOf(window.location.hash));
+  // Codes & registration has three sub-tabs; #codes/sql, #codes/places, #codes/checks (plain #codes: the last one used)
+  const [codesTab, setCodesTab] = useState<CodesTab>(() => codesTabOf(window.location.hash));
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
   const [supervisorOpen, setSupervisorOpen] = useState(false); // "whose manpower sheet?" at push
   const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
@@ -166,7 +184,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   };
 
   useEffect(() => {
-    const onHash = () => setPage(pageOf(window.location.hash));
+    const onHash = () => {
+      setPage(pageOf(window.location.hash));
+      if (window.location.hash.startsWith("#codes")) setCodesTab(codesTabOf(window.location.hash));
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -394,7 +415,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        if (window.location.hash !== "#codes") window.location.hash = "#codes";
+        if (window.location.hash !== "#codes/sql") window.location.hash = "#codes/sql";
         setCommandFocus((n) => n + 1);
       }
     };
@@ -614,7 +635,21 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (
           <>
-            {commandCtx && (
+            <nav className="subtabs codes-tabs" role="tablist" aria-label="Codes & registration">
+              {CODES_TABS.map(([t, label, hint]) => (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={codesTab === t}
+                  className={codesTab === t ? "active" : ""}
+                  title={hint}
+                  onClick={() => (window.location.hash = `#codes/${t}`)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            {codesTab === "sql" && commandCtx && (
               <SqlWorkspace
                 ctx={commandCtx}
                 onApply={applyCommand}
@@ -624,9 +659,14 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                   window.scrollTo({ top: 0 });
                 }}
                 focusToken={commandFocus}
+                docked
               />
             )}
-            <ActivityAdder
+            {codesTab === "places" && (
+              <div className="codes-cards">
+                <TradeLettersEditor master={master} onChanged={() => api.master(true).then(setMaster).catch(fail)} />
+                {master.check_activities && <PlacesEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
+                <ActivityAdder
               master={master}
               user={user}
               onChanged={() => {
@@ -635,8 +675,9 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 refreshStatus();
               }}
             />
-            {master.check_activities && <PlacesEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
-            <TradeLettersEditor master={master} onChanged={() => api.master(true).then(setMaster).catch(fail)} />
+              </div>
+            )}
+            {codesTab === "checks" && (
             <MasterTools
               user={user}
               onChanged={() => {
@@ -645,7 +686,8 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 refreshStatus();
               }}
             />
-            <Batches batches={batches} busy={busy} onUndo={undo} />
+            )}
+            {codesTab !== "sql" && <Batches batches={batches} busy={busy} onUndo={undo} />}
           </>
         ) : (
           <>

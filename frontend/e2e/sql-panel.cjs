@@ -15,7 +15,7 @@ const SHOTS = process.argv[2];
   await p.waitForFunction(() => !document.querySelector(".statusbar")?.innerText.includes("Loading month"), null, { timeout: 60000 });
   if (await p.locator(".commands").count()) throw new Error("the old command box is still there");
   await p.keyboard.press("Control+k");
-  await p.waitForFunction(() => location.hash === "#codes" && document.activeElement?.getAttribute("aria-label") === "SQL query");
+  await p.waitForFunction(() => location.hash === "#codes/sql" && document.activeElement?.getAttribute("aria-label") === "SQL query");
   console.log("Ctrl+K: query window focused");
   await p.waitForSelector(".sqlws-tree");
   if (await p.locator(".commands").count()) throw new Error("the old command box is still on Codes & registration");

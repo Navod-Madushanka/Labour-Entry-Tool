@@ -12,7 +12,7 @@ const out = process.argv[2] || ".";
   await p.goto(BASE + "/");
   await p.evaluate(() => localStorage.setItem("labour.user", "Tester")); await p.reload();
   await p.waitForSelector("#worker");
-  await p.goto(BASE + "/app/#codes");
+  await p.goto(BASE + "/app/#codes/places");
   await p.waitForSelector("#new-codes");
   const before = await p.evaluate(async () => (await (await fetch('/api/master')).json()).activities.length);
   await p.locator("#new-codes").fill("03-31-05-35-q, 03-11-00-00\n99-99-99-99-Q");
@@ -42,7 +42,7 @@ const out = process.argv[2] || ".";
   await p.getByRole('button', { name: 'Remove all' }).click().catch(() => {});
 
   // Undo the batch: the codes leave the list again.
-  await p.goto(BASE + "/app/#codes"); await p.waitForSelector("#new-codes");
+  await p.goto(BASE + "/app/#codes/places"); await p.waitForSelector("#new-codes");
   await p.locator('.batches li', { hasText: "L312" }).or(p.locator('.batches li').first()).getByRole('button', { name: 'Undo' }).click();
   await p.waitForFunction(async () => !(await (await fetch('/api/master?fresh=true')).json()).activities.includes("03-31-05-35-Q"), null, { timeout: 15000 });
   console.log("after undo: back to", (await p.evaluate(async () => (await (await fetch('/api/master')).json()).activities.length)), "codes; errors:", errs);

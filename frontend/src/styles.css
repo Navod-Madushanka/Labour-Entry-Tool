@@ -927,3 +927,60 @@ button.primary kbd { background: color-mix(in srgb, var(--accent-text) 15%, tran
 .mp-discard button.danger-outline { color: var(--muted); border-color: var(--field-line); background: transparent; font-weight: 500; }
 .mp-discard button.danger-outline:hover:not(:disabled) { color: var(--block); border-color: var(--block); background: var(--block-bg); }
 .push-bar button.primary.big { font-size: 17px; padding: 12px 28px; box-shadow: 0 2px 0 var(--accent-hover), 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* Codes & registration: three sub-tabs, each a set of clearly bounded cards */
+.codes-tabs { position: sticky; top: 0; z-index: 4; background: var(--bg); padding-top: 4px; margin-bottom: 14px; }
+.codes-tabs button { font-size: 15px; padding: 8px 14px; }
+.codes-tabs button:hover:not(.active) { color: var(--text); }
+.codes-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.codes-cards > section { margin: 0; }
+@media (min-width: 1200px) {
+  .codes-cards { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+  .codes-cards > .activity-adder { grid-column: 1 / -1; }
+}
+section.codes-card, .codes-cards > section { border-top-width: 4px; }
+section.trade-letters { border-top-color: #8b5cf6; }
+section.places-card { border-top-color: var(--info); }
+section.activity-adder { border-top-color: var(--ok); }
+section.emp-codes { border-top-color: var(--accent); }
+section.reg-conflicts { border-top-color: var(--warn); }
+section.reg-check { border-top-color: var(--info); }
+
+/* Editable mapping grids: every box looks like a box */
+.trade-table, .places-card table.places { border-collapse: separate; border-spacing: 0 4px; }
+.trade-table th, .places-card table.places th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 10px 2px 0; }
+.trade-table td, .places-card table.places td { padding: 0 10px 0 0; vertical-align: middle; }
+.trade-table input, .places-card table.places input, .activity-adder textarea {
+  padding: 7px 10px; background: var(--field); border: 1px solid color-mix(in srgb, var(--text) 32%, var(--field-line)); border-radius: 6px;
+}
+.trade-table input:hover, .places-card table.places input:hover, .activity-adder textarea:hover { border-color: color-mix(in srgb, var(--text) 50%, var(--field-line)); }
+.trade-table input::placeholder, .places-card table.places input::placeholder { color: var(--muted); opacity: 0.8; }
+.trade-table td:first-child input { text-align: center; font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+.places-card table.places code { display: inline-block; min-width: 5ch; padding: 3px 8px; border-radius: 5px; background: var(--row); border: 1px solid var(--line); font-weight: 600; }
+.places-card tr.add-place td { border-top: none; padding-top: 10px; }
+
+/* SQL panel: a developer workspace. The editor is dark in both themes, with its own syntax colours. */
+.sqlws.docked { border-top-color: #58a6ff; }
+.sqlws-editor {
+  --ed-bg: #0d1117; --ed-gutter: #0d1117; --ed-line: #30363d; --ed-text: #e6edf3; --ed-muted: #6e7681;
+  background: var(--ed-bg); border: 1px solid var(--ed-line); border-radius: 8px; height: 220px;
+  box-shadow: inset 0 1px 0 #ffffff08, 0 1px 3px #0000004d;
+}
+.sqlws-editor:focus-within { border-color: #58a6ff; box-shadow: 0 0 0 3px #58a6ff40; }
+.sqlws-editor .gutter { background: var(--ed-gutter); color: var(--ed-muted); border-right: 1px solid var(--ed-line); padding-top: 10px; }
+.sqlws-editor .hl, .sqlws-editor textarea { padding: 10px 12px; }
+.sqlws-editor .hl { color: var(--ed-text); }
+.sqlws-editor textarea { caret-color: #e6edf3; }
+.sqlws-editor textarea::selection { background: #388bfd66; }
+.sqlws-editor .hl .k { color: #ff7b72; font-weight: 600; }
+.sqlws-editor .hl .s { color: #a5d6ff; }
+.sqlws-editor .hl .n { color: #79c0ff; }
+.sqlws-editor .hl .tb { color: #d2a8ff; font-weight: 600; }
+.sqlws-editor .hl .col { color: #ffa657; }
+.sqlws-editor .hl .c { color: #8b949e; }
+.sqlws-tree { background: color-mix(in srgb, var(--bg) 70%, var(--panel)); border-color: color-mix(in srgb, var(--text) 18%, var(--line)); }
+.tree-name { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 13.5px; }
+.tree-label { font-weight: 700; color: var(--text); }
+.tree-tag { font: 700 9px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.06em; padding: 3px 4px; border-radius: 3px; color: #58a6ff; background: #58a6ff1f; border: 1px solid #58a6ff55; }
+.tree-row + .tree-cols { border-left: 1px solid var(--line); margin-left: 12px; padding-left: 6px; }
+.trade-table td:first-child input { width: 12ch; }

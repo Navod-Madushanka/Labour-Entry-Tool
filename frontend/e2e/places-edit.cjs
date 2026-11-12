@@ -12,6 +12,7 @@ const SHOTS = process.argv[2];
   await p.evaluate(() => localStorage.setItem("labour.user", "Tester")); await p.reload();
   await p.waitForSelector("#worker");
   await p.getByRole("link", { name: "Codes & registration" }).click();
+  await p.getByRole("tab", { name: "Trades, places & activity codes" }).click();
   const card = p.locator(".places-card");
   await card.getByLabel("Place for -P").waitFor();
   console.log("before:", (await card.locator("tbody").innerText()).replace(/\s+/g, " ").slice(0, 160));

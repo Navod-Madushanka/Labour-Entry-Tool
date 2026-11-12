@@ -79,7 +79,7 @@ export function MasterTools({ user, onChanged }: Props) {
   const proposals = codes.proposals;
   return (
     <>
-      <section>
+      <section className="codes-card emp-codes">
         <div className="section-head">
           <h2>
             Employee codes <span className="muted">({proposals.length} rows in Labour Detail without a valid code)</span>
@@ -198,7 +198,7 @@ export function MasterTools({ user, onChanged }: Props) {
         </div>
       </section>
 
-      <section>
+      <section className="codes-card reg-conflicts">
         <div className="section-head">
           <h2>
             Registration vs Labour Detail <span className="muted">({codes.conflicts.length} ID conflicts)</span>
@@ -221,7 +221,7 @@ export function MasterTools({ user, onChanged }: Props) {
         )}
       </section>
 
-      <section>
+      <section className="codes-card reg-check">
         <div className="section-head">
           <h2>
             Registration check <span className="muted">({report.rows} rows, {report.issues.length} issues)</span>
