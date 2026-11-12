@@ -1,5 +1,36 @@
 # Changelog
 
+## BP bill check: against the BP Bill sheet and the supplier's claim (12 Nov 2026)
+
+Asked for: the BP Bill comparison left open in roadmap #8, with an educated guess at the sheet's
+layout until its real layout is known.
+
+- **Against the workbook's BP Bill sheet** (Analysis → BP bill check): the sheet is read from
+  the saved .xlsb with pyxlsb (Excel is not used), or from a copy of the workbook sent to the tool
+  (.xlsb or .xlsx), and compared worker by worker and day by day with the day sheets.
+  - Its **layout is found, not assumed** (`app/bpbill.py`): the header row with "Calling Name"
+    (else the column full of calling names), day columns headed 1–31 or with dates of the month
+    (in the header row or the row above/below), totals headed "Total days", "Total hours",
+    "Amount", a business partner column, and whether the day cells hold hours or day counts (only
+    1 and 0.5 values). What was found is shown ("header row 6, calling names in B, days 1–31 in
+    E–AI (day counts), total days in AJ") with any notes, and **Correct the layout** sets the
+    header row, the calling-name, day-1 and total-days columns and what the day cells hold (kept
+    per kind of workbook; "Back to finding it" undoes it).
+  - Differences listed: days counted on the BP Bill under 6 h on the sheets (or 6+ h not
+    counted), hours that differ, total days against the days at 6+ h, workers billed with no hours
+    and workers with 6+ h days missing from the bill. Calling names match with or without the
+    hyphen.
+- **Against the supplier's claim**: a file (.xlsx or .csv) with Business partner, Calling name,
+  Days billed, Hours billed (optional), columns found by their headings, and a blank template to
+  download. Each worker against the days at 6+ h on the sheets (more or fewer days, hours that
+  differ, billed with no hours), and that partner's workers on the sheets missing from the claim.
+- API: `GET /api/bp-bill/check`, `POST /api/bp-bill/check-file?filename=`, `POST
+  /api/bp-bill/layout`, `POST /api/bp-bill/claim?filename=`.
+- Tests: `backend/tests/test_bpbill.py` (the guessed layout, another layout with day counts,
+  dates and no "Calling Name" heading, nothing found, differences, the claim, the API with a
+  workbook copy and a hand correction), `e2e/bp-bill.cjs` (made-up BP Bill with a planted mistake
+  and a claim with an over-claim). Only made-up sheets: the real layout is still to be confirmed.
+
 ## Phase 0 cleanup: soak test, flaky test, README (12 Nov 2026)
 
 Asked for: the roadmap's Phase 0 cleanup before people depend on the tool.

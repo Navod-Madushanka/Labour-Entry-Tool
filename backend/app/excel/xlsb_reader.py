@@ -109,6 +109,10 @@ class XlsbReader:
                         grid[(r, cell.c + 1)] = value
         return grid
 
+    def sheet_grid(self, name: str, max_row: int = 5000, max_col: int = 120) -> Grid:
+        """Any sheet's cell values (read-only), e.g. the BP Bill."""
+        return self._grid(name, max_row=max_row, max_col=max_col)
+
     # --- master ---
 
     def read_master(self) -> MasterData:

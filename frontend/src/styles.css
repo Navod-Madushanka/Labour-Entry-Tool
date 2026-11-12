@@ -1162,3 +1162,6 @@ tr.detail-row > td { background: var(--row); padding: 6px 10px 10px; }
 .share-card .field input { width: 100%; }
 .share-row { gap: 8px; margin: 6px 0; }
 .share-time { width: 7ch; text-align: center; }
+.bp-fix { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; font-size: 13px; }
+.bp-fix label { display: flex; align-items: center; gap: 6px; }
+.bp-fix input { width: 6ch; padding: 3px 6px; }

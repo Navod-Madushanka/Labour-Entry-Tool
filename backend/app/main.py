@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from app import __version__
 from app.api import (
     analysis,
+    bpbill,
     entries,
     health,
     registration,
@@ -172,6 +173,7 @@ def create_app(
     app.include_router(supervisors.router)
     app.include_router(history_api.router)
     app.include_router(report.router)
+    app.include_router(bpbill.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")

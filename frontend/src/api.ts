@@ -576,6 +576,11 @@ export const api = {
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   rates: () => call<RatesView>("GET", "/api/setup/rates"),
   lostTime: () => call<LostView>("GET", "/api/lost-time"),
+  bpBillCheck: () => call<BillCheck>("GET", "/api/bp-bill/check"),
+  bpBillCheckFile: (file: File) => send<BillCheck>("/api/bp-bill/check-file", file),
+  saveBpLayout: (fix: Partial<Record<"header_row" | "name_col" | "first_day_col" | "total_days_col" | "total_hours_col" | "bp_col", number>> & { mode?: string }) =>
+    call<{ ok: boolean }>("POST", "/api/bp-bill/layout", fix),
+  bpClaim: (file: File) => send<{ source: string; rows: ClaimCheck[] }>("/api/bp-bill/claim", file),
   reportSettings: () => call<ReportState>("GET", "/api/report/settings"),
   saveReportSettings: (body: ReportSettings) => call<ReportState>("POST", "/api/report/settings", body),
   writeReport: () => call<ReportState>("POST", "/api/report/write"),
@@ -719,4 +724,44 @@ export interface ReportState extends ReportSettings {
   last_error: string | null;
   lan_active: boolean;
   viewer_url: string | null;
+}
+
+/** The BP Bill sheet against the day sheets (roadmap #8). */
+export interface BillLayout {
+  sheet: string;
+  header_row: number | null;
+  name_col: number | null;
+  day_cols: Record<string, number>;
+  total_days_col: number | null;
+  total_hours_col: number | null;
+  amount_col: number | null;
+  bp_col: number | null;
+  mode: "hours" | "days";
+  notes: string[];
+}
+
+export interface BillDifference {
+  name: string;
+  day: number | null;
+  bill: number | null;
+  sheets: number | null;
+  note: string;
+}
+
+export interface BillCheck {
+  source: string;
+  layout: BillLayout;
+  layout_text: string;
+  workers: number;
+  differences: BillDifference[];
+}
+
+export interface ClaimCheck {
+  bp: string;
+  name: string;
+  billed_days: number | null;
+  sheet_days: number;
+  billed_hours: number | null;
+  sheet_hours: number;
+  note: string;
 }

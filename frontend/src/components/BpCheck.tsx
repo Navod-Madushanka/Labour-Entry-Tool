@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { api, type Master } from "../api";
 import { bpBill, DEFAULT_LIMITS, NO_BP, type Data, type EntryRow } from "../analysis";
 import { h } from "./charts";
+import { BillCompare } from "./BillCompare";
 
 const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
 
@@ -107,9 +108,9 @@ export function BpCheck({ data, entries, master, money, changedAfterReview }: {
       <p className="muted small">
         Checks: <b>double booking</b> — the same person booked twice with overlapping times (W03); <b>no employee code</b> — the ERP upload
         lines go out blank; <b>long run</b> — more days in a row than the fatigue limit; <b>changed after review</b> — the supervisor's sheet was
-        checked against the paper, then changed. Comparing these figures with the workbook's own BP Bill sheet needs that sheet's layout
-        (which columns hold the calling name and the day counts).
+        checked against the paper, then changed.
       </p>
+      <BillCompare />
     </>
   );
 }
