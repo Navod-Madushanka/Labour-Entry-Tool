@@ -1148,3 +1148,8 @@ tr.detail-row > td { background: var(--row); padding: 6px 10px 10px; }
 .fatigue-evidence { border-top-color: var(--c6); }
 .fatigue-table .badge { margin-right: 3px; }
 .limits-card { border-top-color: var(--warn); }
+
+/* BP bill check (roadmap #8) */
+.bp-card { border-top-color: var(--c4); }
+.bp-figures { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 2px 0 10px; font-size: 13.5px; }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }

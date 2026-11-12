@@ -36,6 +36,7 @@ export interface Worker {
   trade_source?: "name" | "column";
   employee_code: CellValue;
   code_status: CodeStatus;
+  bp?: CellValue; // Labour Detail's Business Partner (the labour supplier billed)
 }
 
 /** Calling-name trade letters (R: Rigger) and Labour Detail's letters with no trade yet. */

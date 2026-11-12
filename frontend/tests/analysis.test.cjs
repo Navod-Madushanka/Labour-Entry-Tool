@@ -272,4 +272,22 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   assert.equal(A.otAndOutput(data, []), null, "no quantities: no output link");
 }
 
+// BP bill check: worker-days at 6+ hours, flags before certifying
+{
+  const [g] = A.bpBill(data, data.entries, { daysInRow: 2, changedAfterReview: new Set(["1|AA-02"]) });
+  assert.equal(g.bp, A.NO_BP, "no business partner in Labour Detail");
+  assert.equal(g.days, 6); assert.equal(g.billable, 6, "every entry is 6 h or more");
+  near(g.hours, 61, "hours"); assert.equal(g.sundays, 2, "AA-01 and BB-01 on Sunday 4 Oct");
+  const w = Object.fromEntries(g.workers.map((x) => [x.name, x]));
+  assert.equal(w["AA-01"].billable, 2); assert.equal(w["AA-01 CH"].billable, 1, "a BP Bill row per calling name");
+  assert.deepEqual(w["BB-01"].flags, ["no employee code"]);
+  assert.deepEqual(w["AA-02"].flags, ["changed after review"]);
+  assert.ok(w["AA-01"].flags.includes("long run"), "3 days in a row over a limit of 2");
+  assert.equal(g.flagged, 4, "AA-01, AA-01 CH (same person), AA-02, BB-01");
+  // a short day is not billed
+  const short = A.buildData({ "1": { ...month["1"], entries: [month["1"].entries[0]].map((v) => ({ ...v, computed: { ...v.computed, effective: 5, ot_raw: 0, zidle: 0 } })) } }, master);
+  const [s1] = A.bpBill(short, short.entries);
+  assert.equal(s1.billable, 0); assert.equal(s1.workers[0].short, 1);
+}
+
 console.log("analysis: all passed");

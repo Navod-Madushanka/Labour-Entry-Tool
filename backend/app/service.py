@@ -213,6 +213,7 @@ class WorkerView(BaseModel):
     trade_source: Literal["name", "column"] = "column"
     employee_code: CellValue = None
     code_status: EmployeeCodeStatus
+    bp: CellValue = None  # Labour Detail's Business Partner (the labour supplier billed)
 
 
 class MasterView(BaseModel):
@@ -364,7 +365,7 @@ class EntryService:
                            calling_name=w.calling_name, person=person_key(w.calling_name),
                            name=w.name, trade_group=trade or w.trade_group,
                            trade_column=w.trade_group, trade_source="name" if trade else "column",
-                           employee_code=w.employee_code,
+                           employee_code=w.employee_code, bp=w.bp,
                            code_status=employee_code_status(w.employee_code))
                 for w in m.workers
                 for trade in [trade_from_name(w.calling_name, self.trade_letters)]

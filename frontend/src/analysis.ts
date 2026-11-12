@@ -1122,3 +1122,73 @@ export function otAndOutput(data: Data, rows: ProdRow[]): { highOt: number; lowO
   const avg = (xs: typeof pairs) => sumBy(xs, (x) => x.index) / xs.length;
   return { highOt: avg(hi), lowOt: avg(lo), split, weeks: pairs.length };
 }
+
+// --------------------------------------------------------------------------------- BP bill check
+
+export const NO_BP = "No business partner";
+
+export interface BpWorker {
+  name: string; // calling name (a BP Bill row is a Labour Detail row)
+  trade: string;
+  bp: string;
+  days: number; // days with an entry
+  billable: number; // days at 6+ effective hours (the BP Bill rule)
+  short: number; // days under 6 hours: not counted by the BP Bill
+  hours: number;
+  ot: number;
+  sundays: number; // Sundays and holidays worked
+  cost: number; // at standard rates (0 without rates)
+  flags: string[]; // to check before the bill is certified
+}
+
+export interface BpGroup {
+  bp: string;
+  workers: BpWorker[];
+  billable: number;
+  days: number;
+  hours: number;
+  ot: number;
+  sundays: number;
+  cost: number;
+  flagged: number; // workers with a flag
+}
+
+/** Per business partner (Labour Detail's column F): worker-days the BP Bill counts (a day at 6+
+ * effective hours), hours, OT, Sundays, cost; and what to check before certifying: double
+ * bookings (W03), missing employee codes, long runs, entries changed after supervisor review. */
+export function bpBill(data: Data, entries: EntryRow[], opts: { daysInRow?: number; changedAfterReview?: Set<string> } = {}): BpGroup[] {
+  const limit = opts.daysInRow ?? DEFAULT_LIMITS.days_in_row;
+  const runs = new Map(people(data, entries).map((p) => [p.person, p.longestRun]));
+  const cost = new Map<string, number>();
+  for (const s of data.slices) cost.set(`${s.sheet}|${s.name}`, (cost.get(`${s.sheet}|${s.name}`) ?? 0) + s.cost);
+  const by = new Map<string, BpWorker>();
+  for (const e of entries) {
+    const w = data.workers.get(e.name);
+    const bp = text(w?.bp) || NO_BP;
+    const r = by.get(e.name) ?? { name: e.name, trade: e.trade, bp, days: 0, billable: 0, short: 0, hours: 0, ot: 0, sundays: 0, cost: 0, flags: [] };
+    r.days += 1;
+    if (e.worked >= 6) r.billable += 1;
+    else r.short += 1;
+    r.hours += e.worked;
+    r.ot += e.ot;
+    if (e.kind === "Sunday" || e.kind === "Holiday") r.sundays += 1;
+    r.cost += cost.get(`${e.sheet}|${e.name}`) ?? 0;
+    const add = (f: string) => !r.flags.includes(f) && r.flags.push(f);
+    if (e.issues.some((i) => i.rule === "W03")) add("double booking");
+    if (opts.changedAfterReview?.has(`${e.sheet}|${e.name}`)) add("changed after review");
+    by.set(e.name, r);
+  }
+  for (const r of by.values()) {
+    const st = data.workers.get(r.name)?.code_status;
+    if (st && st !== "valid") r.flags.push("no employee code");
+    const person = text(data.workers.get(r.name)?.person) || r.name;
+    if ((runs.get(person) ?? 0) > limit) r.flags.push("long run");
+  }
+  const groups = new Map<string, BpWorker[]>();
+  for (const r of by.values()) groups.set(r.bp, [...(groups.get(r.bp) ?? []), r]);
+  return [...groups].map(([bp, ws]) => ({
+    bp, workers: ws.sort((a, b) => b.flags.length - a.flags.length || a.name.localeCompare(b.name)),
+    billable: sumBy(ws, (w) => w.billable), days: sumBy(ws, (w) => w.days), hours: sumBy(ws, (w) => w.hours), ot: sumBy(ws, (w) => w.ot),
+    sundays: sumBy(ws, (w) => w.sundays), cost: sumBy(ws, (w) => w.cost), flagged: ws.filter((w) => w.flags.length).length,
+  })).sort((a, b) => Number(a.bp === NO_BP) - Number(b.bp === NO_BP) || b.billable - a.billable); // prettier-ignore
+}

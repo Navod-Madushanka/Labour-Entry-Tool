@@ -1,5 +1,26 @@
 # Changelog
 
+## Roadmap #8, BP bill check before the QS certifies (12 Nov 2026)
+
+Asked for: roadmap #8, catch over-claims before a labour supplier's bill is certified.
+
+- New Analysis view **BP bill check**, one card per business partner (Labour Detail column F;
+  a workbook without one shows as one group):
+  - workers, **billable worker-days** by the BP Bill's own rule (a day at 6 or more effective
+    hours), the days with entries, hours, OT, Sunday/holiday days and, with rates, the cost at
+    standard rates;
+  - per worker (a BP Bill row is a calling name): days, billable days, days under 6 h (not
+    counted), hours, OT, Sundays/holidays, cost, and **what to check**: double booking (W03),
+    no employee code, long run (over the fatigue limit, roadmap #7) and **changed after
+    review** (a supervisor's sheet checked against the paper, then changed);
+  - only the workers to check by default; **Export for the QS**: a summary sheet and a sheet per
+    business partner.
+- `/api/master` workers carry `bp`.
+- Not yet: the side-by-side with the workbook's own BP Bill sheet; it needs that sheet's layout
+  (which columns hold the calling name and the day counts).
+- Tests: `tests/analysis.test.cjs` (billable and short days, a row per calling name, every flag),
+  `e2e/bp-check.cjs` (made-up data).
+
 ## Roadmap #7, fatigue and OT risk (12 Nov 2026)
 
 Asked for: roadmap #7, long weeks shown as a risk to output, not only to compliance.

@@ -44,6 +44,7 @@ import { SiteReport } from "./SiteReport";
 import { LostTime } from "./LostTime";
 import { Productivity } from "./Productivity";
 import { Fatigue } from "./Fatigue";
+import { BpCheck } from "./BpCheck";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -53,7 +54,7 @@ const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "bp" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["programme", "As-built programme"],
@@ -66,6 +67,7 @@ const VIEWS: [View, string][] = [
   ["overtime", "Overtime"],
   ["lost", "Lost time"],
   ["fatigue", "Fatigue & OT risk"],
+  ["bp", "BP bill check"],
   ["attendance", "Attendance"],
   ["quality", "Data quality"],
   ["compare", "Compare months"],
@@ -114,6 +116,16 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
     api.supervisorReviews().then(setReviews).catch(() => undefined);
   }, [month]);
   const owners = useMemo(() => new Map(owned.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor])), [owned]);
+  // entries ("sheet|calling name") on supervisor sheets changed after they were reviewed
+  const changedAfterReview = useMemo(() => {
+    const out = new Set<string>();
+    for (const r of reviews) {
+      if (r.status === "cleared") continue;
+      const list = owned.filter((o) => o.sheet === r.sheet && o.supervisor === r.supervisor);
+      if (list.length && fingerprint(recordColumns(list, month[r.sheet])) !== r.fingerprint) for (const o of list) out.add(`${o.sheet}|${o.calling_name}`);
+    }
+    return out;
+  }, [reviews, owned, month]);
   const data = useMemo(() => buildData(month, master, owners), [month, master, owners]);
   const { slices, entries } = useMemo(() => applyFilter(data, filter), [data, filter]);
   const k = useMemo(() => kpis(slices), [slices]);
@@ -276,6 +288,8 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         <Productivity data={data} master={master} desc={desc} money={money} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
       ) : view === "fatigue" ? (
         <Fatigue data={data} entries={entries} days={daily(data, slices, filter)} master={master} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
+      ) : view === "bp" ? (
+        <BpCheck data={data} entries={entries} master={master} money={money} changedAfterReview={changedAfterReview} />
       ) : view === "lost" ? (
         <LostTime data={data} slices={slices} items={lost.items} causes={lost.causes} user={user} onSaved={(items) => setLost((l) => ({ ...l, items }))} />
       ) : view === "activities" ? (
