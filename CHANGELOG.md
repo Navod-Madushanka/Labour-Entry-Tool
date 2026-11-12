@@ -1,5 +1,35 @@
 # Changelog
 
+## SQL panel: supervisors (12 Nov 2026)
+
+Asked for: `SELECT * FROM entries WHERE supervisor = "Kamal";` and
+`UPDATE entries SET code = "03-20-00-00-P" WHERE code = "03-20-00-00" AND supervisor = 'Kamal';`.
+
+- **`supervisor` column** on `entries` and `activities`: whose manpower sheet the entry was pushed
+  from (the Supervisors page's record, latest push of each entry); empty for entries typed straight
+  into a day sheet. Aliases: foreman, owner. Compared without regard to case, like the other text
+  columns; it works in WHERE, GROUP BY, ORDER BY, IN (…), LIKE and IS NULL.
+- **`supervisors` table**: supervisor, days, entries, workers, hours, first_day, last_day.
+- **Double-quoted values**: `supervisor = "Kamal"` reads "Kamal" as text, as MySQL does, when it is
+  not the name of a column (`"supervisor" = "Nimal"` still compares the column with the text).
+- **Help when nothing matches**: `supervisor = 'Kamall'` says who there is ("did you mean Kamal?");
+  part of a name suggests `LIKE '%Kam%'`; with no supervisor pushed yet it says so. Completion after
+  `supervisor =` offers the supervisors' names. Three new examples in the Examples list.
+- **`supervisor` cannot be SET**: it records whose paper the entries came from; the message points
+  to Supervisors → Reassign for moving a sheet to someone else.
+- **Corrections keep their supervisor at push**: an UPDATE on Kamal's entries goes to the waiting
+  list as before, and the push dialog now shows "2 of them are corrections to sheets pushed before:
+  they stay with Kamal (2)"; the supervisor chosen gets only the new entries. When every entry is a
+  correction no supervisor needs choosing ("Push 2 corrections, keeping Kamal"). "Give all to the
+  supervisor chosen below instead" moves them as before. A lost-time reason given at push goes to
+  each supervisor whose entries were on that sheet.
+  - Backend: `POST /api/entries` takes `owners` ("sheet|calling name" -> supervisor) for entries
+    that keep their own; the rest go to `supervisor`. Undo is unchanged.
+- Tests: SQL unit tests for both statements, quoting, notes, the table and completion; a backend
+  test for kept owners; e2e `sql-supervisor.cjs` (made-up data) pushes Kamal's and Nimal's sheets,
+  selects and updates Kamal's entries, and checks the owners after mixed and corrections-only
+  pushes. `sql-panel`, `supervisors`, `supervisor-order`, `lost-time` and `analysis` still pass.
+
 ## Analysis tab: visual system, sticky filters, clearer interactions (12 Nov 2026)
 
 Asked for: a design pass on the Analysis tab, in this order: the visual system, a sticky header

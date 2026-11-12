@@ -15,6 +15,7 @@ export function SupervisorDialog({
   days,
   busy,
   idleHours = 0,
+  kept = [],
   onPush,
   onCancel,
 }: {
@@ -22,7 +23,9 @@ export function SupervisorDialog({
   days: string; // "sheet 26 (Thu 26 Nov)"
   busy: boolean;
   idleHours?: number; // unallocated (ZIDLE) hours in the entries pushed
-  onPush: (supervisor: string, lost: LostPick) => void;
+  kept?: { name: string; count: number }[]; // entries already on a supervisor's sheet (corrections), by supervisor
+  // supervisor: for the entries without one ("" when every entry keeps its own); keep: corrections stay with theirs
+  onPush: (supervisor: string, lost: LostPick, keep: boolean) => void;
   onCancel: () => void;
 }) {
   const [list, setList] = useState<Supervisor[] | null>(null);
@@ -52,6 +55,12 @@ export function SupervisorDialog({
   const typed = name.replace(/\s+/g, " ").trim();
   const known = list?.find((s) => s.name.toLowerCase() === typed.toLowerCase());
   const chosen = known?.name ?? typed; // "kamal" when "Kamal" is known: the known spelling
+  // corrections (e.g. an SQL UPDATE on Kamal's entries) stay with their supervisor unless asked
+  const keptCount = kept.reduce((s, k) => s + k.count, 0);
+  const [moveAll, setMoveAll] = useState(false);
+  const keep = keptCount > 0 && !moveAll;
+  const allKept = keep && keptCount >= count; // nothing new: no supervisor to choose
+  const keptText = kept.map((k) => `${k.name} (${k.count})`).join(", ");
   // Recent: the last three used, on top; then everyone else A–Z, a row per first letter. Typing a
   // name that is not on the list yet narrows the buttons to the ones containing it.
   const filtering = Boolean(typed) && !known;
@@ -71,14 +80,14 @@ export function SupervisorDialog({
       aria-checked={chosen === s.name}
       className={`chip${chosen === s.name ? " on" : ""}`}
       onClick={() => setName(s.name)}
-      onDoubleClick={() => onPush(s.name, lost())}
+      onDoubleClick={() => onPush(s.name, lost(), keep)}
       disabled={busy}
     >
       {s.name}
     </button>
   );
   const push = () => {
-    if (chosen && !busy) onPush(chosen, lost());
+    if ((chosen || allKept) && !busy) onPush(allKept ? chosen || "" : chosen, lost(), keep);
   };
 
   return (
@@ -94,6 +103,18 @@ export function SupervisorDialog({
           Pushing {count} {count === 1 ? "entry" : "entries"} for {days}. They are kept under the supervisor you choose,
           so this sheet can be found again on the Supervisors page and compared with the paper.
         </p>
+        {keptCount > 0 && (
+          <div className={`sup-kept${moveAll ? " off" : ""}`}>
+            <p className="small">
+              {keptCount >= count ? `All ${count === 1 ? "this entry is a correction" : `${count} entries are corrections`}` : `${keptCount} of them ${keptCount === 1 ? "is a correction" : "are corrections"}`} to
+              {" "}sheets pushed before: {moveAll ? "they go to the supervisor chosen below." : <>they stay with <b>{keptText}</b>.</>}
+              {keptCount < count && !moveAll && ` The supervisor you choose gets the other ${count - keptCount}.`}
+            </p>
+            <label className="check small">
+              <input type="checkbox" checked={moveAll} onChange={(e) => setMoveAll(e.target.checked)} disabled={busy} /> Give all {count} to the supervisor chosen below instead
+            </label>
+          </div>
+        )}
         {list && list.length > 0 && (
           <div className="sup-choices" role="radiogroup" aria-label="Supervisors">
             {recent.length > 0 && (
@@ -159,12 +180,16 @@ export function SupervisorDialog({
         )}
         {error && <p className="error-text small">{error}</p>}
         <div className="actions">
-          <button className="primary" disabled={!chosen || busy} onClick={push}>
+          <button className="primary" disabled={!(chosen || allKept) || busy} onClick={push}>
             {busy
               ? "Writing…"
-              : chosen
-                ? `Push ${count} ${count === 1 ? "entry" : "entries"} for ${chosen}`
-                : "Choose the supervisor"}
+              : allKept && !chosen
+                ? `Push ${count} ${count === 1 ? "correction" : "corrections"}, keeping ${kept.length === 1 ? kept[0].name : "their supervisors"}`
+                : chosen
+                  ? keep
+                    ? `Push ${count} ${count === 1 ? "entry" : "entries"}: ${count - keptCount > 0 ? `${count - keptCount} for ${chosen}, ` : ""}${keptCount} kept`
+                    : `Push ${count} ${count === 1 ? "entry" : "entries"} for ${chosen}`
+                  : "Choose the supervisor"}
           </button>
         </div>
       </div>

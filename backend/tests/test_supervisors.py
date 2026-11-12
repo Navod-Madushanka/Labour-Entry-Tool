@@ -114,3 +114,19 @@ def test_reviews_latest_per_sheet(client):
     client.post("/api/supervisors/rename", json={"old": "Sunil", "new": "Sunil Silva"})
     [r] = client.get("/api/supervisor-reviews").json()
     assert r["supervisor"] == "Sunil Silva"  # the review follows the name
+
+
+def test_a_correction_keeps_each_entrys_supervisor(client):
+    """An SQL UPDATE on Kamal's entries, pushed with a new entry for Nimal: Kamal's stay Kamal's."""
+    push(client, [A], "Kamal")
+    fixed = {**A, "activities": [{"code": "03-11-00-00", "hours": 10}]}
+    body = {"user": "Clerk", "entries": [fixed, B], "supervisor": "Nimal",
+            "owners": {"1|INB-01 CH": "kamal"}}  # fmt: skip
+    assert client.post("/api/entries", json=body).json()["status"] == "written"
+    assert owners(client) == {("1", "INB-01 CH"): "Kamal", ("1", "INC-02"): "Nimal"}
+
+    # every entry kept: no supervisor chosen for the push at all
+    body = {"user": "Clerk", "entries": [{**fixed, "time_out": 18}], "supervisor": None,
+            "owners": {"1|INB-01 CH": "Kamal"}}  # fmt: skip
+    assert client.post("/api/entries", json=body).json()["status"] == "written"
+    assert owners(client)[("1", "INB-01 CH")] == "Kamal"

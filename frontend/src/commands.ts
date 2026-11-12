@@ -222,6 +222,7 @@ export interface CommandContext {
   partners?: (name: string) => string[]; // usual partners, for "crew of"
   places?: Record<string, string>; // place names of code endings (SQL: the place column)
   descriptions?: Record<string, string>; // what each code is (SQL: codes.description)
+  owners?: Map<string, string>; // "sheet|calling name" -> supervisor whose sheet it was pushed from (SQL)
   today?: Date;
 }
 

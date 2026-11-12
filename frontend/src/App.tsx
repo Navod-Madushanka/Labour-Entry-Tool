@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Lost, type Master, type Status } from "./api";
+import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Lost, type Master, type Owned, type Status } from "./api";
 import { Batches } from "./components/Batches";
 import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
@@ -90,6 +90,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
   const [supervisorOpen, setSupervisorOpen] = useState(false); // "whose manpower sheet?" at push
   const [lostItems, setLostItems] = useState<Lost[]>([]); // lost-time reasons and day disruptions
+  // whose manpower sheet each pushed entry came from: the SQL supervisor column, and kept at push
+  const [owned, setOwned] = useState<Owned[]>([]);
+  const refreshOwned = useCallback(() => api.supervisorSheets().then(setOwned).catch(() => undefined), []);
+  const ownerOf = useMemo(() => new Map(owned.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor])), [owned]);
   const [causeLabels, setCauseLabels] = useState<Record<string, string>>({});
   const disruptedDays = useMemo(
     () => Object.fromEntries(lostItems.filter((i) => !i.supervisor && i.causes.length).map((i) => [i.sheet, i.causes.map((c) => causeLabels[c] ?? c).join(", ")])),
@@ -317,13 +321,16 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     setFocusToken((t) => t + 1);
   };
 
-  const commit = async (dryRun: boolean, supervisor?: string, lost?: LostPick) => {
+  const commit = async (dryRun: boolean, supervisor?: string, lost?: LostPick, keep = false) => {
     if (!queue.length) return;
     setBusy(true);
     setMessage(null);
     try {
       const sent = queue; // entries added while this runs stay in the queue
-      const res = await api.commit(sent.map((q) => withHeaderAck(q.input)), user, dryRun, supervisor);
+      // corrections keep the supervisor whose sheet they were pushed from (unless all were moved)
+      const keys = sent.map((q) => `${q.input.sheet}|${q.input.calling_name}`);
+      const owners = keep ? Object.fromEntries(keys.filter((k) => ownerOf.has(k)).map((k) => [k, ownerOf.get(k)!])) : undefined;
+      const res = await api.commit(sent.map((q) => withHeaderAck(q.input)), user, dryRun, supervisor, owners);
       setResult(res);
       const planOf = new Map(sent.map((q, n) => [q.id, res.plans[n]]));
       if (res.status === "written" && storyOn) {
@@ -337,13 +344,16 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         if (lost && (lost.causes.length || lost.dayTags.length || lost.note)) {
           // the reason for this sheet's unallocated hours and the day's disruption (roadmap #5)
           for (const s of new Set(sent.map((q) => q.input.sheet))) {
-            if (supervisor && (lost.causes.length || lost.note)) await api.setLostTime({ user, sheet: s, supervisor, causes: lost.causes, note: lost.note || null }).catch(fail);
+            // the reason goes to each supervisor whose entries were pushed on that sheet
+            const sups = new Set(sent.filter((q) => q.input.sheet === s).map((q) => owners?.[`${s}|${q.input.calling_name}`] ?? supervisor).filter((x): x is string => Boolean(x)));
+            if (lost.causes.length || lost.note) for (const sup of sups) await api.setLostTime({ user, sheet: s, supervisor: sup, causes: lost.causes, note: lost.note || null }).catch(fail);
             if (lost.dayTags.length) await api.setLostTime({ user, sheet: s, causes: lost.dayTags, note: lost.note || null }).then((v) => setLostItems(v.items)).catch(fail);
           }
         }
         await Promise.all([...new Set(sent.map((q) => q.input.sheet))].map(reloadDay));
         refreshBatches();
         refreshStatus();
+        refreshOwned();
       } else {
         setQueue((items) => items.map((it) => ({ ...it, plan: planOf.get(it.id) ?? it.plan })));
       }
@@ -366,6 +376,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       if (daySheets.length < b.sheets.length) api.master(true).then(setMaster).catch(fail); // Labour Detail
       await Promise.all(daySheets.map(reloadDay));
       refreshBatches();
+      refreshOwned();
       refreshStatus();
     } catch (e) {
       fail(e);
@@ -422,12 +433,25 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       activities: master.activities,
       places: master.places,
       descriptions: master.descriptions,
+      owners: ownerOf,
       partners: (name) => {
         const w = byName.get(name);
         return w ? [...usualPartners(suggestMonth, Number(sheet), w).partners] : [];
       },
     };
-  }, [master, month, suggestMonth, queue, sheet]);
+  }, [master, month, suggestMonth, queue, sheet, ownerOf]);
+  useEffect(() => {
+    if (master?.workbook) refreshOwned();
+  }, [master?.workbook, refreshOwned]);
+  // queued entries that are corrections to a supervisor's sheet pushed before, by supervisor
+  const keptOwners = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const q of queue) {
+      const o = ownerOf.get(`${q.input.sheet}|${q.input.calling_name}`);
+      if (o) n.set(o, (n.get(o) ?? 0) + 1);
+    }
+    return [...n].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }, [queue, ownerOf]);
   // Ctrl+K from any tab: the command box (on Codes & registration).
   const [commandFocus, setCommandFocus] = useState(0);
   useEffect(() => {
@@ -772,9 +796,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 busy={busy}
                 idleHours={queue.reduce((s, q) => s + Math.max(Number(q.plan?.preview?.zidle) || 0, 0), 0)}
                 onCancel={() => setSupervisorOpen(false)}
-                onPush={(name, lost) => {
+                kept={keptOwners}
+                onPush={(name, lost, keep) => {
                   setSupervisorOpen(false);
-                  commit(false, name, lost);
+                  commit(false, name, lost, keep);
                 }}
               />
             )}

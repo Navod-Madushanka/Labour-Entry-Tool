@@ -181,4 +181,40 @@ t("a code change on workers with many lines: one line changes; a code twice is m
   assert.deepEqual(by["BBB-01"], [["ACT-001", 4], ["ACT-003", 8]]); // 2+2 and 2+3+3: lines with the same code merged
   assert.deepEqual(by["BBB-02"], [["ACT-003", 12]]); // had the new code: one line, 5 + 7
 });
+// supervisors: BBB-01/02 on days 1-2 from Kamal's sheet, SSS-01 on day 1 from Nimal's (made up)
+const owners = new Map([["1|BBB-01", "Kamal"], ["1|BBB-02", "Kamal"], ["2|BBB-01", "Kamal"], ["2|BBB-02", "Kamal"], ["1|SSS-01", "Nimal"]]);
+t("WHERE supervisor = \"Kamal\" (double quotes are a value; case does not matter)", () => {
+  const r = sql('SELECT * FROM entries WHERE supervisor = "Kamal";', { owners });
+  assert.equal(r.table.rows.length, 4);
+  assert.ok(r.table.columns.includes("supervisor"));
+  assert.equal(sql("SELECT day FROM entries WHERE supervisor = 'kamal'", { owners }).table.rows.length, 4);
+  assert.equal(sql("SELECT day FROM entries WHERE supervisor IS NULL", { owners }).table.rows.length, 40);
+  assert.equal(sql("SELECT day FROM entries WHERE foreman IN (\"Kamal\", \"Nimal\")", { owners }).table.rows.length, 5);
+  assert.deepEqual(sql("SELECT supervisor, COUNT(*) AS n FROM entries GROUP BY supervisor ORDER BY n DESC", { owners }).table.rows.slice(0, 2), [[null, 40], ["Kamal", 4]]);
+  assert.equal(sql("SELECT * FROM activities WHERE supervisor = 'Nimal'", { owners }).table.rows.length, 1);
+  // a double-quoted column name still works as a column
+  assert.equal(sql('SELECT "calling_name" FROM entries WHERE "supervisor" = "Nimal"', { owners }).table.rows[0][0], "SSS-01");
+});
+t("UPDATE … WHERE code = … AND supervisor = 'Kamal': only Kamal's entries, other lines kept", () => {
+  const r = sql('UPDATE entries SET code = "ACT-003" where code = "ACT-001" AND supervisor = \'Kamal\';', { owners });
+  assert.equal(r.inputs.length, 4);
+  assert.ok(r.inputs.every((i) => ["1", "2"].includes(i.sheet) && i.activities[0].code === "ACT-003"));
+  assert.equal(sql("UPDATE entries SET out = '18:00' WHERE supervisor = 'Nimal'", { owners }).inputs[0].calling_name, "SSS-01");
+});
+t("supervisor cannot be SET; unknown names are explained", () => {
+  assert.match(err("UPDATE entries SET supervisor = 'Nimal' WHERE day = 1"), /cannot be set here.*Reassign/);
+  const miss = sql("SELECT * FROM entries WHERE supervisor = 'Kamall'", { owners });
+  assert.equal(miss.table.rows.length, 0);
+  assert.ok(miss.notes.some((x) => /Kamal/.test(x) && /did you mean/.test(x)), miss.notes.join(" | "));
+  assert.ok(sql("SELECT * FROM entries WHERE supervisor = 'Kam'", { owners }).notes.some((x) => /LIKE '%Kam%'/.test(x)));
+  assert.ok(sql("SELECT * FROM entries WHERE supervisor = 'Kamal'").notes.some((x) => /No entries this month were pushed with a supervisor/.test(x)));
+});
+t("the supervisors table", () => {
+  const r = sql("SELECT * FROM supervisors ORDER BY entries DESC", { owners });
+  assert.deepEqual(r.table.columns, ["supervisor", "days", "entries", "workers", "hours", "first_day", "last_day"]);
+  assert.deepEqual(r.table.rows[0], ["Kamal", 2, 4, 2, 40, 1, 2]); // BBB-01 8 h + BBB-02 12 h, twice
+  assert.deepEqual(r.table.rows[1].slice(0, 4), ["Nimal", 1, 1, 1]);
+  const sug = S.suggestSql("SELECT * FROM entries WHERE supervisor = ", 41, ctx({ owners }));
+  assert.deepEqual(sug.items.map((x) => x.insert), ["'Kamal'", "'Nimal'"]);
+});
 console.log(`sql: ${n} tests passed`);

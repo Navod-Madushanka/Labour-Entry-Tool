@@ -1266,3 +1266,8 @@ tr:hover > th .pick-hint, tr:focus-within > th .pick-hint { display: inline-bloc
 .coach { border-left: 4px solid var(--primary) !important; background: var(--primary-bg); }
 .coach > b { color: var(--primary); }
 .day-hit { cursor: default; }
+
+/* push dialog: corrections that keep their supervisor */
+.sup-kept { border: 1px solid var(--line); border-left: 3px solid var(--primary); background: var(--primary-bg); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.sup-kept.off { border-left-color: var(--line); background: var(--row); }
+.sup-kept p { margin: 0 0 4px; }

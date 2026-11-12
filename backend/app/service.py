@@ -449,15 +449,22 @@ class EntryService:
         return True
 
     def commit(self, entries: list[EntryInput], user: str, dry_run: bool = False,
-               supervisor: str | None = None) -> CommitResult:  # fmt: skip
-        """``supervisor``: whose manpower sheet these entries are from (kept with the push)."""
+               supervisor: str | None = None,
+               owners: dict[str, str] | None = None) -> CommitResult:  # fmt: skip
+        """``supervisor``: whose manpower sheet these entries are from (kept with the push).
+        ``owners``: entries ("sheet|calling name") that keep a supervisor of their own, e.g. a
+        correction to a sheet pushed earlier; the rest go to ``supervisor``."""
         started = time.perf_counter()
         if not user.strip():
             raise ValueError("a user name is required for writes")
-        supervisor = clean_name(supervisor or "") or None
-        if supervisor:  # "kamal" when "Kamal" is known: the known spelling
-            known = {n.casefold(): n for n, _ in self.audit.supervisors()}
-            supervisor = known.get(supervisor.casefold(), supervisor)
+        known = {n.casefold(): n for n, _ in self.audit.supervisors()}
+
+        def spelt(name: str | None) -> str | None:  # "kamal" when "Kamal" is known
+            name = clean_name(name or "")[:80] or None
+            return known.get(name.casefold(), name) if name else None
+
+        supervisor = spelt(supervisor)
+        kept = {k: v for k, v in ((k, spelt(v)) for k, v in (owners or {}).items()) if v}
         wb = self.workbook
         plans = self._plan(entries, self.master(fresh=True), fresh=True)
 
@@ -471,11 +478,15 @@ class EntryService:
             return result("dry_run")
 
         def own(batch_id: int | None) -> None:
-            if supervisor:
-                self.audit.own(batch_id, user, wb.name, supervisor, [
-                    (p.input.sheet, p.input.calling_name, p.input.model_dump(mode="json"))
-                    for p in plans
-                ])  # fmt: skip
+            by: dict[str, list[tuple[str, str, dict]]] = {}
+            for p in plans:
+                name = kept.get(f"{p.input.sheet}|{p.input.calling_name}") or supervisor
+                if name:
+                    by.setdefault(name, []).append(
+                        (p.input.sheet, p.input.calling_name, p.input.model_dump(mode="json"))
+                    )
+            for name, rows in by.items():
+                self.audit.own(batch_id, user, wb.name, name, rows)
 
         changed = [p for p in plans if p.changes]
         if not changed:

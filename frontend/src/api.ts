@@ -519,8 +519,9 @@ export const api = {
     call<DayView>("GET", `/api/days/${encodeURIComponent(sheet)}${fresh ? "?fresh=true" : ""}`),
   preview: (entries: EntryInput[]) =>
     call<{ plans: EntryPlan[] }>("POST", "/api/preview", { entries }).then((r) => r.plans),
-  commit: (entries: EntryInput[], user: string, dryRun = false, supervisor?: string) =>
-    call<CommitResult>("POST", "/api/entries", { entries, user, dry_run: dryRun, supervisor: supervisor ?? null }),
+  // owners: "sheet|calling name" -> supervisor for entries that keep theirs (corrections)
+  commit: (entries: EntryInput[], user: string, dryRun = false, supervisor?: string, owners?: Record<string, string>) =>
+    call<CommitResult>("POST", "/api/entries", { entries, user, dry_run: dryRun, supervisor: supervisor || null, owners: owners ?? null }),
   tradeLetters: () => call<TradeLetters>("GET", "/api/setup/trade-letters"),
   saveTradeLetters: (letters: Record<string, string>) => call<TradeLetters>("POST", "/api/setup/trade-letters", { letters }),
   supervisors: () => call<Supervisor[]>("GET", "/api/supervisors"),

@@ -51,6 +51,9 @@ class CommitRequest(PreviewRequest):
     user: str = Field(min_length=1)
     dry_run: bool = False
     supervisor: str | None = Field(None, max_length=80)  # whose manpower sheet (paper) this is
+    # entries that already belong to a supervisor and keep them ("sheet|calling name" -> name):
+    # a correction (e.g. an SQL UPDATE) does not move them to whoever is chosen for the rest
+    owners: dict[str, str] | None = Field(None, max_length=5000)
 
 
 class UserRequest(BaseModel):
@@ -173,7 +176,11 @@ async def commit(body: CommitRequest, request: Request) -> CommitResult:
     return await run_service(
         request,
         lambda s: s.commit(
-            body.entries, body.user, dry_run=body.dry_run, supervisor=body.supervisor
+            body.entries,
+            body.user,
+            dry_run=body.dry_run,
+            supervisor=body.supervisor,
+            owners=body.owners,
         ),
     )
 

@@ -48,12 +48,23 @@ const ENTRY_COLS: ColDef[] = [
   col("remark", "text", "Remark.", ["remarks", "note", "notes", "comment", "comments"]),
   col("day_type", "text", "Normal Day, Saturday, Sunday or Holiday (sheet header).", ["daytype", "typeofday"]),
   col("source", "text", "Excel, or queue (waiting to be pushed).", ["origin", "status"]),
+  col("supervisor", "text", "Whose manpower sheet the entry was pushed from (Supervisors page); empty when typed straight in. Not SET here: a correction keeps it.", ["foreman", "owner", "sheetowner", "pushedby", "supervisorname"]),
 ];
+const SUPERVISOR = ENTRY_COLS[19];
 const TABLES: TableDef[] = [
   { name: "entries", writable: true, help: "One row per worker per day: what is in Excel plus what waits in the queue. INSERT, UPDATE and DELETE go to the queue.", aliases: ["entry", "labor", "labour", "labors", "labours", "work", "records", "record", "timesheet", "timesheets", "attendance", "manpower"], cols: ENTRY_COLS },
-  { name: "activities", help: "One row per activity line (for sums of hours by code).", aliases: ["activity", "lines", "activitylines", "allocations"], cols: [ENTRY_COLS[0], ENTRY_COLS[1], ENTRY_COLS[2], ENTRY_COLS[3], ENTRY_COLS[5], col("code", "text", "Activity code.", ["activitycode", "activity", "wbs", "act", "task"]), ENTRY_COLS[9], col("hours", "number", "Hours on this line.", ["hour", "hrs"]), ENTRY_COLS[18]] },
+  { name: "activities", help: "One row per activity line (for sums of hours by code).", aliases: ["activity", "lines", "activitylines", "allocations"], cols: [ENTRY_COLS[0], ENTRY_COLS[1], ENTRY_COLS[2], ENTRY_COLS[3], ENTRY_COLS[5], col("code", "text", "Activity code.", ["activitycode", "activity", "wbs", "act", "task"]), ENTRY_COLS[9], col("hours", "number", "Hours on this line.", ["hour", "hrs"]), ENTRY_COLS[18], SUPERVISOR] },
   { name: "workers", help: "Labour Detail: every calling name with its worker.", aliases: ["worker", "employees", "employee", "staff", "people", "labourdetail", "labordetail", "master"], cols: [ENTRY_COLS[2], ENTRY_COLS[3], ENTRY_COLS[4], ENTRY_COLS[5], col("code_status", "text", "valid, missing, error (#N/A), zero or invalid.", ["codestatus", "employeecodestatus"]), col("row", "number", "Row in Labour Detail.", ["rowno", "line"]), col("days_worked", "number", "Days with an entry this month.", ["daysworked", "days", "attendance"])] },
   { name: "codes", help: "The activity list in Labour Detail.", aliases: ["code", "activitycodes", "activitycode", "wbs", "activitylist", "wbscodes"], cols: [col("code", "text", "Activity code.", ["activitycode", "wbs"]), col("description", "text", "What the code is: the office's description or the MasterFormat title.", ["desc", "title", "name", "activityname"]), ENTRY_COLS[9], col("lines", "number", "Activity lines with this code this month.", ["used", "uses", "count"])] },
+  { name: "supervisors", help: "Each supervisor with the entries pushed from their manpower sheets this month.", aliases: ["foremen", "foreman", "sheetowners", "owners"], cols: [
+    col("supervisor", "text", "The supervisor's name as chosen at push.", ["name", "foreman", "owner"]),
+    col("days", "number", "Day sheets with entries from this supervisor.", ["sheets", "daycount"]),
+    col("entries", "number", "Worker-days pushed from this supervisor's sheets.", ["workerdays", "rows", "count"]),
+    col("workers", "number", "Different calling names on their sheets.", ["people", "headcount"]),
+    col("hours", "number", "Worked hours on those entries.", ["worked", "workedhours"]),
+    col("first_day", "number", "First day sheet with their entries.", ["firstday", "from"]),
+    col("last_day", "number", "Last day sheet with their entries.", ["lastday", "to"]),
+  ] },
   { name: "days", help: "The day sheets.", aliases: ["day", "sheets", "sheet", "dates", "calendar"], cols: [ENTRY_COLS[0], ENTRY_COLS[1], col("weekday", "text", "Monday … Sunday.", ["dow", "dayname"]), ENTRY_COLS[17], col("workers", "number", "Workers with an entry that day.", ["count", "people", "headcount"])] },
 ];
 
@@ -107,6 +118,7 @@ function entryRows(ctx: CommandContext): { row: Row; input: EntryInput; inExcel:
           hours: i.activities.reduce((s, a) => s + (a.hours ?? 0), 0), worked, ot, normal: worked === null || ot === null ? null : worked - ot,
           total: i.time_in !== null && i.time_out !== null ? i.time_out - i.time_in : null, additional: i.additional, remark: i.remark, day_type: dayType || null,
           source: cur.source === "excel" ? "Excel" : "queue",
+          supervisor: ctx.owners?.get(`${sheet}|${name}`) ?? null,
         },
       });
     }
@@ -118,7 +130,7 @@ function tableRows(t: TableDef, ctx: CommandContext): Row[] {
   if (t.name === "entries") return entryRows(ctx).map((r) => r.row);
   if (t.name === "activities")
     return entryRows(ctx).flatMap(({ row, input }) =>
-      input.activities.filter((a) => a.code || a.hours !== null).map((a) => ({ day: row.day, date: row.date, calling_name: row.calling_name, full_name: row.full_name, employee_code: row.employee_code, code: a.code, place: a.code ? placeName(a.code, ctx.places) : null, hours: a.hours, source: row.source })),
+      input.activities.filter((a) => a.code || a.hours !== null).map((a) => ({ day: row.day, date: row.date, calling_name: row.calling_name, full_name: row.full_name, employee_code: row.employee_code, code: a.code, place: a.code ? placeName(a.code, ctx.places) : null, hours: a.hours, source: row.source, supervisor: row.supervisor })),
     );
   if (t.name === "workers") {
     const days = new Map<string, number>();
@@ -129,6 +141,23 @@ function tableRows(t: TableDef, ctx: CommandContext): Row[] {
     const used = new Map<string, number>();
     for (const r of entryRows(ctx)) for (const a of r.input.activities) if (a.code) used.set(a.code.toUpperCase(), (used.get(a.code.toUpperCase()) ?? 0) + 1);
     return ctx.activities.map((c) => ({ code: c, description: describe(c, ctx.descriptions), place: placeName(c, ctx.places), lines: used.get(c.toUpperCase()) ?? 0 }));
+  }
+  if (t.name === "supervisors") {
+    const by = new Map<string, { days: Set<number>; entries: number; workers: Set<string>; hours: number }>();
+    for (const { row } of entryRows(ctx)) {
+      if (!row.supervisor) continue;
+      const k = String(row.supervisor);
+      const g = by.get(k) ?? { days: new Set(), entries: 0, workers: new Set(), hours: 0 };
+      g.days.add(Number(row.day));
+      g.entries += 1;
+      g.workers.add(String(row.calling_name));
+      g.hours += Number(row.worked ?? 0);
+      by.set(k, g);
+    }
+    return [...by].sort((a, b) => a[0].localeCompare(b[0])).map(([supervisor, g]) => ({
+      supervisor, days: g.days.size, entries: g.entries, workers: g.workers.size, hours: Math.round(g.hours * 100) / 100,
+      first_day: Math.min(...g.days), last_day: Math.max(...g.days),
+    }));
   }
   const counts = new Map<number, number>();
   for (const r of entryRows(ctx)) counts.set(Number(r.row.day), (counts.get(Number(r.row.day)) ?? 0) + 1);
@@ -142,7 +171,7 @@ function tableRows(t: TableDef, ctx: CommandContext): Row[] {
 
 type Expr =
   | { k: "lit"; v: string | number | null }
-  | { k: "col"; name: string; raw: string }
+  | { k: "col"; name: string; raw: string; quoted?: boolean }
   | { k: "star" }
   | { k: "bin"; op: string; l: Expr; r: Expr }
   | { k: "not"; e: Expr }
@@ -241,9 +270,10 @@ function parseStatement(src: string): Statement {
       return { k: "fn", name: l === "len" ? "length" : l === "ifnull" ? "coalesce" : l, args, distinct };
     }
     if (t.text.startsWith('"') && !/^"[A-Za-z_ ]+"$/.test(t.text)) { i++; return { k: "lit", v: t.text.slice(1, -1) }; }
+    const quoted = t.text.startsWith('"');
     let name = ident();
     if (peek()?.text === ".") { i++; name = ident(); } // table.column
-    return { k: "col", name, raw: name };
+    return { k: "col", name, raw: name, quoted };
   };
   const unary = (): Expr => primary();
   // the table named so far (FROM / UPDATE / DELETE FROM come before WHERE): its column names
@@ -540,6 +570,38 @@ function unknownNameNotes(where: Expr | null, ctx: CommandContext): string[] {
     });
 }
 
+/** The supervisors with entries this month, A–Z. */
+function supervisorNames(ctx: CommandContext): string[] {
+  return [...new Set(ctx.owners?.values() ?? [])].sort((a, b) => a.localeCompare(b));
+}
+
+/** supervisor = 'Kamall' (or no supervisor pushed yet): say who there is. */
+function unknownSupervisorNotes(where: Expr | null, ctx: CommandContext): string[] {
+  const asked: string[] = [];
+  const isSup = (e: Expr) => e.k === "col" && norm(e.name) !== "" && SUPERVISOR.aliases.concat("supervisor").some((a) => norm(a) === norm(e.name));
+  const lit = (e: Expr) => (e.k === "lit" && typeof e.v === "string" ? e.v : null);
+  const walk = (e: Expr | null): void => {
+    if (!e) return;
+    if (e.k === "bin" && (e.op === "and" || e.op === "or")) { walk(e.l); walk(e.r); }
+    else if (e.k === "bin" && e.op === "=" && isSup(e.l) && lit(e.r)) asked.push(lit(e.r)!);
+    else if (e.k === "in" && !e.neg && isSup(e.e)) e.list.forEach((x) => lit(x) && asked.push(lit(x)!));
+  };
+  walk(where);
+  if (!asked.length) return [];
+  const names = supervisorNames(ctx);
+  if (!names.length) return ["No entries this month were pushed with a supervisor yet: the supervisor column is empty until a manpower sheet is pushed with one (Entry → Push)."];
+  const known = new Set(names.map((n) => n.toUpperCase()));
+  return asked
+    .filter((n) => !known.has(n.trim().toUpperCase()))
+    .map((n) => {
+      const part = names.filter((x) => x.toUpperCase().includes(n.trim().toUpperCase()));
+      const hint = didYouMean(n.trim(), names);
+      return part.length
+        ? `No supervisor is called "${n}" exactly: ${part.slice(0, 5).join(", ")} ${part.length === 1 ? "contains" : "contain"} it. For all of them: supervisor LIKE '%${n.trim()}%'.`
+        : `"${n}" has no entries this month${hint ? ` (did you mean ${hint}?)` : ""}. Supervisors: ${names.slice(0, 8).join(", ")}${names.length > 8 ? " …" : ""}.`;
+    });
+}
+
 /** The codes a WHERE asks for (code = 'X', code IN (…), code LIKE 'X%'; not under NOT), as tests
  * on one activity line's code. */
 function codeMatchers(where: Expr | null): ((code: string) => boolean)[] {
@@ -603,9 +665,39 @@ function emptyCodeNotes(where: Expr, tableName: string, ctx: CommandContext): st
   return notes;
 }
 
+/** "Kamal" in double quotes where a value goes (after =, in IN (…), LIKE, BETWEEN, SET x =): a
+ * text value, as MySQL reads it, unless it is exactly a column's name. */
+function quotedValues(st: Statement, t: TableDef): void {
+  const own = new Set(t.cols.map((c) => norm(c.name)));
+  const isCol = (e: Expr) => {
+    if (e.k !== "col") return false;
+    try { findCol(t, e.name); return true; } catch { return false; }
+  };
+  const asValue = (e: Expr): void => {
+    if (e.k === "col" && e.quoted && !own.has(norm(e.name))) Object.assign(e, { k: "lit", v: e.name });
+  };
+  const walk = (e: Expr | null): void => {
+    if (!e) return;
+    if (e.k === "bin") {
+      // the side that is a column makes the other side a value: supervisor = "Kamal", "supervisor" = "Kamal"
+      if (["=", "!=", "<>", "<", ">", "<=", ">="].includes(e.op)) { if (isCol(e.l)) asValue(e.r); else if (isCol(e.r)) asValue(e.l); }
+      walk(e.l); walk(e.r);
+    } else if (e.k === "in") { e.list.forEach(asValue); walk(e.e); }
+    else if (e.k === "like") { asValue(e.pat); walk(e.e); }
+    else if (e.k === "between") { asValue(e.lo); asValue(e.hi); walk(e.e); }
+    else if (e.k === "not" || e.k === "neg") walk(e.e);
+    else if (e.k === "fn") e.args.forEach(walk);
+  };
+  if (st.kind === "select") { walk(st.where); walk(st.having); }
+  else if (st.kind === "update") { st.sets.forEach((x) => asValue(x.e)); walk(st.where); }
+  else if (st.kind === "delete") walk(st.where);
+  else st.rows.forEach((r) => r.forEach(asValue));
+}
+
 export function parseSql(src: string, ctx: CommandContext): Statement {
   const st = parseStatement(cleanPasted(src));
   const t = findTable(st.table);
+  quotedValues(st, t);
   // resolve every column now, so a wrong name is reported before anything runs
   const walk = (e: Expr | null): void => {
     if (!e) return;
@@ -687,7 +779,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
     res.table = { columns: items.map((x) => x.alias ?? (x.e.k === "col" ? findCol(t, x.e.name).name : x.text)), rows: table };
     res.summary = `${table.length} row${table.length === 1 ? "" : "s"} from ${t.name}. Nothing is changed.`;
     if (!table.length && st.where) res.notes.push(...emptyCodeNotes(st.where, t.name, ctx));
-    res.notes.push(...unknownNameNotes(st.where, ctx));
+    res.notes.push(...unknownNameNotes(st.where, ctx), ...unknownSupervisorNotes(st.where, ctx));
     return res;
   }
 
@@ -745,6 +837,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
   for (const s of st.sets) {
     const c = findCol(t, s.col);
     if (COMPUTED_WHY[c.name]) throw new CommandError(`${c.name.toUpperCase()} cannot be set: ${COMPUTED_WHY[c.name]}`);
+    if (c.name === "supervisor") throw new CommandError("SUPERVISOR cannot be set here: it is whose paper the entries came from, and a correction keeps it. To give entries to another supervisor, use Supervisors → the sheet → Reassign.");
     if (!WRITABLE.has(c.name)) throw new CommandError(`${c.name} cannot be changed (it comes from Labour Detail or the sheet). Columns you can SET: ${[...WRITABLE].join(", ")}.`);
   }
   const whereCodes = codeMatchers(st.where);
@@ -794,7 +887,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
   }
   res.summary = `UPDATE: ${res.inputs.length} entr${res.inputs.length === 1 ? "y" : "ies"} changed (in the queue, to push).`;
   if (!matched.length) res.notes.push("No entry matches the WHERE.");
-  res.notes.push(...unknownNameNotes(st.where, ctx));
+  res.notes.push(...unknownNameNotes(st.where, ctx), ...unknownSupervisorNotes(st.where, ctx));
   return res;
 }
 
@@ -870,6 +963,8 @@ export function suggestSql(src: string, cursor: number, ctx: CommandContext, lim
   if (["from", "into", "update"].includes(last)) items = tables();
   else if (["select", ",", "(", "by", "where", "and", "or", "set", "not", "distinct", "having"].includes(last)) items = [...cols(), ...(["select", ",", "having"].includes(last) ? fns() : [])];
   else if (["=", "!=", "<>", "like", "in"].includes(last) && words[words.length - 2] && /code/.test(words[words.length - 2])) items = ctx.activities.map((a) => ({ insert: `'${a}'`, label: a, detail: "activity code" }));
+  else if (["=", "!=", "<>", "like", "in"].includes(last) && words[words.length - 2] && /supervisor|foreman|owner/.test(words[words.length - 2]))
+    items = supervisorNames(ctx).map((n) => ({ insert: `'${n.replace(/'/g, "''")}'`, label: n, detail: "supervisor" }));
   else if (!words.length) items = kw(["SELECT", "INSERT", "UPDATE", "DELETE"]);
   else items = kw(["FROM", "WHERE", "AND", "OR", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "DESC", "AS", "LIKE", "IN", "BETWEEN", "IS NULL", "SET", "VALUES"]);
   const p = partial.toLowerCase();
