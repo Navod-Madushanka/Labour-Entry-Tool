@@ -9,7 +9,7 @@ import type { Month } from "./history";
 import { placeSuffix } from "./codes";
 
 export type DayKind = "Normal" | "Saturday" | "Sunday" | "Holiday";
-export const NO_CODE = "ZIDLE (no activity)";
+export const NO_CODE = "Unallocated (ZIDLE)"; // worked hours not booked to any activity code
 export const NO_PLACE = "No place";
 export const NO_TRADE = "No trade";
 export const NO_SUPERVISOR = "No supervisor";

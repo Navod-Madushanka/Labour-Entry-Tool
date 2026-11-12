@@ -528,10 +528,10 @@ section.timecards { border-top-color: var(--brand); }
 .book-current .name { min-width: 0; }
 
 /* Place names in activity codes */
-.places-card table.places { border-collapse: collapse; margin: 6px 0 8px; }
-.places-card table.places th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 2px 10px 4px 0; }
-.places-card table.places td { padding: 3px 10px 3px 0; }
-.places-card table.places input { width: 22ch; }
+.places-card table.places, .desc-card table.places { border-collapse: collapse; margin: 6px 0 8px; }
+.places-card table.places th, .desc-card table.places th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 2px 10px 4px 0; }
+.places-card table.places td, .desc-card table.places td { padding: 3px 10px 3px 0; }
+.places-card table.places input, .desc-card table.places input { width: 22ch; }
 .places-card tr.new code { font-weight: 700; }
 input.suggested-code::placeholder { color: var(--accent); opacity: 0.75; }
 .hint.place { display: block; color: var(--accent); }
@@ -947,16 +947,16 @@ section.reg-conflicts { border-top-color: var(--warn); }
 section.reg-check { border-top-color: var(--info); }
 
 /* Editable mapping grids: every box looks like a box */
-.trade-table, .places-card table.places { border-collapse: separate; border-spacing: 0 4px; }
-.trade-table th, .places-card table.places th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 10px 2px 0; }
-.trade-table td, .places-card table.places td { padding: 0 10px 0 0; vertical-align: middle; }
-.trade-table input, .places-card table.places input, .activity-adder textarea {
+.trade-table, .places-card table.places, .desc-card table.places { border-collapse: separate; border-spacing: 0 4px; }
+.trade-table th, .places-card table.places th, .desc-card table.places th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 0 10px 2px 0; }
+.trade-table td, .places-card table.places td, .desc-card table.places td { padding: 0 10px 0 0; vertical-align: middle; }
+.trade-table input, .places-card table.places input, .activity-adder textarea, .desc-card table.places input {
   padding: 7px 10px; background: var(--field); border: 1px solid color-mix(in srgb, var(--text) 32%, var(--field-line)); border-radius: 6px;
 }
-.trade-table input:hover, .places-card table.places input:hover, .activity-adder textarea:hover { border-color: color-mix(in srgb, var(--text) 50%, var(--field-line)); }
-.trade-table input::placeholder, .places-card table.places input::placeholder { color: var(--muted); opacity: 0.8; }
+.trade-table input:hover, .places-card table.places input:hover, .activity-adder textarea:hover, .desc-card table.places input:hover { border-color: color-mix(in srgb, var(--text) 50%, var(--field-line)); }
+.trade-table input::placeholder, .places-card table.places input::placeholder, .desc-card table.places input::placeholder { color: var(--muted); opacity: 0.8; }
 .trade-table td:first-child input { text-align: center; font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
-.places-card table.places code { display: inline-block; min-width: 5ch; padding: 3px 8px; border-radius: 5px; background: var(--row); border: 1px solid var(--line); font-weight: 600; }
+.places-card table.places code, .desc-card table.places code { display: inline-block; min-width: 5ch; padding: 3px 8px; border-radius: 5px; background: var(--row); border: 1px solid var(--line); font-weight: 600; }
 .places-card tr.add-place td { border-top: none; padding-top: 10px; }
 
 /* SQL panel: a developer workspace. The editor is dark in both themes, with its own syntax colours. */
@@ -998,3 +998,18 @@ fieldset.tc-config .tc-grid { margin: 4px 0 6px; align-items: flex-start; }
 .tc-scope.large { border-color: var(--warn); background: color-mix(in srgb, var(--warn-bg) 55%, var(--panel)); }
 .tc-scope.large .tc-scope-n { color: var(--warn); }
 button.primary.tc-print { font-size: 17px; padding: 12px 26px; letter-spacing: 0.01em; box-shadow: 0 2px 0 var(--accent-hover), 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* Speak their language: one-line definitions under KPIs, descriptions beside codes */
+.kpi-def { margin-top: 4px; font-size: 11px; line-height: 1.35; color: var(--muted); opacity: 0.9; }
+.heat-desc { font-weight: 400; white-space: nowrap; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+.desc-table input { width: 100%; min-width: 22ch; }
+.desc-table td.std { color: var(--muted); font-size: 12px; }
+.desc-table tr.custom td:first-child code { border-color: var(--accent); }
+@media (min-width: 1200px) { .codes-cards > .desc-card { grid-column: 1 / -1; } }
+section.desc-card { border-top-color: var(--accent); }
+.desc-tools { margin: 4px 0 8px; gap: 14px; }
+.desc-tools input[type="text"], .desc-tools input:not([type]) { min-width: 260px; }
+.desc-wrap { max-height: 460px; overflow: auto; }
+.desc-table { width: 100%; }
+.desc-card table.places.desc-table input { width: 100%; min-width: 28ch; }
+.desc-card table.places.desc-table td:nth-child(2) { width: 42%; }

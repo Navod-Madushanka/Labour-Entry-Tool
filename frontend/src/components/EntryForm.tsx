@@ -17,7 +17,7 @@ import {
   type OwnTimes,
 } from "../form";
 import { companions, crewToday, entriesOf, fillsLines, nextWorkers, suggestCodes, suggestRecord, suggestTimes, usualTimes, workerStats, type Month, type TodayEntry } from "../history";
-import { placeName } from "../codes";
+import { codeLabel } from "../codes";
 import { searchWorkers } from "../search";
 import { effectiveHours, fmtHours, formatClock, formatShift, parseClock, stepClock } from "../time";
 import { formulaValue, settleFormula } from "../calc";
@@ -145,6 +145,7 @@ export function EntryForm(props: Props) {
   // once (a fast second Enter must not land on the first box again).
   const visibleLines = Math.min(LINES, Math.max(suggested[0] ? 2 : 1, lastFilled + 2));
   const places = master.places;
+  const label = (code: string) => codeLabel(code, places, master.descriptions);
   const codeList = useMemo(
     () => [...new Set([...suggested.map((s) => s.code), ...activityOrder])],
     [suggested, activityOrder],
@@ -601,7 +602,7 @@ export function EntryForm(props: Props) {
                         } else onKey(e, `hours${i}`);
                       }}
                     />
-                    {placeName(line.code, places) && <small className="hint place">{placeName(line.code, places)}</small>}
+                    {label(line.code) && <small className="hint place">{label(line.code)}</small>}
                   </td>
                   <td>
                     <input
@@ -655,7 +656,7 @@ export function EntryForm(props: Props) {
                     }}
                   >
                     {sg.code}
-                    {placeName(sg.code, places) && <span className="place"> · {placeName(sg.code, places)}</span>}
+                    {label(sg.code) && <span className="place"> · {label(sg.code)}</span>}
                     <span className="why"> {sg.why}</span>
                   </button>
                 ))}
@@ -671,7 +672,7 @@ export function EntryForm(props: Props) {
         )}
         <datalist id="activity-codes">
           {codeList.map((c) => (
-            <option key={c} value={c} label={placeName(c, places) ?? undefined} />
+            <option key={c} value={c} label={label(c) ?? undefined} />
           ))}
         </datalist>
 

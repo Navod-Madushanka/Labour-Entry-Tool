@@ -7,6 +7,7 @@ import { EntryForm } from "./components/EntryForm";
 import { ActivityAdder } from "./components/ActivityAdder";
 import type { CommandContext, CommandResult } from "./commands";
 import { MasterTools } from "./components/MasterTools";
+import { DescriptionsEditor } from "./components/DescriptionsEditor";
 import { Analysis } from "./components/Analysis";
 import { SqlWorkspace } from "./components/SqlWorkspace";
 import { PlacesEditor } from "./components/PlacesEditor";
@@ -403,6 +404,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       withActivities: master.check_activities,
       activities: master.activities,
       places: master.places,
+      descriptions: master.descriptions,
       partners: (name) => {
         const w = byName.get(name);
         return w ? [...usualPartners(suggestMonth, Number(sheet), w).partners] : [];
@@ -666,6 +668,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               <div className="codes-cards">
                 <TradeLettersEditor master={master} onChanged={() => api.master(true).then(setMaster).catch(fail)} />
                 {master.check_activities && <PlacesEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
+                {master.check_activities && <DescriptionsEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
                 <ActivityAdder
               master={master}
               user={user}
@@ -725,6 +728,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               mismatch={mismatches}
               activities={master.check_activities}
               places={master.places}
+              descriptions={master.descriptions}
               month={month}
               busy={busy}
               ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}

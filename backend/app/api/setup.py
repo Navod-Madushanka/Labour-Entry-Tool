@@ -188,7 +188,9 @@ class Session:
                 update["workbook_file"] = book.path
             update["check_activities"] = book.check_activities is not False
             if book.places_key:
-                update["places"] = self.settings.get_key(book.places_key).get("places", {})
+                saved = self.settings.get_key(book.places_key)
+                update["places"] = saved.get("places", {})
+                update["descriptions"] = saved.get("descriptions", {})
         saved = self.settings.get_key(TRADE_KEY).get("letters")
         if isinstance(saved, dict):
             update["trade_letters"] = {str(k): str(v) for k, v in saved.items()}
@@ -712,6 +714,71 @@ def set_places(body: PlacesRequest, request: Request) -> SetupState:
             names.pop(suffix, None)
     asked = sorted({*saved.get("asked", []), *body.names})
     session.settings.set_key(book.places_key, places=names, asked=asked)
+    _apply(request, session)
+    return session.sync()
+
+
+# --- activity descriptions ("03-11-00-00-P" is Concrete Forming) ---------------------------------
+
+
+class DescriptionRow(BaseModel):
+    code: str
+    standard: str | None  # the MasterFormat title (seed)
+    custom: str | None  # the office's own, if any
+    lines: int  # activity lines with this code this month
+
+
+class DescriptionsView(BaseModel):
+    project: str | None = None
+    codes: list[DescriptionRow]
+
+
+class DescriptionsRequest(BaseModel):
+    descriptions: dict[str, str]  # code -> text; "" goes back to the standard title
+
+
+@router.get("/descriptions", response_model=DescriptionsView)
+async def get_descriptions(request: Request) -> DescriptionsView:
+    """Every code in the activity list with its standard title and the office's description."""
+    from app.domain.descriptions import standard_description
+
+    session = _require(request)
+    book = session.book
+
+    def run(service: EntryService) -> DescriptionsView:
+        used: dict[str, int] = {}
+        for s in service.workbook.day_sheet_names():
+            for e in service.day(s).entries:
+                for a in e.activities:
+                    if isinstance(a.code, str) and a.code.strip():
+                        used[a.code.strip()] = used.get(a.code.strip(), 0) + 1
+        saved = session.settings.get_key(book.places_key) if book.places_key else {}
+        custom = saved.get("descriptions", {})
+        rows = [DescriptionRow(code=c, standard=standard_description(c), custom=custom.get(c),
+                               lines=used.get(c, 0))
+                for c in service.master_view().activities]  # fmt: skip
+        project = book.places_key.removeprefix("project:") if book.places_key else None
+        return DescriptionsView(project=project, codes=rows)
+
+    return await run_service(request, run)
+
+
+@router.post("/descriptions", response_model=SetupState)
+def set_descriptions(body: DescriptionsRequest, request: Request) -> SetupState:
+    """Save the office's descriptions for this project (every workbook of it uses them)."""
+    session = _require(request)
+    book = session.book
+    if book.places_key is None:
+        raise HTTPException(409, "Check the workbook first.")
+    saved = session.settings.get_key(book.places_key)
+    custom = {**saved.get("descriptions", {})}
+    for code, text in body.descriptions.items():
+        text = re.sub(r"\s+", " ", text).strip()[:80]
+        if text:
+            custom[code.strip()] = text
+        else:
+            custom.pop(code.strip(), None)
+    session.settings.set_key(book.places_key, descriptions=custom)
     _apply(request, session)
     return session.sync()
 

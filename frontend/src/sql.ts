@@ -5,7 +5,7 @@
 // InTime and in_time are all IN; ZIDAL is the employee code.
 import type { ActivityInput, EntryInput } from "./api";
 import { codeKey, mergeSameCodes, CommandError, current, dateOf, didYouMean, whoOnAll, type CommandContext, type CommandResult, type Suggestion, type Token, type WordInfo } from "./commands";
-import { placeName } from "./codes";
+import { describe, placeName } from "./codes";
 import { clearInput, withTimes } from "./form";
 import { effectiveHours, formatClock, parseClock } from "./time";
 
@@ -53,7 +53,7 @@ const TABLES: TableDef[] = [
   { name: "entries", writable: true, help: "One row per worker per day: what is in Excel plus what waits in the queue. INSERT, UPDATE and DELETE go to the queue.", aliases: ["entry", "labor", "labour", "labors", "labours", "work", "records", "record", "timesheet", "timesheets", "attendance", "manpower"], cols: ENTRY_COLS },
   { name: "activities", help: "One row per activity line (for sums of hours by code).", aliases: ["activity", "lines", "activitylines", "allocations"], cols: [ENTRY_COLS[0], ENTRY_COLS[1], ENTRY_COLS[2], ENTRY_COLS[3], ENTRY_COLS[5], col("code", "text", "Activity code.", ["activitycode", "activity", "wbs", "act", "task"]), ENTRY_COLS[9], col("hours", "number", "Hours on this line.", ["hour", "hrs"]), ENTRY_COLS[18]] },
   { name: "workers", help: "Labour Detail: every calling name with its worker.", aliases: ["worker", "employees", "employee", "staff", "people", "labourdetail", "labordetail", "master"], cols: [ENTRY_COLS[2], ENTRY_COLS[3], ENTRY_COLS[4], ENTRY_COLS[5], col("code_status", "text", "valid, missing, error (#N/A), zero or invalid.", ["codestatus", "employeecodestatus"]), col("row", "number", "Row in Labour Detail.", ["rowno", "line"]), col("days_worked", "number", "Days with an entry this month.", ["daysworked", "days", "attendance"])] },
-  { name: "codes", help: "The activity list in Labour Detail.", aliases: ["code", "activitycodes", "activitycode", "wbs", "activitylist", "wbscodes"], cols: [col("code", "text", "Activity code.", ["activitycode", "wbs"]), ENTRY_COLS[9], col("lines", "number", "Activity lines with this code this month.", ["used", "uses", "count"])] },
+  { name: "codes", help: "The activity list in Labour Detail.", aliases: ["code", "activitycodes", "activitycode", "wbs", "activitylist", "wbscodes"], cols: [col("code", "text", "Activity code.", ["activitycode", "wbs"]), col("description", "text", "What the code is: the office's description or the MasterFormat title.", ["desc", "title", "name", "activityname"]), ENTRY_COLS[9], col("lines", "number", "Activity lines with this code this month.", ["used", "uses", "count"])] },
   { name: "days", help: "The day sheets.", aliases: ["day", "sheets", "sheet", "dates", "calendar"], cols: [ENTRY_COLS[0], ENTRY_COLS[1], col("weekday", "text", "Monday … Sunday.", ["dow", "dayname"]), ENTRY_COLS[17], col("workers", "number", "Workers with an entry that day.", ["count", "people", "headcount"])] },
 ];
 
@@ -128,7 +128,7 @@ function tableRows(t: TableDef, ctx: CommandContext): Row[] {
   if (t.name === "codes") {
     const used = new Map<string, number>();
     for (const r of entryRows(ctx)) for (const a of r.input.activities) if (a.code) used.set(a.code.toUpperCase(), (used.get(a.code.toUpperCase()) ?? 0) + 1);
-    return ctx.activities.map((c) => ({ code: c, place: placeName(c, ctx.places), lines: used.get(c.toUpperCase()) ?? 0 }));
+    return ctx.activities.map((c) => ({ code: c, description: describe(c, ctx.descriptions), place: placeName(c, ctx.places), lines: used.get(c.toUpperCase()) ?? 0 }));
   }
   const counts = new Map<number, number>();
   for (const r of entryRows(ctx)) counts.set(Number(r.row.day), (counts.get(Number(r.row.day)) ?? 0) + 1);

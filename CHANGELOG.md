@@ -1,5 +1,29 @@
 # Changelog
 
+## Roadmap #1, speak their language: descriptions beside codes, plain words in Analysis (12 Nov 2026)
+
+Asked for: go through the PM & QS roadmap one by one; #1 first.
+
+- **Every activity code has a description.** It starts with its MasterFormat title from the code's
+  numbers (03-11 Concrete Forming, 03-20 Concrete Reinforcing, 03-31 Structural Concrete, 31-23-23
+  Fill; a code not in the list takes its broader section, then its division; 00-00-10-00 is
+  Medical leave). The office can type its own on **Codes & registration → Trades, places &
+  activity codes → What each activity code is** (search, used this month, empty a box to go back
+  to the standard title). Kept per project with the place names; Excel is not changed.
+- Shown beside the code under the activity box and in the suggestion chips and code list
+  ("Concrete Forming · Parking area"), in the **manpower sheet's Description column** (the open
+  question about that column is answered), on the Supervisors page's sheets, in Analysis
+  (Activities, top activities, task timeline, where each supervisor's people worked), in the
+  Excel export (Activities, Activity by trade, Supervisor place activity) and as
+  `codes.description` in SQL.
+- **Plain words in Analysis**: ZIDLE is "Unallocated (ZIDLE)" / "unallocated hours (ZIDLE)"
+  everywhere (views, Compare months, export); "people" is "headcount"; every KPI tile has a
+  one-line definition (what counts as overtime, that worker-days count a person's two calling
+  names twice, that the average headcount counts days with work only).
+- API: `GET/POST /api/setup/descriptions`; `/api/master` carries `descriptions`.
+- Tests: `backend/tests/test_descriptions.py`, `e2e/descriptions.cjs` (made-up data);
+  `e2e/places-edit.cjs` now expects "Concrete Forming · Car park" under the activity box.
+
 ## Time cards: grouped printer settings, job size before printing (12 Nov 2026)
 
 Asked for (design review of the Time cards page).

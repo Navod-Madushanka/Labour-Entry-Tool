@@ -32,12 +32,13 @@ from app.domain.codes import (
     trade_from_name,
 )
 from app.domain.crosscheck import add_cross_entry_issues
+from app.domain.descriptions import descriptions
 from app.domain.medical import (
     DEFAULT_ACTIVITY,
     DEFAULT_DAYS,
-    MAX_DAYS,
     DEFAULT_IN,
     DEFAULT_OUT,
+    MAX_DAYS,
     medical_dates,
     medical_name,
 )
@@ -224,6 +225,8 @@ class MasterView(BaseModel):
     day_types: list[str]
     check_activities: bool = True  # off: this workbook is kept without activity codes
     places: dict[str, str] = {}  # activity-code suffix -> place name (named on the start page)
+    # activity code -> what it is in words (the office's own, else the MasterFormat title)
+    descriptions: dict[str, str] = {}
 
 
 class EntryView(BaseModel):
@@ -360,6 +363,8 @@ class EntryService:
             day_types=m.day_types,
             check_activities=self.config.check_activities,
             places=self.config.places,
+            descriptions=descriptions(list(dict.fromkeys(a.code for a in m.activities)),
+                                      self.config.descriptions),
         )  # fmt: skip
 
     def day_view(self, sheet: str, fresh: bool = False) -> DayView:

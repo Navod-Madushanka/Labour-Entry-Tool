@@ -1,7 +1,7 @@
 // Analysis tab: what the loaded month says about hours, manpower, overtime, attendance and data
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, type ExportTable, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
@@ -35,6 +35,9 @@ import {
 import { store } from "../store";
 import { fingerprint, recordColumns } from "./ManpowerSheet";
 import { formatShift } from "../time";
+import { describe } from "../codes";
+
+type Desc = (code: string) => string | null; // what a code is, in words
 
 type View = "overview" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
@@ -88,6 +91,7 @@ export function Analysis({ master, month, loaded, total }: Props) {
   const codes = useMemo(() => byCode(data.slices).map((g) => g.key), [data]);
   const supervisors = useMemo(() => bySupervisor(data.slices).map((g) => g.key), [data]);
   const complete = loaded >= total && total > 0;
+  const desc: Desc = useCallback((code: string) => describe(code, master.descriptions), [master.descriptions]);
 
   // Keep this workbook's summary for "Compare months" once the whole month is loaded.
   useEffect(() => {
@@ -195,17 +199,17 @@ export function Analysis({ master, month, loaded, total }: Props) {
       ) : !slices.length && view !== "compare" ? (
         <p className="muted">{data.slices.length ? "Nothing matches these filters." : "No entries with worked hours yet."}</p>
       ) : view === "overview" ? (
-        <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} />
+        <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} desc={desc} />
       ) : view === "activities" ? (
-        <Activities groups={byCode(slices)} onPick={(code) => set({ code })} withActivities={data.withActivities} />
+        <Activities groups={byCode(slices)} onPick={(code) => set({ code })} withActivities={data.withActivities} desc={desc} />
       ) : view === "places" ? (
         <PlacesTrades places={byPlace(slices)} trades={byTrade(slices)} onPlace={(place) => set({ place })} onTrade={(trade) => set({ trade })} />
       ) : view === "supervisors" ? (
-        <SupervisorsView data={data} entries={entries} slices={slices} days={daily(data, slices, filter)} owned={owned} reviews={reviews} month={month} onPick={(supervisor) => set({ supervisor })} />
+        <SupervisorsView data={data} entries={entries} slices={slices} days={daily(data, slices, filter)} owned={owned} reviews={reviews} month={month} onPick={(supervisor) => set({ supervisor })} desc={desc} />
       ) : view === "manpower" ? (
         <Manpower days={daily(data, slices, filter)} />
       ) : view === "timeline" ? (
-        <Timeline slices={slices} days={daily(data, slices, filter)} onPick={(code) => set({ code })} />
+        <Timeline slices={slices} days={daily(data, slices, filter)} onPick={(code) => set({ code })} desc={desc} />
       ) : view === "overtime" ? (
         <Overtime days={daily(data, slices, filter)} trades={byTrade(slices)} persons={people(data, entries)} />
       ) : view === "attendance" ? (
@@ -221,28 +225,29 @@ export function Analysis({ master, month, loaded, total }: Props) {
 
 // ------------------------------------------------------------------------------ the views
 
-function Kpi({ label, value, note }: { label: string; value: string; note?: string }) {
+function Kpi({ label, value, note, def }: { label: string; value: string; note?: string; def?: string }) {
   return (
     <div className="kpi">
       <div className="kpi-value">{value}</div>
       <div className="kpi-label">{label}</div>
       {note && <div className="kpi-note">{note}</div>}
+      {def && <div className="kpi-def">{def}</div>}
     </div>
   );
 }
 
-function Overview({ k, data, days, onView }: { k: ReturnType<typeof kpis>; data: ReturnType<typeof applyFilter>; days: DayRow[]; onView: (v: View) => void }) {
+function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>; data: ReturnType<typeof applyFilter>; days: DayRow[]; onView: (v: View) => void; desc: Desc }) {
   const top = byCode(data.slices).filter((g) => g.key !== NO_CODE).slice(0, 5);
   const trades = byTrade(data.slices).slice(0, 5);
   return (
     <>
       <div className="kpis">
-        <Kpi label="hours worked" value={h(k.hours)} note={`${h(k.normal)} normal`} />
-        <Kpi label="overtime hours" value={h(k.ot)} note={`${pct(k.otPct)} of all hours`} />
-        <Kpi label="worker-days" value={h(k.workerDays)} note={`${k.workDays} days with work`} />
-        <Kpi label="people" value={String(k.people)} note={`${h(k.avgHeadcount)} a day on average`} />
-        <Kpi label="peak headcount" value={String(k.peak?.count ?? 0)} note={k.peak ? `day ${k.peak.day}` : undefined} />
-        <Kpi label="ZIDLE hours" value={h(k.idle)} note={k.hours ? `${pct(k.idle / k.hours)} without an activity` : undefined} />
+        <Kpi label="hours worked" value={h(k.hours)} note={`${h(k.normal)} normal`} def="Effective hours, as Excel works them out (after lunch and dinner)." />
+        <Kpi label="overtime hours" value={h(k.ot)} note={`${pct(k.otPct)} of all hours`} def="After 8 h on a normal day, 5.5 h on Saturday, every hour on Sundays and holidays." />
+        <Kpi label="worker-days" value={h(k.workerDays)} note={`${k.workDays} days with work`} def="One per worker per day sheet; a person on two calling names that day counts twice." />
+        <Kpi label="headcount" value={String(k.people)} note={`${h(k.avgHeadcount)} a day on average`} def="Different people this period; the average counts days with work only." />
+        <Kpi label="peak headcount" value={String(k.peak?.count ?? 0)} note={k.peak ? `day ${k.peak.day}` : undefined} def="Most people on site on one day." />
+        <Kpi label="unallocated hours (ZIDLE)" value={h(k.idle)} note={k.hours ? `${pct(k.idle / k.hours)} of all hours` : undefined} def="Worked hours not booked to an activity code: forgotten codes as well as real waiting." />
       </div>
       <div className="card">
         <div className="card-head">
@@ -257,7 +262,7 @@ function Overview({ k, data, days, onView }: { k: ReturnType<typeof kpis>; data:
             <h3>Top activities</h3>
             <button className="link small" onClick={() => onView("activities")}>all →</button>
           </div>
-          <ShareList items={top.map((g) => ({ key: g.key, value: g.hours, note: g.place }))} total={k.hours} />
+          <ShareList items={top.map((g) => ({ key: g.key, value: g.hours, note: [desc(g.key), g.place].filter(Boolean).join(" · ") }))} total={k.hours} />
         </div>
         <div className="card">
           <div className="card-head">
@@ -325,17 +330,17 @@ function Breakdown({ g, label }: { g: Group; label: string }) {
   );
 }
 
-function Activities({ groups, onPick, withActivities }: { groups: Group[]; onPick: (code: string) => void; withActivities: boolean }) {
+function Activities({ groups, onPick, withActivities, desc }: { groups: Group[]; onPick: (code: string) => void; withActivities: boolean; desc: Desc }) {
   return (
     <div className="card">
       <h3>Hours by activity code</h3>
       <p className="muted small">
         {withActivities
           ? "Overtime and worker-days are shared over each entry's lines by their hours. Click a row for its trades; the filter button shows only that code everywhere."
-          : "This workbook is kept without activity codes, so all hours are ZIDLE."}
+          : "This workbook is kept without activity codes, so all hours are unallocated (ZIDLE)."}
       </p>
       <SortTable
-        cols={groupCols("Activity", [{ key: "place", label: "Place", value: (g) => g.place ?? "" }])}
+        cols={groupCols("Activity", [{ key: "desc", label: "Description", value: (g) => desc(g.key) ?? "" }, { key: "place", label: "Place", value: (g) => g.place ?? "" }])}
         rows={groups}
         rowKey={(g) => g.key}
         expand={(g) => (
@@ -390,7 +395,7 @@ function sheetCounts(owned: Owned[], reviews: Review[], month: Month) {
   return out;
 }
 
-function SupervisorsView({ data, entries, slices, days, owned, reviews, month, onPick }: {
+function SupervisorsView({ data, entries, slices, days, owned, reviews, month, onPick, desc }: {
   data: ReturnType<typeof buildData>;
   entries: ReturnType<typeof applyFilter>["entries"];
   slices: Slice[];
@@ -399,6 +404,7 @@ function SupervisorsView({ data, entries, slices, days, owned, reviews, month, o
   reviews: Review[];
   month: Month;
   onPick: (s: string) => void;
+  desc: Desc;
 }) {
   const realName = (n: string) => String(data.workers.get(n)?.name ?? "");
   const log = supervisedDays(data, entries);
@@ -512,6 +518,7 @@ function SupervisorsView({ data, entries, slices, days, owned, reviews, month, o
                 { key: "sup", label: "Supervisor", value: (r) => r.supervisor },
                 { key: "place", label: "Place", value: (r) => r.place },
                 { key: "code", label: "Activity code", value: (r) => r.code },
+                { key: "desc", label: "Description", value: (r) => desc(r.code) ?? "" },
                 { key: "hours", label: "Hours", value: (r) => r.hours, num: true, fmt: (v) => h(v as number) },
                 { key: "ot", label: "OT", value: (r) => r.ot, num: true, fmt: (v) => h(v as number) },
                 { key: "people", label: "People", value: (r) => r.people, num: true },
@@ -579,7 +586,7 @@ function Manpower({ days }: { days: DayRow[] }) {
   );
 }
 
-function Timeline({ slices, days, onPick }: { slices: ReturnType<typeof applyFilter>["slices"]; days: DayRow[]; onPick: (code: string) => void }) {
+function Timeline({ slices, days, onPick, desc }: { slices: ReturnType<typeof applyFilter>["slices"]; days: DayRow[]; onPick: (code: string) => void; desc: Desc }) {
   const [top, setTop] = useState(15);
   const map = useMemo(() => heatmap(slices, top), [slices, top]);
   if (!map.codes.length) return <p className="muted">No activity codes in these entries.</p>;
@@ -616,7 +623,8 @@ function Timeline({ slices, days, onPick }: { slices: ReturnType<typeof applyFil
               return (
                 <tr key={c}>
                   <th>
-                    <button className="link" onClick={() => onPick(c)}>{c}</button>
+                    <button className="link" onClick={() => onPick(c)} title={desc(c) ?? undefined}>{c}</button>
+                    {desc(c) && <div className="muted small heat-desc">{desc(c)}</div>}
                   </th>
                   {days.map((d) => {
                     const v = row.get(d.day) ?? 0;
@@ -740,7 +748,7 @@ function QualityView({ data, entries }: { data: ReturnType<typeof buildData>; en
         { key: "status", label: "Employee code", value: (r) => r.status },
         { key: "days", label: "Days with entries", value: (r) => r.days, num: true },
       ]} rows={q.noEmployeeCode} rowKey={(r) => r.name} />],
-    [`ZIDLE: hours without an activity (${h(idleTotal)} h)`, q.idle.length,
+    [`Unallocated hours (ZIDLE): worked hours not booked to an activity (${h(idleTotal)} h)`, q.idle.length,
       <SortTable key="z" cols={[
         { key: "sheet", label: "Day", value: (r) => Number(r.sheet), num: true },
         { key: "name", label: "Worker", value: (r) => r.name },
@@ -812,7 +820,7 @@ function Compare({ current }: { current: string }) {
     ["People", (b) => b.people, String],
     ["Average a day", (b) => b.avgHeadcount, h],
     ["Peak headcount", (b) => b.peak, String],
-    ["ZIDLE hours", (b) => b.idle, h],
+    ["Unallocated hours (ZIDLE)", (b) => b.idle, h],
     ["Day sheets", (b) => b.days, String],
   ];
   const tradeNames = [...new Set(books.flatMap((b) => Object.keys(b.trades)))].sort();
@@ -1126,8 +1134,9 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
   const f = [filter.trade && `trade ${filter.trade}`, filter.supervisor && `supervisor ${filter.supervisor}`, filter.place && `place ${filter.place}`, filter.code && `activity ${filter.code}`,
     (filter.from || filter.to) && `days ${filter.from ?? "first"}–${filter.to ?? "last"}`].filter(Boolean).join(", "); // prettier-ignore
   const note = `${master.workbook} · ${master.month}${f ? ` · filtered: ${f}` : ""}`;
+  const d = (code: string) => describe(code, master.descriptions) ?? "";
   const groupRows = (gs: Group[], withPlace = false) =>
-    gs.map((g) => [g.key, ...(withPlace ? [g.place ?? ""] : []), r(g.hours), r(g.normal), r(g.ot), r(g.workerDays), g.workers, g.days, g.first, g.last, r(g.pct * 100)]);
+    gs.map((g) => [g.key, ...(withPlace ? [d(g.key), g.place ?? ""] : []), r(g.hours), r(g.normal), r(g.ot), r(g.workerDays), g.workers, g.days, g.first, g.last, r(g.pct * 100)]);
   const groupColsX = ["Hours", "Normal", "OT", "Worker-days", "People", "Days", "First day", "Last day", "Share %"];
   const days = daily(data, slices, filter);
   const { top, rest } = topTrades(days, 20);
@@ -1137,9 +1146,9 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
     { name: "Summary", note, columns: ["Figure", "Value"], rows: [
       ["Hours worked", r(k.hours)], ["Normal hours", r(k.normal)], ["Overtime hours", r(k.ot)], ["OT share %", r(k.otPct * 100)],
       ["Worker-days", r(k.workerDays)], ["People", k.people], ["Days with work", k.workDays], ["Average people a day", r(k.avgHeadcount)],
-      ["Peak headcount", k.peak?.count ?? 0], ["Peak day", k.peak?.day ?? null], ["ZIDLE hours", r(k.idle)], ["Activity codes used", k.codes],
+      ["Peak headcount", k.peak?.count ?? 0], ["Peak day", k.peak?.day ?? null], ["Unallocated hours (ZIDLE)", r(k.idle)], ["Activity codes used", k.codes],
     ] }, // prettier-ignore
-    { name: "Activities", note, columns: ["Activity", "Place", ...groupColsX], rows: groupRows(byCode(slices), true) },
+    { name: "Activities", note, columns: ["Activity", "Description", "Place", ...groupColsX], rows: groupRows(byCode(slices), true) },
     { name: "Places", note, columns: ["Place", ...groupColsX], rows: groupRows(byPlace(slices)) },
     { name: "Trades", note, columns: ["Trade", ...groupColsX], rows: groupRows(byTrade(slices)) },
     { name: "Supervisors", note, columns: ["Supervisor", ...groupColsX], rows: groupRows(bySupervisor(slices)) },
@@ -1150,10 +1159,10 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
     { name: "Whose worker", note, columns: ["Worker", "Name", "Trade", "Supervisor", "Share of days %", "Days", "All supervisors (days)"],
       rows: workerSupervisors(entries).map((x) => [x.name, String(data.workers.get(x.name)?.name ?? ""), x.trade, x.supervisor, r(x.share * 100), x.days,
         x.all.map((y) => `${y.supervisor} ${y.days}`).join(", ")]) }, // prettier-ignore
-    { name: "Supervisor place activity", note, columns: ["Supervisor", "Place", "Activity", "Hours", "OT", "People", "Days", "First day", "Last day"],
-      rows: supervisorWork(slices).map((x) => [x.supervisor, x.place, x.code, r(x.hours), r(x.ot), x.people, x.days, x.first, x.last]) },
-    { name: "Activity by trade", note, columns: ["Activity", "Trade", "Hours"],
-      rows: byCode(slices).flatMap((g) => g.breakdown.map((b) => [g.key, b.key, r(b.hours)])) },
+    { name: "Supervisor place activity", note, columns: ["Supervisor", "Place", "Activity", "Description", "Hours", "OT", "People", "Days", "First day", "Last day"],
+      rows: supervisorWork(slices).map((x) => [x.supervisor, x.place, x.code, d(x.code), r(x.hours), r(x.ot), x.people, x.days, x.first, x.last]) },
+    { name: "Activity by trade", note, columns: ["Activity", "Description", "Trade", "Hours"],
+      rows: byCode(slices).flatMap((g) => g.breakdown.map((b) => [g.key, d(g.key), b.key, r(b.hours)])) },
     { name: "Daily manpower", note, columns: ["Day", "Date", "Day type", "People", ...top, ...(rest.size ? ["Other"] : []), "Hours", "OT"],
       rows: days.map((d) => [d.day, d.date, d.kind, d.headcount, ...top.map((t) => d.byTrade.get(t) ?? 0),
         ...(rest.size ? [[...d.byTrade].filter(([t]) => rest.has(t)).reduce((s, [, c]) => s + c, 0)] : []), r(d.hours), r(d.ot)]) }, // prettier-ignore
@@ -1163,7 +1172,7 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
         p.saturdays, p.sundays, p.holidays, p.longestRun, p.currentRun, p.daysOff, p.first, p.last]) }, // prettier-ignore
     { name: "Checks", note, columns: ["Level", "Check", "Entries", "For example"], rows: q.issues.map((i) => [i.severity, i.title, i.count, i.example]) },
     { name: "No employee code", note, columns: ["Worker", "Employee code", "Days"], rows: q.noEmployeeCode.map((x) => [x.name, x.status, x.days]) },
-    { name: "ZIDLE", note, columns: ["Day", "Worker", "Hours"], rows: q.idle.map((x) => [Number(x.sheet), x.name, r(x.hours)]) },
+    { name: "Unallocated (ZIDLE)", note, columns: ["Day", "Worker", "Unallocated hours"], rows: q.idle.map((x) => [Number(x.sheet), x.name, r(x.hours)]) },
     { name: "Unknown codes", note, columns: ["Code", "Entries", "Days"], rows: q.unknownCodes.map((x) => [x.code, x.uses, x.sheets.join(", ")]) },
     { name: "Rare codes", note, columns: ["Code", "Entries", "Workers", "Days"], rows: q.rareCodes.map((x) => [x.code, x.uses, x.names.join(", "), x.sheets.join(", ")]) },
     { name: "Long days", note, columns: ["Day", "Worker", "Times", "Worked"], rows: q.longDays.map((x) => [Number(x.sheet), x.name, formatShift(x.shift[0], x.shift[1]), r(x.worked)]) },

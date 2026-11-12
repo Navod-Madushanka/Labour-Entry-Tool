@@ -36,7 +36,7 @@ const SHOTS = process.argv[2];
   await p.locator("#worker").fill("AAA-01"); await p.keyboard.press("Enter");
   await p.keyboard.press("Enter"); await p.keyboard.press("Enter");
   await p.keyboard.type("03-11-00-00-P");
-  await p.waitForFunction(() => document.querySelector(".hint.place")?.innerText === "Car park");
+  await p.waitForFunction(() => document.querySelector(".hint.place")?.innerText === "Concrete Forming · Car park");
   console.log("entry shows:", await p.locator(".hint.place").first().innerText());
   if (errs.length) throw new Error(errs.join("\n"));
   await b.close();

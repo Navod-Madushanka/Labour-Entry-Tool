@@ -387,6 +387,7 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
                     supervisor={g.supervisor}
                     columns={recordColumns(g.owned, month[g.sheet])}
                     places={master.places}
+                    descriptions={master.descriptions}
                     activities={master.check_activities}
                     highlight={q ? (c) => g.owned.some((o) => o.calling_name === c.name && hit(g, o)) : undefined}
                     footer={

@@ -18,3 +18,15 @@ export function placeName(code: string, places: Record<string, string> | undefin
   const suffix = placeSuffix(code);
   return (suffix && places?.[suffix]) || null;
 }
+
+/** What a code is, in words: the office's description or the MasterFormat title (from Labour
+ * Detail's master view), e.g. "Concrete Forming". */
+export function describe(code: string, descriptions: Record<string, string> | undefined): string | null {
+  const c = code.trim();
+  return (c && (descriptions?.[c] ?? descriptions?.[c.toUpperCase()])) || null;
+}
+
+/** Description and place together, for the places a code is shown: "Concrete Forming · Parking area". */
+export function codeLabel(code: string, places: Record<string, string> | undefined, descriptions: Record<string, string> | undefined): string | null {
+  return [describe(code, descriptions), placeName(code, places)].filter(Boolean).join(" · ") || null;
+}

@@ -221,6 +221,7 @@ export interface CommandContext {
   activities: string[];
   partners?: (name: string) => string[]; // usual partners, for "crew of"
   places?: Record<string, string>; // place names of code endings (SQL: the place column)
+  descriptions?: Record<string, string>; // what each code is (SQL: codes.description)
   today?: Date;
 }
 

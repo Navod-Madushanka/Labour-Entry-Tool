@@ -55,6 +55,7 @@ export interface Master {
   day_types: string[];
   check_activities: boolean; // false: this workbook is kept without activity codes
   places: Record<string, string>; // activity-code suffix -> place name, e.g. P -> Parking area
+  descriptions?: Record<string, string>; // activity code -> description (office's own, else MasterFormat title)
 }
 
 export interface Place {
@@ -562,6 +563,8 @@ export const api = {
   setupPlaces: () => call<PlacesView>("GET", "/api/setup/places"),
   setupProgress: () => call<{ done?: number; total?: number; step?: string }>("GET", "/api/setup/progress"),
   saveSetupPlaces: (names: Record<string, string>) => call<SetupState>("POST", "/api/setup/places", { names }),
+  descriptions: () => call<DescriptionsView>("GET", "/api/setup/descriptions"),
+  saveDescriptions: (descriptions: Record<string, string>) => call<SetupState>("POST", "/api/setup/descriptions", { descriptions }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),
   timecardList: (file: File) => send<{ names: string[]; source: string }>("/api/timecards/list", file),
@@ -572,3 +575,15 @@ export const api = {
   pausePrinting: () => call<PrintJob>("POST", "/api/timecards/pause"),
   resumePrinting: () => call<PrintJob>("POST", "/api/timecards/resume"),
 };
+
+export interface DescriptionRow {
+  code: string;
+  standard: string | null; // MasterFormat title
+  custom: string | null; // the office's own
+  lines: number; // activity lines with the code this month
+}
+
+export interface DescriptionsView {
+  project: string | null;
+  codes: DescriptionRow[];
+}

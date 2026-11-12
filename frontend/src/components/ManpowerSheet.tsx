@@ -5,7 +5,7 @@ import type { Month } from "../history";
 import { MAX_TICKS, renameCode, tickCode, untickCode, withTimes } from "../form";
 import { fmtHours, formatClock, parseClock } from "../time";
 import type { QueueItem } from "./Queue";
-import { placeName } from "../codes";
+import { codeLabel } from "../codes";
 
 const PER_PAGE = 10; // worker columns on one printed manpower sheet
 
@@ -27,6 +27,7 @@ interface Props {
   items: QueueItem[];
   month: Month;
   places: Record<string, string>; // place names for the Description column
+  descriptions?: Record<string, string>; // what each code is, for the Description column
   activities: boolean; // false: the workbook is kept without activity codes (no code rows)
   ready: boolean; // the queue can be written
   busy: boolean;
@@ -162,7 +163,7 @@ function EditCell<T>({ shown, start, parse, onSave, label }: {
 }
 
 export function ManpowerSheet(props: Props) {
-  const { items, month, places, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet } = props;
+  const { items, month, places, descriptions, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet } = props;
   const [withExcel, setWithExcel] = useState(false);
   // Codes added on the sheet (a row to tick workers on), per day sheet, until they are used.
   const [extra, setExtra] = useState<Record<string, string[]>>({});
@@ -348,7 +349,7 @@ export function ManpowerSheet(props: Props) {
                                 code
                               )}
                             </td>
-                            <td className="mp-desc">{placeName(code, places)}</td>
+                            <td className="mp-desc">{codeLabel(code, places, descriptions)}</td>
                             <td className="mp-label-col" />
                             {padded.map((c, i) => {
                               const act = c?.acts.find((a) => a.code === code);
@@ -599,12 +600,13 @@ export function recordColumns(owned: Owned[], day: DayView | undefined): Column[
 }
 
 /** A supervisor's manpower sheet for one day, read-only: laid out like the paper form. */
-export function ManpowerRecord({ sheet, day, supervisor, columns, places, activities, footer, highlight }: {
+export function ManpowerRecord({ sheet, day, supervisor, columns, places, descriptions, activities, footer, highlight }: {
   sheet: string;
   day: DayView | undefined;
   supervisor: string;
   columns: Column[];
   places: Record<string, string>;
+  descriptions?: Record<string, string>;
   activities: boolean;
   footer?: React.ReactNode;
   highlight?: (c: Column) => boolean; // search hits
@@ -678,7 +680,7 @@ export function ManpowerRecord({ sheet, day, supervisor, columns, places, activi
                   {codes.map((code) => (
                     <tr key={code}>
                       <td className="mp-code">{code}</td>
-                      <td className="mp-desc">{placeName(code, places)}</td>
+                      <td className="mp-desc">{codeLabel(code, places, descriptions)}</td>
                       <td className="mp-label-col" />
                       {padded.map((c, i) => {
                         const act = c?.acts.find((a) => a.code === code);

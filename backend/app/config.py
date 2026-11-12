@@ -146,6 +146,7 @@ class Config(BaseModel):
     holidays: list[dt.date] = []
     check_activities: bool = True  # activity codes and their hours are checked (per workbook)
     places: dict[str, str] = {}  # activity-code suffix -> place name, e.g. "P": "Parking area"
+    descriptions: dict[str, str] = {}  # activity code -> the office's own description (project)
     # calling-name trade letter -> trade ("R": "Rigger"); a worker's trade comes from it, else
     # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
     trade_letters: dict[str, str] | None = None
