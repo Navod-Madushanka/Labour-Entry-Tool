@@ -576,6 +576,16 @@ export const api = {
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   rates: () => call<RatesView>("GET", "/api/setup/rates"),
   lostTime: () => call<LostView>("GET", "/api/lost-time"),
+  historyMonths: () => call<MonthInfo[]>("GET", "/api/history"),
+  saveHistory: () => call<{ month: MonthInfo; note: string | null }>("POST", "/api/history/save"),
+  importHistory: async (file: File) => {
+    const res = await fetch(`/api/history/import?filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.detail ?? `${res.status} ${res.statusText}`);
+    return (await res.json()) as { month: MonthInfo; note: string | null };
+  },
+  deleteHistory: (id: number) => call<MonthInfo[]>("DELETE", `/api/history/${id}`),
+  historyRows: (ids: number[]) => call<{ rows: HistoryRow[]; quantities: HistoryQuantity[] }>("GET", `/api/history/rows?ids=${ids.join(",")}`),
+  historyCarry: () => call<Record<string, number>>("GET", "/api/history/carry"),
   saveLimits: (body: { week_hours: number; week_ot: number; days_in_row: number; rest_hours: number }) => call<unknown>("POST", "/api/setup/limits", body),
   saveQuantities: (body: { quantities: Record<string, Record<string, number>>; units: Record<string, string>; norms: Record<string, { hours: number; source: string }> }) =>
     call<SetupState>("POST", "/api/setup/quantities", body),
@@ -649,4 +659,44 @@ export interface Lost {
 export interface LostView {
   causes: Cause[];
   items: Lost[];
+}
+
+/** A month kept in the history (roadmap #9). */
+export interface MonthInfo {
+  id: number;
+  kind: string;
+  month: string;
+  source: string;
+  saved_at: string;
+  entries: number;
+  workers: number;
+  hours: number;
+  ot: number;
+}
+
+export interface HistoryRow {
+  month_id: number;
+  sheet: string;
+  day: number;
+  date: string | null;
+  day_type: string | null;
+  calling_name: string;
+  person: string;
+  trade: string | null;
+  bp: string | null;
+  supervisor: string | null;
+  time_in: number | null;
+  time_out: number | null;
+  worked: number;
+  ot: number;
+  zidle: number;
+  lines: [string, number | null][];
+}
+
+export interface HistoryQuantity {
+  month_id: number;
+  code: string;
+  week: string;
+  qty: number;
+  unit: string | null;
 }

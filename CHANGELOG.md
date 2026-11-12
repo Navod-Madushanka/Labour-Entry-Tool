@@ -1,5 +1,33 @@
 # Changelog
 
+## Roadmap #9, month history: trends, the site's own norms, runs across the month end (12 Nov 2026)
+
+Asked for: roadmap #9, keep every month so trends and the site's own norms become possible.
+
+- **`history.db`** in the data folder (SQLite, `app/history.py`): each month entry by entry
+  (calling name, person, trade, business partner, supervisor, times, worked hours, OT,
+  unallocated hours, activity lines) and the month's quantities with their units. No names or ID
+  numbers. Saving the same kind of workbook for the same month again replaces it.
+- A month is read from the **saved workbook file with pyxlsb** (Excel is not used; save in Excel
+  first; the tool says so when Excel has unsaved changes), or from the practice copy.
+- Analysis → **Month history**:
+  - **Save this month to history**, **Add a past month (.xlsb)** (any month's workbook, read
+    and stored; the file itself is not kept), the months kept, and taking one out;
+  - **Month by month**: hours and average headcount chart, and a table of hours, OT, OT share,
+    worker-days, people, headcount, peak, unallocated hours, hours by trade and by the 12
+    largest activities (with descriptions), for each kind of workbook;
+  - **The site's own productivity norms**: hours per unit in every stored week with a quantity
+    and hours, the median and range per code, and **Use as norm** (source "Site history").
+- **Runs across the month end**: Fatigue & OT risk adds the days in a row each person had at the
+  end of last month (from the history) to a run that starts on this month's first site day
+  ("12 (+5 last month)").
+- API: `GET /api/history`, `POST /api/history/save`, `POST /api/history/import?filename=` (the
+  file as the body), `DELETE /api/history/{id}`, `GET /api/history/rows?ids=`,
+  `GET /api/history/carry`.
+- Tests: `backend/tests/test_history.py` (save, rows without personal data, replace, import,
+  carry, delete), `tests/analysis.test.cjs` (trends, own norms, carried runs),
+  `e2e/history.cjs` (made-up September and October books).
+
 ## Roadmap #8, BP bill check before the QS certifies (12 Nov 2026)
 
 Asked for: roadmap #8, catch over-claims before a labour supplier's bill is certified.

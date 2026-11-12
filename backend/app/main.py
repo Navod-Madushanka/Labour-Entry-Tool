@@ -22,6 +22,9 @@ from app.api import (
     supervisors,
     timecards,
 )
+from app.api import (
+    history as history_api,
+)
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config, load_config
@@ -131,6 +134,17 @@ def create_app(
     app.state.set_service = set_service
     app.state.has_service = lambda: app.state.service is not None or service_factory is not None
     app.state.registrations = registration.FileCache()
+    history_store: list = []
+
+    def get_history():
+        """Month history (roadmap #9), opened on first use."""
+        if not history_store:
+            from app.history import History
+
+            history_store.append(History(config.history_db))
+        return history_store[0]
+
+    app.state.get_history = get_history
     app.include_router(health.router)
     app.include_router(entries.router)
     app.include_router(registration.router)
@@ -139,6 +153,7 @@ def create_app(
     app.include_router(analysis.router)
     app.include_router(suggestlog.router)
     app.include_router(supervisors.router)
+    app.include_router(history_api.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")

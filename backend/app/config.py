@@ -162,6 +162,7 @@ class Config(BaseModel):
     # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
     trade_letters: dict[str, str] | None = None
     settings_file: Path | None = None  # per-workbook settings (app/books.py); None: not kept
+    history_db: Path | None = None  # month history (app/history.py); None: in memory
     server: ServerConfig = ServerConfig()
     backups: BackupConfig = BackupConfig()
     excel: ExcelConfig = ExcelConfig()
@@ -198,7 +199,8 @@ def default_config() -> Config:
     today, data = dt.date.today(), data_dir()
     return Config(month=f"{today:%Y-%m}", backups={"dir": data / "backups"},
                   audit={"db": data / "audit.sqlite"},
-                  settings_file=data / "workbooks.json")  # fmt: skip
+                  settings_file=data / "workbooks.json",
+                  history_db=data / "history.db")  # fmt: skip
 
 
 def load_config(path: str | Path | None = None) -> Config:

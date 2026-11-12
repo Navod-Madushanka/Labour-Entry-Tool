@@ -4,7 +4,7 @@
 // Every entry is cut into slices, one per activity line (plus one for ZIDLE hours), each carrying
 // its share of the entry's worked hours, overtime and the worker-day. Filters (trade, place, code,
 // days) keep or drop slices, so every table and chart below adds up the same way.
-import type { Cause, Issue, Lost, Master, Rates, Worker } from "./api";
+import type { Cause, HistoryQuantity, HistoryRow, Issue, Lost, Master, MonthInfo, Rates, Worker } from "./api";
 import type { Month } from "./history";
 import { placeSuffix } from "./codes";
 
@@ -1019,7 +1019,8 @@ export interface FatigueRow {
   maxWeekOt: number;
   daysOverWeek: number; // days whose 7 days up to them were over the hours limit
   daysOverOt: number;
-  longestRun: number;
+  longestRun: number; // including days in a row carried from last month's end (history)
+  carried: number; // days in a row at the end of last month (0: none, or no history)
   shortRests: number; // nights with less rest than the limit
   minRest: number | null;
   sundays: number; // Sundays and holidays worked
@@ -1028,8 +1029,9 @@ export interface FatigueRow {
 
 /** Per person, against the limits: the worst 7 days (hours and OT), days in a row, short rests
  * between consecutive days, Sundays and holidays worked. Riskiest first. */
-export function fatigue(data: Data, entries: EntryRow[], limits: Limits = DEFAULT_LIMITS): FatigueRow[] {
+export function fatigue(data: Data, entries: EntryRow[], limits: Limits = DEFAULT_LIMITS, carry: Record<string, number> = {}): FatigueRow[] {
   const base = new Map(people(data, entries).map((p) => [p.person, p]));
+  const siteDays = [...new Set(entries.map((e) => e.day))].sort((a, b) => a - b);
   const lastDay = Math.max(0, ...data.days.map((d) => d.day));
   const by = new Map<string, Map<number, { worked: number; ot: number; tin: number | null; tout: number | null }>>();
   for (const e of entries) {
@@ -1065,7 +1067,14 @@ export function fatigue(data: Data, entries: EntryRow[], limits: Limits = DEFAUL
       minRest = minRest === null ? rest : Math.min(minRest, rest);
       if (rest < limits.rest_hours) shortRests += 1;
     }
-    const longestRun = p?.longestRun ?? 0;
+    // a run from the month's first site day continues last month's run (month history)
+    let leading = 0;
+    for (const d of siteDays) {
+      if (!days.has(d)) break;
+      leading += 1;
+    }
+    const carried = carry[person] ?? 0;
+    const longestRun = Math.max(p?.longestRun ?? 0, leading ? carried + leading : 0);
     const flags = [
       maxWeek > limits.week_hours && "7-day hours",
       maxWeekOt > limits.week_ot && "7-day OT",
@@ -1074,7 +1083,7 @@ export function fatigue(data: Data, entries: EntryRow[], limits: Limits = DEFAUL
     ].filter((f): f is string => Boolean(f));
     rows.push({
       person, name: p?.names[0] ?? person, trade: p?.trade ?? NO_TRADE, days: days.size, maxWeek, maxWeekOt, daysOverWeek, daysOverOt,
-      longestRun, shortRests, minRest, sundays: (p?.sundays ?? 0) + (p?.holidays ?? 0), flags,
+      longestRun, carried: leading ? carried : 0, shortRests, minRest, sundays: (p?.sundays ?? 0) + (p?.holidays ?? 0), flags,
     }); // prettier-ignore
   }
   return rows.sort((a, b) => b.flags.length - a.flags.length || b.maxWeek - a.maxWeek || a.name.localeCompare(b.name));
@@ -1191,4 +1200,81 @@ export function bpBill(data: Data, entries: EntryRow[], opts: { daysInRow?: numb
     billable: sumBy(ws, (w) => w.billable), days: sumBy(ws, (w) => w.days), hours: sumBy(ws, (w) => w.hours), ot: sumBy(ws, (w) => w.ot),
     sundays: sumBy(ws, (w) => w.sundays), cost: sumBy(ws, (w) => w.cost), flagged: ws.filter((w) => w.flags.length).length,
   })).sort((a, b) => Number(a.bp === NO_BP) - Number(b.bp === NO_BP) || b.billable - a.billable); // prettier-ignore
+}
+
+// -------------------------------------------------------------------------------- month history
+
+export interface MonthTrend {
+  id: number;
+  month: string;
+  hours: number;
+  ot: number;
+  otShare: number;
+  workerDays: number;
+  people: number;
+  avgHeadcount: number;
+  peak: number;
+  idle: number;
+  idleShare: number;
+  trades: Map<string, number>; // hours by trade
+  codes: Map<string, number>; // hours by activity code
+}
+
+/** A history row's hours per activity line, as the slices do it (a single line without hours
+ * takes the worked hours less ZIDLE; the rest is unallocated). */
+function rowLines(r: HistoryRow): [string, number][] {
+  const coded = r.lines.filter(([c]) => c);
+  const out: [string, number][] = [];
+  for (const [c, hrs] of coded) {
+    const v = hrs ?? (coded.length === 1 ? r.worked - r.zidle : 0);
+    if (v > 0) out.push([c, v]);
+  }
+  const total = out.reduce((s, [, v]) => s + v, 0);
+  // scale to the worked hours, like buildData (over-allocated lines do not add hours)
+  const scale = total > r.worked - r.zidle && total > 0 ? (r.worked - r.zidle) / total : 1;
+  const lines: [string, number][] = out.map(([c, v]) => [c, v * scale]);
+  const idle = r.worked - lines.reduce((s, [, v]) => s + v, 0);
+  if (idle > 0.001) lines.push([NO_CODE, idle]);
+  return lines;
+}
+
+/** Month by month: the figures of the Analysis overview, for the stored months. */
+export function monthTrends(months: MonthInfo[], rows: HistoryRow[]): MonthTrend[] {
+  return months.map((m) => {
+    const rs = rows.filter((r) => r.month_id === m.id);
+    const perDay = new Map<number, Set<string>>();
+    const trades = new Map<string, number>(), codes = new Map<string, number>();
+    for (const r of rs) {
+      perDay.set(r.day, (perDay.get(r.day) ?? new Set()).add(r.person));
+      trades.set(r.trade || NO_TRADE, (trades.get(r.trade || NO_TRADE) ?? 0) + r.worked);
+      for (const [c, v] of rowLines(r)) codes.set(c, (codes.get(c) ?? 0) + v);
+    }
+    const hours = sumBy(rs, (r) => r.worked), ot = sumBy(rs, (r) => r.ot), idle = codes.get(NO_CODE) ?? 0;
+    const heads = [...perDay.values()].map((s) => s.size);
+    return {
+      id: m.id, month: m.month, hours, ot, otShare: hours ? ot / hours : 0, workerDays: rs.length,
+      people: new Set(rs.map((r) => r.person)).size, avgHeadcount: heads.length ? sumBy(heads, (x) => x) / heads.length : 0,
+      peak: Math.max(0, ...heads), idle, idleShare: hours ? idle / hours : 0, trades, codes,
+    }; // prettier-ignore
+  });
+}
+
+/** The site's own norm per code from stored months: hours per unit in each week that has both a
+ * quantity and hours, and their median. */
+export function historyNorms(rows: HistoryRow[], quantities: HistoryQuantity[]): { code: string; unit: string | null; weeks: number; median: number; values: number[] }[] {
+  const hours = new Map<string, number>(); // month|week|code -> hours
+  for (const r of rows) {
+    if (!r.date) continue;
+    const w = weekOf(r.date);
+    for (const [c, v] of rowLines(r)) hours.set(`${r.month_id}|${w}|${c}`, (hours.get(`${r.month_id}|${w}|${c}`) ?? 0) + v);
+  }
+  const by = new Map<string, { unit: string | null; values: number[] }>();
+  for (const q of quantities) {
+    const h = hours.get(`${q.month_id}|${q.week}|${q.code}`) ?? 0;
+    if (!(h > 0) || !(q.qty > 0)) continue;
+    const r = by.get(q.code) ?? { unit: q.unit, values: [] };
+    r.values.push(h / q.qty);
+    by.set(q.code, r);
+  }
+  return [...by].map(([code, r]) => ({ code, unit: r.unit, weeks: r.values.length, median: median(r.values)!, values: r.values })).sort((a, b) => a.code.localeCompare(b.code));
 }

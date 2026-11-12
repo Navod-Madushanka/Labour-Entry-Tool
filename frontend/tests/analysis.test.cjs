@@ -290,4 +290,35 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   assert.equal(s1.billable, 0); assert.equal(s1.workers[0].short, 1);
 }
 
+// month history: trends, the site's own norms, runs carried over the month end
+{
+  const R = (month_id, day, date, person, worked, ot, zidle, lines, trade = "Carpenter") => ({
+    month_id, sheet: String(day), day, date, day_type: "Normal Day", calling_name: person, person, trade, bp: null, supervisor: null,
+    time_in: 7, time_out: 19, worked, ot, zidle, lines });
+  const months = [{ id: 1, month: "2026-09", kind: "k", source: "s", saved_at: "", entries: 3, workers: 2, hours: 0, ot: 0 },
+                  { id: 2, month: "2026-10", kind: "k", source: "s", saved_at: "", entries: 1, workers: 1, hours: 0, ot: 0 }];
+  const rows = [
+    R(1, 7, "2026-09-07", "A", 11, 3, 0, [["03-11-00-00-P", 8], ["03-20-00-00", 3]]),
+    R(1, 8, "2026-09-08", "A", 11, 3, 2, [["03-11-00-00-P", 9]]),
+    R(1, 8, "2026-09-08", "B", 8, 0, 0, [["03-11-00-00-P", null]], "Helper"),
+    R(2, 5, "2026-10-05", "A", 10, 2, 0, [["03-11-00-00-P", 10]]),
+  ];
+  const t = A.monthTrends(months, rows);
+  near(t[0].hours, 30, "September hours"); near(t[0].ot, 6, "OT"); assert.equal(t[0].people, 2);
+  near(t[0].avgHeadcount, 1.5, "1 on day 7, 2 on day 8"); assert.equal(t[0].peak, 2);
+  near(t[0].idle, 2, "ZIDLE"); near(t[0].codes.get("03-11-00-00-P"), 8 + 9 + 8, "B's single line without hours takes all");
+  near(t[0].trades.get("Helper"), 8); near(t[1].hours, 10, "October");
+  const qs = [{ month_id: 1, code: "03-11-00-00-P", week: "2026-09-07", qty: 25, unit: "m2" },
+              { month_id: 2, code: "03-11-00-00-P", week: "2026-10-05", qty: 5, unit: "m2" }];
+  const [n] = A.historyNorms(rows, qs);
+  assert.equal(n.weeks, 2); near(n.values[0], 25 / 25, "25 h for 25 m2"); near(n.values[1], 10 / 5, "10 h for 5 m2"); near(n.median, 1.5, "median");
+  // a run carried from last month: AA-01 worked days 1, 2 (and 4); 5 days in a row at September's end
+  const f = A.fatigue(data, data.entries, { week_hours: 100, week_ot: 100, days_in_row: 6, rest_hours: 0 }, { "AA-01": 5 });
+  const aa = f.find((r) => r.person === "AA-01");
+  assert.equal(aa.carried, 5); assert.equal(aa.longestRun, 5 + 3, "5 carried + days 1, 2, 4 (site days)");
+  assert.ok(aa.flags.includes("days in a row"));
+  const bb = f.find((r) => r.person === "BB-01");
+  assert.equal(bb.carried, 0, "nothing carried for BB-01 (not in last month's runs)");
+}
+
 console.log("analysis: all passed");

@@ -45,6 +45,7 @@ import { LostTime } from "./LostTime";
 import { Productivity } from "./Productivity";
 import { Fatigue } from "./Fatigue";
 import { BpCheck } from "./BpCheck";
+import { History } from "./History";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -54,7 +55,7 @@ const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "bp" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "bp" | "history" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["programme", "As-built programme"],
@@ -70,6 +71,7 @@ const VIEWS: [View, string][] = [
   ["bp", "BP bill check"],
   ["attendance", "Attendance"],
   ["quality", "Data quality"],
+  ["history", "Month history"],
   ["compare", "Compare months"],
   ["suggestions", "Suggestions"],
 ];
@@ -101,6 +103,10 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
   useEffect(() => {
     api.lostTime().then(setLost, () => undefined);
   }, [month]);
+  const [carry, setCarry] = useState<Record<string, number>>({});
+  useEffect(() => {
+    api.historyCarry().then(setCarry, () => setCarry({}));
+  }, [master.workbook, view]);
   const disruptedSet = useMemo(() => {
     const dayOf = new Map(Object.keys(month).map((s) => [s, Number(s)]));
     return new Set(lost.items.filter((i) => !i.supervisor && i.causes.length).map((i) => dayOf.get(i.sheet) ?? Number(i.sheet)));
@@ -278,6 +284,8 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
 
       {view === "suggestions" ? (
         <SuggestionLog />
+      ) : view === "history" ? (
+        <History master={master} desc={desc} onSaved={() => onMasterChanged?.()} />
       ) : !slices.length && view !== "compare" ? (
         <p className="muted">{data.slices.length ? "Nothing matches these filters." : "No entries with worked hours yet."}</p>
       ) : view === "overview" ? (
@@ -287,7 +295,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
       ) : view === "productivity" ? (
         <Productivity data={data} master={master} desc={desc} money={money} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
       ) : view === "fatigue" ? (
-        <Fatigue data={data} entries={entries} days={daily(data, slices, filter)} master={master} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
+        <Fatigue data={data} entries={entries} days={daily(data, slices, filter)} master={master} disrupted={disruptedSet} carry={carry} onSaved={() => onMasterChanged?.()} />
       ) : view === "bp" ? (
         <BpCheck data={data} entries={entries} master={master} money={money} changedAfterReview={changedAfterReview} />
       ) : view === "lost" ? (

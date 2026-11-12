@@ -7,16 +7,17 @@ import { api, type Master } from "../api";
 import { DEFAULT_LIMITS, fatigue, otAndOutput, overLimitByDay, productivity, type Data, type DayRow, type EntryRow, type Limits, type Norm } from "../analysis";
 import { COLORS, DayBars, h } from "./charts";
 
-export function Fatigue({ data, entries, days, master, disrupted, onSaved }: {
+export function Fatigue({ data, entries, days, master, disrupted, carry = {}, onSaved }: {
   data: Data;
   entries: EntryRow[];
   days: DayRow[];
   master: Master;
   disrupted: Set<number>;
+  carry?: Record<string, number>; // days in a row at the end of last month (month history)
   onSaved: () => void;
 }) {
   const limits: Limits = { ...DEFAULT_LIMITS, ...(master.limits ?? {}) };
-  const rows = useMemo(() => fatigue(data, entries, limits), [data, entries, limits.week_hours, limits.week_ot, limits.days_in_row, limits.rest_hours]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => fatigue(data, entries, limits, carry), [data, entries, carry, limits.week_hours, limits.week_ot, limits.days_in_row, limits.rest_hours]); // eslint-disable-line react-hooks/exhaustive-deps
   const trend = useMemo(() => overLimitByDay(data, entries, limits), [data, entries, limits.week_hours]); // eslint-disable-line react-hooks/exhaustive-deps
   const prod = useMemo(() => productivity(data, master.quantities ?? {}, master.units ?? {}, (master.norms ?? {}) as Record<string, Norm>, disrupted), [data, master, disrupted]);
   const link = useMemo(() => otAndOutput(data, prod), [data, prod]);
@@ -83,7 +84,9 @@ export function Fatigue({ data, entries, days, master, disrupted, onSaved }: {
                     <td>{r.name}</td><td>{r.trade}</td><td className="num">{r.days}</td>
                     <td className={`num${r.maxWeek > limits.week_hours ? " warn-text" : ""}`}>{h(r.maxWeek)}</td>
                     <td className={`num${r.maxWeekOt > limits.week_ot ? " warn-text" : ""}`}>{h(r.maxWeekOt)}</td>
-                    <td className={`num${r.longestRun > limits.days_in_row ? " warn-text" : ""}`}>{r.longestRun}</td>
+                    <td className={`num${r.longestRun > limits.days_in_row ? " warn-text" : ""}`} title={r.carried ? `includes ${r.carried} days in a row at the end of last month` : undefined}>
+                      {r.longestRun}{r.carried ? <span className="muted small"> (+{r.carried} last month)</span> : null}
+                    </td>
                     <td className={`num${r.shortRests ? " warn-text" : ""}`} title={r.minRest === null ? undefined : `shortest rest ${h(r.minRest)} h`}>{r.shortRests || ""}</td>
                     <td className="num">{r.sundays || ""}</td>
                     <td>{r.flags.map((f) => <span key={f} className="badge warn small">{f}</span>)}</td>
