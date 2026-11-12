@@ -233,6 +233,9 @@ class MasterView(BaseModel):
     # rate} (Labour Detail's column, when used), "ot", "sunday", "holiday": multipliers,
     # "day_hours": hours in a standard day}; empty when the QS has not given any
     rates: dict = {}
+    quantities: dict[str, dict[str, float]] = {}  # code -> week (Monday) -> quantity done
+    units: dict[str, str] = {}  # code -> unit of its quantity (m3, t, m2…)
+    norms: dict[str, dict] = {}  # code -> {"hours": norm hours per unit, "source": "BOQ"}
 
 
 class EntryView(BaseModel):
@@ -374,6 +377,9 @@ class EntryService:
             place_order=self.config.place_order,
             plan=self.config.plan,
             rates=self._rates(m),
+            quantities=self.config.quantities,
+            units=self.config.units,
+            norms=self.config.norms,
         )  # fmt: skip
 
     def _rates(self, m: MasterData) -> dict:

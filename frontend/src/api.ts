@@ -59,6 +59,9 @@ export interface Master {
   place_order?: string[]; // place suffixes bottom to top, for the flowline (the PM's order)
   plan?: Record<string, Record<string, number>>; // trade -> week (Monday) -> planned people a day
   rates?: Rates; // standard costing rates for this workbook's labour source ({} when none)
+  quantities?: Record<string, Record<string, number>>; // code -> week (Monday) -> quantity done
+  units?: Record<string, string>; // code -> unit
+  norms?: Record<string, { hours: number; source: string }>; // code -> norm hours per unit
 }
 
 export interface Place {
@@ -571,6 +574,8 @@ export const api = {
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   rates: () => call<RatesView>("GET", "/api/setup/rates"),
   lostTime: () => call<LostView>("GET", "/api/lost-time"),
+  saveQuantities: (body: { quantities: Record<string, Record<string, number>>; units: Record<string, string>; norms: Record<string, { hours: number; source: string }> }) =>
+    call<SetupState>("POST", "/api/setup/quantities", body),
   setLostTime: (body: { user: string; sheet: string; supervisor?: string | null; causes: string[]; note?: string | null }) =>
     call<LostView>("POST", "/api/lost-time", body),
   saveRates: (body: Omit<RatesView, "source" | "known" | "worker_rates" | "other_sources">) => call<RatesView>("POST", "/api/setup/rates", body),

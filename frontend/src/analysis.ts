@@ -911,3 +911,90 @@ export function lostTime(data: Data, slices: Slice[], items: Lost[], causes: Cau
   const compare = bad.size ? [group("Disrupted days", (d) => bad.has(d)), group("Clean days", (d) => !bad.has(d))] : [];
   return { byCause, byParty, unallocated, explained, disrupted, compare };
 }
+
+// ------------------------------------------------------------------ productivity and unit cost
+
+export interface Norm {
+  hours: number; // norm labour hours per unit
+  source: string; // BOQ, BSR, other
+}
+
+export interface ProdWeek {
+  week: string; // Monday (ISO)
+  label: string;
+  hours: number; // labour hours on the code that week
+  cost: number;
+  qty: number | null; // quantity done (null: not given)
+  hpu: number | null; // hours per unit
+  rspu: number | null; // rupees per unit
+  index: number | null; // earned / actual hours
+  disrupted: number[]; // disrupted days with hours on the code
+}
+
+export interface ProdRow {
+  code: string;
+  unit: string;
+  qty: number; // in the weeks with a quantity
+  hours: number; // hours in those weeks (the ones a rate rests on)
+  allHours: number; // every hour on the code this month
+  cost: number;
+  hpu: number | null;
+  rspu: number | null;
+  norm: number | null;
+  normSource: string; // "BOQ", "BSR", "site median" (from its own weeks), "" none
+  index: number | null; // earned hours / actual hours: below 1 is slower than the norm
+  weeks: ProdWeek[];
+  mile: { clean: number | null; disrupted: number | null; extraHours: number | null }; // measured mile
+}
+
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null;
+};
+
+/** Hours and rupees per unit of work done, by week, against a norm; and the measured mile
+ * (clean weeks against weeks with disrupted days). `codes`: the codes with quantities, units or
+ * norms. A week without a quantity counts for nothing (its hours are not in the rates). */
+export function productivity(
+  data: Data,
+  quantities: Record<string, Record<string, number>>,
+  units: Record<string, string>,
+  norms: Record<string, Norm>,
+  disruptedDays: Set<number> = new Set(),
+): ProdRow[] {
+  const weeks = periods(data).filter((p) => p.key !== "month");
+  const codes = [...new Set([...Object.keys(quantities), ...Object.keys(units), ...Object.keys(norms)])];
+  return codes.map((code) => {
+    const mine = data.slices.filter((s) => s.code === code);
+    const wk: ProdWeek[] = weeks.map((p) => {
+      const xs = mine.filter((s) => s.day >= p.from && s.day <= p.to);
+      const hours = sumBy(xs, (s) => s.hours), cost = sumBy(xs, (s) => s.cost);
+      const week = p.key.slice(2);
+      const q = quantities[code]?.[week];
+      const qty = q && q > 0 ? q : null;
+      return {
+        week, label: `${p.from}–${p.to}`, hours, cost, qty,
+        hpu: qty && hours ? hours / qty : null, rspu: qty && cost ? cost / qty : null, index: null,
+        disrupted: [...new Set(xs.map((s) => s.day))].filter((d) => disruptedDays.has(d)),
+      }; // prettier-ignore
+    });
+    // a week counts once it has both a quantity and hours: a quantity with no hours yet means its
+    // day sheets are not entered, and would make the rate look better than it is
+    const measured = wk.filter((w) => w.qty && w.hours > 0);
+    const qty = sumBy(measured, (w) => w.qty!), hours = sumBy(measured, (w) => w.hours), cost = sumBy(measured, (w) => w.cost);
+    const own = measured.filter((w) => w.hours > 0).map((w) => w.hpu!);
+    const given = norms[code]?.hours;
+    const norm = given ?? (own.length >= 2 ? median(own) : null);
+    for (const w of wk) w.index = norm && w.qty && w.hours ? (w.qty * norm) / w.hours : null;
+    const rate = (ws: ProdWeek[]) => { const q = sumBy(ws, (w) => w.qty!); return q ? sumBy(ws, (w) => w.hours) / q : null; };
+    const clean = measured.filter((w) => !w.disrupted.length), bad = measured.filter((w) => w.disrupted.length);
+    const c = rate(clean), d = rate(bad);
+    return {
+      code, unit: units[code] ?? "", qty, hours, allHours: sumBy(mine, (s) => s.hours), cost,
+      hpu: qty ? hours / qty : null, rspu: qty && cost ? cost / qty : null,
+      norm, normSource: given ? norms[code].source || "norm" : norm ? "site median" : "",
+      index: norm && qty && hours ? (qty * norm) / hours : null, weeks: wk,
+      mile: { clean: c, disrupted: d, extraHours: c !== null && d !== null && d > c ? (d - c) * sumBy(bad, (w) => w.qty!) : null },
+    }; // prettier-ignore
+  }).sort((a, b) => b.allHours - a.allHours);
+}

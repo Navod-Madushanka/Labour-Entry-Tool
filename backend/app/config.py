@@ -152,6 +152,11 @@ class Config(BaseModel):
     plan: dict[str, dict[str, float]] = {}
     # standard costing rates for this workbook's labour source (app/api/setup.py: rates)
     rates: dict = {}
+    # productivity (roadmap #6): code -> week (Monday) -> quantity done (this workbook), and per
+    # project code -> unit ("m3") and code -> {"hours": norm hours per unit, "source": "BOQ"}
+    quantities: dict[str, dict[str, float]] = {}
+    units: dict[str, str] = {}
+    norms: dict[str, dict] = {}
     # calling-name trade letter -> trade ("R": "Rigger"); a worker's trade comes from it, else
     # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
     trade_letters: dict[str, str] | None = None

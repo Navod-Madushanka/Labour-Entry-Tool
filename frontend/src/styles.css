@@ -1130,3 +1130,14 @@ table.data.plan-grid { width: auto; }
 .lost-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .lost-pick input { width: 100%; margin-top: 2px; }
 .disrupted-list { margin: 8px 0 4px; padding-left: 18px; }
+
+/* Productivity and unit cost (roadmap #6) */
+.prod-readout { display: flex; flex-direction: column; gap: 4px; border-top-color: var(--c3); font-size: 14px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--row); }
+tr.detail-row > td { background: var(--row); padding: 6px 10px 10px; }
+.prod-weeks { margin: 0; }
+.qty-editor summary { cursor: pointer; }
+.qty-grid input { width: 8ch; padding: 3px 6px; text-align: right; }
+.qty-grid input.qty-unit { width: 6ch; text-align: left; }
+.qty-grid th { white-space: nowrap; vertical-align: middle; }

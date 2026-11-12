@@ -1,5 +1,32 @@
 # Changelog
 
+## Roadmap #6, productivity and unit cost: hours and Rs per unit against a norm (12 Nov 2026)
+
+Asked for: roadmap #6, the QS's own language: Rs per m³ against the BOQ.
+
+- New Analysis view **Productivity**:
+  - **Quantities done (weekly)**: add 5–10 cost-significant codes (most hours first), each with
+    its unit (m3, t, m2…), a norm in labour hours per unit and its source (BOQ, BSR, other), and
+    the quantity done each week of the month. A block copied from Excel can be pasted (rows
+    starting with a code go to that code). Quantities are kept per workbook (month); units and
+    norms per project, so they carry on to next month. Excel is not changed.
+    `POST /api/setup/quantities`; `/api/master` carries `quantities`, `units`, `norms`.
+  - A read-out per code ("Concrete Forming: 1.2 h per m2 · index 0.92 this month (1.15 in days
+    19–25) · Rs 450 per m2 at standard rates").
+  - **Hours and cost per unit**: quantity, hours, hours per unit, Rs per unit (with rates), norm,
+    the **productivity index** (earned hours = quantity × norm, over actual hours; below 1 is
+    slower than the norm, coloured), and the hours not measured; a row opens its weeks.
+  - Without a norm, the code's own weekly median is used ("site median", from two weeks on).
+  - **Measured mile**: hours per unit in clean weeks against weeks with a disrupted day (Lost
+    time, roadmap #5) while the code had hours, and the extra hours that implies
+    ((disrupted rate − clean rate) × quantity in disrupted weeks).
+- A week counts once it has both a quantity and hours: a quantity for days not entered yet
+  would make the rate look better than it is. "Quantities to day N" says how far it goes.
+- Tests: `tests/analysis.test.cjs` (hours per unit, index, norm source, site median rule,
+  disrupted weeks, weeks without hours left out), `backend/tests/test_rates.py`
+  (quantities, units and norms saved and checked), `e2e/productivity.cjs` (made-up quantities,
+  norm and rates; measured mile with a rainy day).
+
 ## Roadmap #5, lost-time reasons: unallocated hours become evidence (12 Nov 2026)
 
 Asked for: roadmap #5, one optional pick at push so ZIDLE hours say why.

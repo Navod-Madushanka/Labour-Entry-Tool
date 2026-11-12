@@ -194,6 +194,11 @@ class Session:
                 update["place_order"] = saved.get("place_order", [])
             update["plan"] = self.settings.get_key(plan_key(book.name)).get("plan", {})
             update["rates"] = rates_for(self.settings.get_key(RATES_KEY), book.name)
+            update["quantities"] = self.settings.get_key(qty_key(book.name)).get("quantities", {})
+            if book.places_key:
+                saved = self.settings.get_key(book.places_key)
+                update["units"] = saved.get("units", {})
+                update["norms"] = saved.get("norms", {})
         saved = self.settings.get_key(TRADE_KEY).get("letters")
         if isinstance(saved, dict):
             update["trade_letters"] = {str(k): str(v) for k, v in saved.items()}
@@ -935,6 +940,55 @@ async def set_rates(body: RatesRequest, request: Request) -> RatesView:
     )
     _apply(request, session)
     return await get_rates(request)
+
+
+# --- productivity: quantities done, units and norms (roadmap #6) ----------------------------------
+
+
+def qty_key(name: str) -> str:
+    """Quantities done belong to one workbook file (its month)."""
+    return f"qty:{Path(name).name.casefold()}"
+
+
+class Norm(BaseModel):
+    hours: float = Field(gt=0, le=100_000)  # norm labour hours per unit
+    source: str = Field("BOQ", max_length=40)  # BOQ, BSR, other
+
+
+class QuantitiesRequest(BaseModel):
+    quantities: dict[str, dict[str, float]]  # code -> week (Monday, YYYY-MM-DD) -> quantity
+    units: dict[str, str] = {}  # code -> unit
+    norms: dict[str, Norm] = {}  # code -> norm
+
+
+@router.post("/quantities", response_model=SetupState)
+def set_quantities(body: QuantitiesRequest, request: Request) -> SetupState:
+    """Weekly quantities done per activity code (this workbook), with each code's unit and norm
+    (kept for the project). Excel is not changed."""
+    session = _require(request)
+    book = session.book
+    if book.places_key is None:
+        raise HTTPException(409, "Check the workbook first.")
+    quantities: dict[str, dict[str, float]] = {}
+    for code, weeks in body.quantities.items():
+        clean = {}
+        for week, n in weeks.items():
+            try:
+                dt.date.fromisoformat(week)
+            except ValueError as exc:
+                raise HTTPException(422, f"{week!r} is not a date (YYYY-MM-DD)") from exc
+            if not 0 <= n <= 10_000_000:
+                raise HTTPException(422, f"{n} is out of range")
+            if n:
+                clean[week] = round(float(n), 3)
+        if code.strip():
+            quantities[code.strip()] = clean
+    units = {c.strip(): u.strip()[:12] for c, u in body.units.items() if c.strip() and u.strip()}
+    norms = {c.strip(): n.model_dump() for c, n in body.norms.items() if c.strip()}
+    session.settings.set_key(qty_key(book.name), quantities=quantities)
+    session.settings.set_key(book.places_key, units=units, norms=norms)
+    _apply(request, session)
+    return session.sync()
 
 
 # --- trades by calling-name letter ("INR-01" is a Rigger) ----------------------------------------

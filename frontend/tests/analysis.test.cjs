@@ -233,4 +233,24 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   assert.equal(none.compare.length, 0);
 }
 
+// productivity: hours and rupees per unit against a norm, measured mile
+{
+  const P = "03-11-00-00-P";
+  const [r] = A.productivity(data, { [P]: { "2026-09-28": 40 } }, { [P]: "m2" }, { [P]: { hours: 1, source: "BSR" } });
+  near(r.hours, 8 + 11 + 6 + 15 + 8, "hours on the code in the measured week");
+  near(r.hpu, 48 / 40, "hours per unit");
+  near(r.index, 40 / 48, "earned 40 h against 48 actual");
+  assert.equal(r.normSource, "BSR"); assert.equal(r.unit, "m2");
+  assert.equal(r.weeks[0].disrupted.length, 0);
+  const [noNorm] = A.productivity(data, { [P]: { "2026-09-28": 40 } }, {}, {});
+  assert.equal(noNorm.norm, null, "one week is not enough for a site median");
+  const [d] = A.productivity(data, { [P]: { "2026-09-28": 40 } }, {}, {}, new Set([4]));
+  assert.deepEqual(d.weeks[0].disrupted, [4], "day 4 was disrupted while the code had hours");
+  assert.equal(d.mile.clean, null, "no clean week to compare with");
+  const [late] = A.productivity(data, { [P]: { "2026-09-28": 40, "2026-10-05": 30 } }, {}, {});
+  near(late.qty, 40, "a quantity for a week with no hours yet is left out");
+  const [unmeasured] = A.productivity(data, {}, { [P]: "m2" }, {});
+  near(unmeasured.allHours, 48, "all hours"); near(unmeasured.hours, 0, "none measured"); assert.equal(unmeasured.hpu, null);
+}
+
 console.log("analysis: all passed");

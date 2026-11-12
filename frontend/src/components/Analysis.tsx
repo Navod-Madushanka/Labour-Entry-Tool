@@ -42,6 +42,7 @@ import { Programme } from "./Programme";
 import { RatesEditor } from "./RatesEditor";
 import { SiteReport } from "./SiteReport";
 import { LostTime } from "./LostTime";
+import { Productivity } from "./Productivity";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -51,10 +52,11 @@ const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "programme" | "lost" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "productivity" | "lost" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["programme", "As-built programme"],
+  ["productivity", "Productivity"],
   ["activities", "Activities"],
   ["places", "Places & trades"],
   ["supervisors", "Supervisors"],
@@ -95,6 +97,10 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
   useEffect(() => {
     api.lostTime().then(setLost, () => undefined);
   }, [month]);
+  const disruptedSet = useMemo(() => {
+    const dayOf = new Map(Object.keys(month).map((s) => [s, Number(s)]));
+    return new Set(lost.items.filter((i) => !i.supervisor && i.causes.length).map((i) => dayOf.get(i.sheet) ?? Number(i.sheet)));
+  }, [lost, month]);
   const rated = hasRates(master.rates);
   const money = moneyOn && rated;
 
@@ -264,6 +270,8 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} desc={desc} />
       ) : view === "programme" ? (
         <Programme slices={slices} days={daily(data, slices, filter)} master={master} trade={filter.trade} desc={desc} onPick={(code) => set({ code })} onSaved={() => onMasterChanged?.()} />
+      ) : view === "productivity" ? (
+        <Productivity data={data} master={master} desc={desc} money={money} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
       ) : view === "lost" ? (
         <LostTime data={data} slices={slices} items={lost.items} causes={lost.causes} user={user} onSaved={(items) => setLost((l) => ({ ...l, items }))} />
       ) : view === "activities" ? (
