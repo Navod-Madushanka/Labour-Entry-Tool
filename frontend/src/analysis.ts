@@ -4,7 +4,7 @@
 // Every entry is cut into slices, one per activity line (plus one for ZIDLE hours), each carrying
 // its share of the entry's worked hours, overtime and the worker-day. Filters (trade, place, code,
 // days) keep or drop slices, so every table and chart below adds up the same way.
-import type { Issue, Master, Rates, Worker } from "./api";
+import type { Cause, Issue, Lost, Master, Rates, Worker } from "./api";
 import type { Month } from "./history";
 import { placeSuffix } from "./codes";
 
@@ -757,7 +757,7 @@ export const within = (slices: Slice[], from: number, to: number) => slices.filt
  * view with the table behind it. */
 export interface Change {
   text: string;
-  view: "trades" | "activities" | "overtime" | "quality" | "attendance" | "overview" | "programme";
+  view: "trades" | "activities" | "overtime" | "quality" | "attendance" | "overview" | "programme" | "lost";
   tone: "up" | "down" | "info" | "warn";
 }
 
@@ -854,4 +854,60 @@ export function labourReturn(data: Data): { trades: string[]; rows: { day: numbe
   const sums = new Map<string, number>();
   for (const r of rows) for (const [t, n] of r.byTrade) sums.set(t, (sums.get(t) ?? 0) + n);
   return { trades: [...sums].sort((a, b) => b[1] - a[1]).map(([t]) => t), rows };
+}
+
+// ------------------------------------------------------------------------ lost-time reasons
+
+export const NO_REASON = "No reason given";
+
+export interface LostSummary {
+  byCause: { cause: string; label: string; party: string; hours: number; sheets: number }[];
+  byParty: { party: string; hours: number }[];
+  unallocated: number; // all unallocated hours in the slices
+  explained: number; // of them, on supervisor sheets with a reason
+  disrupted: { day: number; sheet: string; causes: string[]; note: string | null }[];
+  compare: { label: string; days: number; headcount: number; hoursPerPerson: number; idleShare: number; otShare: number }[]; // disrupted vs clean
+}
+
+/** Unallocated (ZIDLE) hours by the reason given for their supervisor sheet (shared equally when
+ * several causes were picked), by the responsible party, and disrupted days against clean ones. */
+export function lostTime(data: Data, slices: Slice[], items: Lost[], causes: Cause[]): LostSummary {
+  const info = new Map(causes.map((c) => [c.id, c]));
+  const reason = new Map(items.filter((i) => i.supervisor).map((i) => [`${i.sheet}|${i.supervisor}`, i.causes]));
+  const by = new Map<string, { hours: number; sheets: Set<string> }>();
+  let unallocated = 0, explained = 0;
+  for (const s of slices) {
+    if (s.code !== NO_CODE) continue;
+    unallocated += s.hours;
+    const cs = reason.get(`${s.sheet}|${s.supervisor}`) ?? [];
+    const keys = cs.length ? cs : [NO_REASON];
+    if (cs.length) explained += s.hours;
+    for (const k of keys) {
+      const r = by.get(k) ?? { hours: 0, sheets: new Set<string>() };
+      r.hours += s.hours / keys.length;
+      r.sheets.add(`${s.sheet}|${s.supervisor}`);
+      by.set(k, r);
+    }
+  }
+  const byCause = [...by].map(([cause, r]) => ({
+    cause, label: info.get(cause)?.label ?? cause, party: info.get(cause)?.party ?? "Not stated", hours: r.hours, sheets: r.sheets.size,
+  })).sort((a, b) => Number(a.cause === NO_REASON) - Number(b.cause === NO_REASON) || b.hours - a.hours); // prettier-ignore
+  const parties = new Map<string, number>();
+  for (const c of byCause) parties.set(c.party, (parties.get(c.party) ?? 0) + c.hours);
+  const byParty = [...parties].map(([party, hours]) => ({ party, hours })).sort((a, b) => b.hours - a.hours);
+
+  const dayOf = new Map(data.days.map((d) => [d.sheet, d.day]));
+  const disrupted = items
+    .filter((i) => !i.supervisor && i.causes.length && dayOf.has(i.sheet))
+    .map((i) => ({ day: dayOf.get(i.sheet)!, sheet: i.sheet, causes: i.causes, note: i.note }))
+    .sort((a, b) => a.day - b.day);
+  const bad = new Set(disrupted.map((d) => d.day));
+  const group = (label: string, keep: (day: number) => boolean) => {
+    const xs = slices.filter((s) => keep(s.day));
+    const k = kpis(xs);
+    const personDays = new Set(xs.map((s) => `${s.day}|${s.person}`)).size;
+    return { label, days: k.workDays, headcount: k.avgHeadcount, hoursPerPerson: personDays ? k.hours / personDays : 0, idleShare: k.hours ? k.idle / k.hours : 0, otShare: k.otPct };
+  };
+  const compare = bad.size ? [group("Disrupted days", (d) => bad.has(d)), group("Clean days", (d) => !bad.has(d))] : [];
+  return { byCause, byParty, unallocated, explained, disrupted, compare };
 }

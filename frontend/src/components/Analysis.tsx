@@ -2,7 +2,7 @@
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type ExportTable, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
+import { api, type ExportTable, type LostView, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
   applyFilter,
@@ -41,6 +41,7 @@ import { COLORS, DayBars, dayLabel, h } from "./charts";
 import { Programme } from "./Programme";
 import { RatesEditor } from "./RatesEditor";
 import { SiteReport } from "./SiteReport";
+import { LostTime } from "./LostTime";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -50,7 +51,7 @@ const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "programme" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "lost" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["programme", "As-built programme"],
@@ -60,6 +61,7 @@ const VIEWS: [View, string][] = [
   ["manpower", "Daily manpower"],
   ["timeline", "Task timeline"],
   ["overtime", "Overtime"],
+  ["lost", "Lost time"],
   ["attendance", "Attendance"],
   ["quality", "Data quality"],
   ["compare", "Compare months"],
@@ -76,9 +78,10 @@ interface Props {
   loaded: number;
   total: number;
   onMasterChanged?: () => void; // place order or plan saved: read the master again
+  user?: string; // who gives lost-time reasons here
 }
 
-export function Analysis({ master, month, loaded, total, onMasterChanged }: Props) {
+export function Analysis({ master, month, loaded, total, onMasterChanged, user = "" }: Props) {
   const [view, setView] = useState<View>(() => (store.get("labour.analysis.view") as View) || "overview");
   const [filter, setFilter] = useState<Filter>({});
   const [exporting, setExporting] = useState(false);
@@ -88,6 +91,10 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
   useEffect(() => store.set("labour.analysis.money", moneyOn ? "1" : "0"), [moneyOn]);
   const [ratesOpen, setRatesOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [lost, setLost] = useState<LostView>({ causes: [], items: [] });
+  useEffect(() => {
+    api.lostTime().then(setLost, () => undefined);
+  }, [month]);
   const rated = hasRates(master.rates);
   const money = moneyOn && rated;
 
@@ -166,6 +173,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
           data={data}
           master={master}
           desc={desc}
+          lost={lost}
           onClose={() => setReportOpen(false)}
           onView={(v) => {
             setFilter({});
@@ -256,6 +264,8 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
         <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} desc={desc} />
       ) : view === "programme" ? (
         <Programme slices={slices} days={daily(data, slices, filter)} master={master} trade={filter.trade} desc={desc} onPick={(code) => set({ code })} onSaved={() => onMasterChanged?.()} />
+      ) : view === "lost" ? (
+        <LostTime data={data} slices={slices} items={lost.items} causes={lost.causes} user={user} onSaved={(items) => setLost((l) => ({ ...l, items }))} />
       ) : view === "activities" ? (
         <Activities groups={byCode(slices)} onPick={(code) => set({ code })} withActivities={data.withActivities} desc={desc} />
       ) : view === "places" ? (

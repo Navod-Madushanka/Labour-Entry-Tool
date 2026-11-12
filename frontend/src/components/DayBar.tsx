@@ -5,6 +5,7 @@ interface Props {
   sheet: string;
   counts: Record<string, number | undefined>;
   types: Record<string, unknown>; // day type (H3) per sheet, for the weekend colours
+  disrupted?: Record<string, string>; // sheet -> what disrupted the day ("Rain or weather"), given at push
   day: DayView | undefined;
   acknowledged: boolean;
   onPick: (sheet: string) => void;
@@ -26,7 +27,7 @@ const kind = (type: unknown) => {
 
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
-export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading }: Props) {
+export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading }: Props) {
   const h = day?.header;
   const issues = day?.header_issues ?? [];
   const blocking = issues.some((i) => i.severity === "BLOCK");
@@ -38,11 +39,12 @@ export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick
             key={s}
             role="tab"
             aria-selected={s === sheet}
-            className={`day${s === sheet ? " active" : ""}${counts[s] ? " has" : ""}${kind(types[s])}`}
+            className={`day${s === sheet ? " active" : ""}${counts[s] ? " has" : ""}${kind(types[s])}${disrupted[s] ? " disrupted" : ""}`}
             onClick={() => onPick(s)}
-            title={counts[s] !== undefined ? `${counts[s]} entries` : "not loaded yet"}
+            title={`${counts[s] !== undefined ? `${counts[s]} entries` : "not loaded yet"}${disrupted[s] ? ` · disrupted: ${disrupted[s]}` : ""}`}
           >
             {s}
+            {disrupted[s] && <span className="day-flag" aria-label={`disrupted: ${disrupted[s]}`}>{/rain/i.test(disrupted[s]) ? "☂" : "!"}</span>}
           </button>
         ))}
       </div>
@@ -51,6 +53,7 @@ export function DayBar({ sheets, sheet, counts, types, day, acknowledged, onPick
         <span><b className="lg-sun">S</b>Sunday / holiday</span>
         <span><i className="lg-has" />has entries</span>
         <span><i className="lg-active" />this day</span>
+        {Object.keys(disrupted).length > 0 && <span><b className="lg-flag">☂</b>disrupted (rain, power cut…)</span>}
       </div>
       <div className="dayinfo">
         {h ? (

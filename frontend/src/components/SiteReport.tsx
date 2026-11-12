@@ -4,10 +4,11 @@
 // browser, so "Save as PDF" in the print dialog makes the PDF; nothing is installed.
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Master } from "../api";
+import type { LostView, Master } from "../api";
 import {
   byCode,
   daily,
+  lostTime,
   hasRates,
   kpis,
   labourReturn,
@@ -26,10 +27,11 @@ type Desc = (code: string) => string | null;
 const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-export function SiteReport({ data, master, desc, onClose, onView }: {
+export function SiteReport({ data, master, desc, lost, onClose, onView }: {
   data: Data;
   master: Master;
   desc: Desc;
+  lost?: LostView;
   onClose: () => void;
   onView: (view: Change["view"]) => void;
 }) {
@@ -59,7 +61,24 @@ export function SiteReport({ data, master, desc, onClose, onView }: {
   const weeks = list.filter((p) => p.key !== "month");
   const prev = cur && cur.key !== "month" ? weeks[weeks.indexOf(cur) - 1] ?? null : null;
   const label = (code: string) => (desc(code) ? `${code} ${desc(code)}` : code);
-  const changes = useMemo(() => (cur ? whatChanged(data, cur, prev, label, money) : []), [data, cur, prev, money]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changes = useMemo(() => {
+    if (!cur) return [];
+    const out = whatChanged(data, cur, prev, label, money);
+    // lost time (roadmap #5): disrupted days and the unallocated hours with a reason
+    if (lost && lost.items.length) {
+      const s = lostTime(data, within(data.slices, cur.from, cur.to), lost.items, lost.causes);
+      const name = new Map(lost.causes.map((c) => [c.id, c.label.toLowerCase()]));
+      const days = s.disrupted.filter((d) => d.day >= cur.from && d.day <= cur.to);
+      const top = s.byCause.find((c) => c.cause !== "No reason given");
+      if (days.length || top)
+        out.push({
+          text: `${days.length ? `Disrupted: ${days.map((d) => `${d.causes.map((c) => name.get(c) ?? c).join(" and ")} (day ${d.day})`).join("; ")}. ` : ""}${top ? `Unallocated hours with a reason: ${h(s.explained)} h, most to ${top.label.toLowerCase()} (${h(top.hours)} h, ${top.party.toLowerCase()}).` : ""}`.trim(),
+          view: "lost",
+          tone: "warn",
+        });
+    }
+    return out;
+  }, [data, cur, prev, money, lost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const print = () => {
     document.body.classList.add("printing");

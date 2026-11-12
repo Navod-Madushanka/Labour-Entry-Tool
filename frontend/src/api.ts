@@ -570,6 +570,9 @@ export const api = {
   savePlaceOrder: (order: string[]) => call<SetupState>("POST", "/api/setup/place-order", { order }),
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   rates: () => call<RatesView>("GET", "/api/setup/rates"),
+  lostTime: () => call<LostView>("GET", "/api/lost-time"),
+  setLostTime: (body: { user: string; sheet: string; supervisor?: string | null; causes: string[]; note?: string | null }) =>
+    call<LostView>("POST", "/api/lost-time", body),
   saveRates: (body: Omit<RatesView, "source" | "known" | "worker_rates" | "other_sources">) => call<RatesView>("POST", "/api/setup/rates", body),
   saveDescriptions: (descriptions: Record<string, string>) => call<SetupState>("POST", "/api/setup/descriptions", { descriptions }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
@@ -616,4 +619,26 @@ export interface RatesView {
   holiday: number;
   day_hours: number;
   other_sources: string[];
+}
+
+/** A lost-time cause and who is responsible for it (roadmap #5). */
+export interface Cause {
+  id: string;
+  label: string;
+  party: string;
+}
+
+/** Why a supervisor sheet has unallocated hours (supervisor set) or what disrupted a day. */
+export interface Lost {
+  sheet: string;
+  supervisor: string | null;
+  causes: string[];
+  note: string | null;
+  user: string;
+  created_at: string;
+}
+
+export interface LostView {
+  causes: Cause[];
+  items: Lost[];
 }

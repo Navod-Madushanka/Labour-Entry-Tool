@@ -1,5 +1,28 @@
 # Changelog
 
+## Roadmap #5, lost-time reasons: unallocated hours become evidence (12 Nov 2026)
+
+Asked for: roadmap #5, one optional pick at push so ZIDLE hours say why.
+
+- **At push** ("Whose manpower sheet is this?") an optional **Lost time** section: the sheet's
+  unallocated hours are shown ("3 h unallocated on this sheet") with the causes to pick from,
+  and the day can be tagged as disrupted, with a note. Causes and who is responsible: rain or
+  weather (neutral), waiting for concrete (supplier), no materials (contractor), no drawings or
+  instructions (client / consultant), plant breakdown (contractor), power cut (neutral), client or
+  consultant instruction (client / consultant), other (see note). Nothing is required.
+- Kept in the tool's log (`audit.db`, table `lost_time`, the latest answer wins, no causes clears
+  it); Excel is not changed. `GET/POST /api/lost-time`.
+- **Day strip**: a disrupted day gets a ☂ (rain) or ! mark and says why on hover.
+- **Analysis → Lost time**: unallocated hours, how much has a reason, disrupted days; hours by
+  cause and by responsible party (a sheet given two causes shares its hours); disrupted days
+  compared with clean days (headcount, hours per person-day, unallocated share, OT share), with
+  each disrupted day's causes and note; a reason can be picked or changed for every supervisor
+  sheet with unallocated hours, and any day tagged later.
+- **Site report**: a line on the period's disrupted days and the unallocated hours with a reason.
+- Tests: `backend/tests/test_losttime.py`, `tests/analysis.test.cjs` (causes, parties, disrupted
+  vs clean), `e2e/lost-time.cjs` (pick at push, day mark, view, change a reason, report line);
+  made-up data.
+
 ## Roadmap #4, one-click site report and monthly labour return (12 Nov 2026)
 
 Asked for: roadmap #4, a one-page weekly (and monthly) report and a monthly labour return.

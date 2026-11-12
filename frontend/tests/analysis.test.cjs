@@ -212,4 +212,25 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   assert.equal(ret.rows.find((r) => r.day === 3).total, 0, "a day without work stays in the return");
 }
 
+// lost time: reasons for supervisor sheets, causes and parties, disrupted vs clean days
+{
+  const owned = A.buildData(month, master, new Map([["1|BB-01", "Kamal"], ["1|AA-01", "Kamal"]]));
+  const causes = [{ id: "concrete", label: "Waiting for concrete", party: "Supplier" }, { id: "rain", label: "Rain or weather", party: "Neutral" }];
+  const items = [
+    { sheet: "1", supervisor: "Kamal", causes: ["concrete"], note: null, user: "u", created_at: "" },
+    { sheet: "4", supervisor: null, causes: ["rain"], note: "heavy rain", user: "u", created_at: "" },
+  ];
+  const lt = A.lostTime(owned, owned.slices, items, causes);
+  near(lt.unallocated, 2, "BB-01's 2 h of ZIDLE");
+  near(lt.explained, 2, "on Kamal's sheet with a reason");
+  assert.deepEqual(lt.byCause.map((c) => [c.cause, c.party, c.hours, c.sheets]), [["concrete", "Supplier", 2, 1]]);
+  assert.deepEqual(lt.byParty, [{ party: "Supplier", hours: 2 }]);
+  assert.deepEqual(lt.disrupted.map((d) => [d.day, d.causes, d.note]), [[4, ["rain"], "heavy rain"]]);
+  assert.deepEqual(lt.compare.map((c) => [c.label, c.days]), [["Disrupted days", 1], ["Clean days", 2]]);
+  near(lt.compare[0].hoursPerPerson, 8, "16 h over 2 person-days on day 4");
+  const none = A.lostTime(data, data.slices, [], causes);
+  assert.deepEqual(none.byCause.map((c) => c.cause), [A.NO_REASON], "no reasons: all unexplained");
+  assert.equal(none.compare.length, 0);
+}
+
 console.log("analysis: all passed");

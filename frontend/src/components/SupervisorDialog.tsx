@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Supervisor } from "../api";
+import { api, type Cause, type Supervisor } from "../api";
+
+/** Optional at push: why the sheet has unallocated hours, and what disrupted the day (roadmap #5). */
+export interface LostPick {
+  causes: string[]; // reason for this sheet's unallocated hours
+  note: string;
+  dayTags: string[]; // what disrupted the day(s) pushed
+}
 
 /** Asked at each push: whose manpower sheet (paper) these entries are from. Pick a supervisor used
  * before, or type a new name. The answer is kept with the push, to find the sheet again later. */
@@ -7,19 +14,26 @@ export function SupervisorDialog({
   count,
   days,
   busy,
+  idleHours = 0,
   onPush,
   onCancel,
 }: {
   count: number;
   days: string; // "sheet 26 (Thu 26 Nov)"
   busy: boolean;
-  onPush: (supervisor: string) => void;
+  idleHours?: number; // unallocated (ZIDLE) hours in the entries pushed
+  onPush: (supervisor: string, lost: LostPick) => void;
   onCancel: () => void;
 }) {
   const [list, setList] = useState<Supervisor[] | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLInputElement>(null);
+  const [causes, setCauses] = useState<Cause[]>([]);
+  const [reason, setReason] = useState<string[]>([]);
+  const [dayTags, setDayTags] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const [lostOpen, setLostOpen] = useState(false);
 
   useEffect(() => {
     api
@@ -29,8 +43,11 @@ export function SupervisorDialog({
         setList([]);
         setError(e instanceof Error ? e.message : String(e));
       });
+    api.lostTime().then((v) => setCauses(v.causes), () => undefined);
     box.current?.focus();
   }, []);
+  const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const lost = (): LostPick => ({ causes: reason, note: note.trim(), dayTags });
 
   const typed = name.replace(/\s+/g, " ").trim();
   const known = list?.find((s) => s.name.toLowerCase() === typed.toLowerCase());
@@ -54,14 +71,14 @@ export function SupervisorDialog({
       aria-checked={chosen === s.name}
       className={`chip${chosen === s.name ? " on" : ""}`}
       onClick={() => setName(s.name)}
-      onDoubleClick={() => onPush(s.name)}
+      onDoubleClick={() => onPush(s.name, lost())}
       disabled={busy}
     >
       {s.name}
     </button>
   );
   const push = () => {
-    if (chosen && !busy) onPush(chosen);
+    if (chosen && !busy) onPush(chosen, lost());
   };
 
   return (
@@ -108,6 +125,38 @@ export function SupervisorDialog({
           />
         </label>
         {typed && !known && list && <p className="muted small">New supervisor: {typed} is added to the list.</p>}
+        {causes.length > 0 && (
+          <details className="lost-pick" open={lostOpen} onToggle={(e) => setLostOpen((e.target as HTMLDetailsElement).open)}>
+            <summary>
+              Lost time (optional){reason.length || dayTags.length ? ` · ${reason.length + dayTags.length} picked` : ""}
+              {idleHours > 0 && <span className="badge warn small">{Math.round(idleHours * 10) / 10} h unallocated on this sheet</span>}
+            </summary>
+            {idleHours > 0 && (
+              <div className="lost-row" role="group" aria-label="Reason for the unallocated hours">
+                <span className="muted small">Why are {Math.round(idleHours * 10) / 10} h unallocated on this sheet?</span>
+                <span className="lost-chips">
+                  {causes.map((c) => (
+                    <button key={c.id} type="button" className={`chip${reason.includes(c.id) ? " on" : ""}`} aria-pressed={reason.includes(c.id)} onClick={() => setReason((r) => toggle(r, c.id))}>
+                      {c.label}
+                    </button>
+                  ))}
+                </span>
+              </div>
+            )}
+            <div className="lost-row" role="group" aria-label="What disrupted the day">
+              <span className="muted small">Was the day disrupted? (for the whole site, {days})</span>
+              <span className="lost-chips">
+                {causes.filter((c) => c.id !== "other").map((c) => (
+                  <button key={c.id} type="button" className={`chip${dayTags.includes(c.id) ? " on" : ""}`} aria-pressed={dayTags.includes(c.id)} onClick={() => setDayTags((r) => toggle(r, c.id))}>
+                    {c.label}
+                  </button>
+                ))}
+              </span>
+            </div>
+            <input aria-label="Lost time note" placeholder="Note (optional), e.g. pump broke at 10:00" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} />
+            <p className="muted small">Kept with this push as evidence of lost time (who caused it); Excel is not changed.</p>
+          </details>
+        )}
         {error && <p className="error-text small">{error}</p>}
         <div className="actions">
           <button className="primary" disabled={!chosen || busy} onClick={push}>

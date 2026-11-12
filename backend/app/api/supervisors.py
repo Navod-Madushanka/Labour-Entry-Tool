@@ -15,7 +15,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.api.entries import run_service
-from app.audit.store import Owned, Review
+from app.audit.store import Lost, Owned, Review
+from app.domain.losttime import CAUSE_IDS, CAUSES, Cause
 from app.service import clean_name
 
 router = APIRouter(prefix="/api")
@@ -151,5 +152,46 @@ async def add_review(body: ReviewBody, request: Request) -> list[Review]:
         s.audit.review(body.user.strip(), s.workbook.name, body.sheet, body.supervisor,
                        body.status, note, body.fingerprint)  # fmt: skip
         return s.audit.reviews(s.workbook.name)
+
+    return await run_service(request, save)
+
+
+# --- lost-time reasons and day disruptions (roadmap #5) -------------------------------------------
+
+
+class LostView(BaseModel):
+    causes: list[Cause]
+    items: list[Lost]
+
+
+class LostBody(BaseModel):
+    user: str = Field(min_length=1, max_length=80)
+    sheet: str = Field(min_length=1, max_length=10)
+    supervisor: str | None = Field(None, max_length=80)  # None: the whole day
+    causes: list[str] = Field(default_factory=list, max_length=8)
+    note: str | None = Field(None, max_length=300)
+
+
+@router.get("/lost-time", response_model=LostView)
+async def lost_time(request: Request) -> LostView:
+    """The causes to choose from, and every reason and day tag given in this workbook."""
+    return LostView(
+        causes=CAUSES, items=await run_service(request, lambda s: s.audit.lost(s.workbook.name))
+    )
+
+
+@router.post("/lost-time", response_model=LostView)
+async def set_lost_time(body: LostBody, request: Request) -> LostView:
+    """Give (or change, or clear with no causes) the reason for a supervisor sheet's unallocated
+    hours, or the disruption of a whole day. Kept in the tool's log; Excel is not changed."""
+    if bad := [c for c in body.causes if c not in CAUSE_IDS]:
+        raise HTTPException(422, f"Unknown cause: {bad[0]}")
+    causes = list(dict.fromkeys(body.causes))
+    note = (body.note or "").strip() or None
+    supervisor = clean_name(body.supervisor or "") or None
+
+    def save(s):
+        s.audit.set_lost(body.user.strip(), s.workbook.name, body.sheet, supervisor, causes, note)
+        return LostView(causes=CAUSES, items=s.audit.lost(s.workbook.name))
 
     return await run_service(request, save)

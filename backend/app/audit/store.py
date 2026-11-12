@@ -71,6 +71,17 @@ CREATE TABLE IF NOT EXISTS sheet_reviews (
     fingerprint TEXT NOT NULL   -- what the sheet looked like when reviewed (changed since?)
 );
 CREATE INDEX IF NOT EXISTS sheet_reviews_book ON sheet_reviews(workbook);
+CREATE TABLE IF NOT EXISTS lost_time (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    user        TEXT NOT NULL,
+    workbook    TEXT NOT NULL,
+    sheet       TEXT NOT NULL,
+    supervisor  TEXT,           -- NULL: a tag for the whole day; else that supervisor's sheet
+    causes      TEXT NOT NULL,  -- JSON list of cause ids (app/domain/losttime.py); [] clears
+    note        TEXT
+);
+CREATE INDEX IF NOT EXISTS lost_time_book ON lost_time(workbook);
 """
 
 
@@ -93,6 +104,18 @@ class Owned(BaseModel):
     user: str
     batch_id: int | None = None
     entry: dict  # as pushed (EntryInput)
+
+
+class Lost(BaseModel):
+    """Why a supervisor's sheet has unallocated hours (supervisor set), or what disrupted the
+    whole day (supervisor None): the latest answer wins."""
+
+    sheet: str
+    supervisor: str | None = None
+    causes: list[str]
+    note: str | None = None
+    user: str
+    created_at: dt.datetime
 
 
 class Review(BaseModel):
@@ -251,6 +274,30 @@ class AuditStore:
                 fingerprint=r["fingerprint"], history=before + 1,
             )  # fmt: skip
         return list(latest.values())
+
+    def set_lost(self, user: str, workbook: str, sheet: str, supervisor: str | None,
+                 causes: list[str], note: str | None) -> None:  # fmt: skip
+        now = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO lost_time (created_at, user, workbook, sheet, supervisor, causes,"
+                " note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (now, user, workbook, sheet, supervisor, json.dumps(causes), note),
+            )
+
+    def lost(self, workbook: str) -> list[Lost]:
+        """The latest reason of each supervisor sheet and tag of each day (cleared: left out)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM lost_time WHERE workbook = ? ORDER BY id", (workbook,)
+            ).fetchall()
+        latest: dict[tuple[str, str | None], Lost] = {}
+        for r in rows:
+            latest[(r["sheet"], r["supervisor"])] = Lost(
+                sheet=r["sheet"], supervisor=r["supervisor"], causes=json.loads(r["causes"]),
+                note=r["note"], user=r["user"], created_at=r["created_at"],
+            )  # fmt: skip
+        return [x for x in latest.values() if x.causes or x.note]
 
     def supervisors(self) -> list[tuple[str, str]]:
         """(name, last used) of every supervisor in the log, most recent first."""

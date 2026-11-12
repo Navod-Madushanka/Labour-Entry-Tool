@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Master, type Status } from "./api";
+import { api, type BookInfo, type Batch, type CommitResult, type DayView, type EntryInput, type EntryPlan, type Issue, type Lost, type Master, type Status } from "./api";
 import { Batches } from "./components/Batches";
 import { DayBar } from "./components/DayBar";
 import { DayList } from "./components/DayList";
@@ -13,7 +13,7 @@ import { SqlWorkspace } from "./components/SqlWorkspace";
 import { PlacesEditor } from "./components/PlacesEditor";
 import { TimeCards } from "./components/TimeCards";
 import { ManpowerSheet } from "./components/ManpowerSheet";
-import { SupervisorDialog } from "./components/SupervisorDialog";
+import { SupervisorDialog, type LostPick } from "./components/SupervisorDialog";
 import { TradeLettersEditor } from "./components/TradeLettersEditor";
 import { Supervisors } from "./components/Supervisors";
 import { MedicalDialog } from "./components/MedicalDialog";
@@ -89,6 +89,12 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [codesTab, setCodesTab] = useState<CodesTab>(() => codesTabOf(window.location.hash));
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
   const [supervisorOpen, setSupervisorOpen] = useState(false); // "whose manpower sheet?" at push
+  const [lostItems, setLostItems] = useState<Lost[]>([]); // lost-time reasons and day disruptions
+  const [causeLabels, setCauseLabels] = useState<Record<string, string>>({});
+  const disruptedDays = useMemo(
+    () => Object.fromEntries(lostItems.filter((i) => !i.supervisor && i.causes.length).map((i) => [i.sheet, i.causes.map((c) => causeLabels[c] ?? c).join(", ")])),
+    [lostItems, causeLabels],
+  );
   const [storyOpen, setStoryOpen] = useState<number | null>(null); // reader, at this chapter
   const [storyOn, setStoryOn] = useState(storyEnabled);
   const nextId = useRef(1);
@@ -154,6 +160,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     setPrevMonth({});
     if (!master) return;
     api.previousMonth().then((p) => setPrevMonth(p.days), () => undefined); // none: fine
+    api.lostTime().then((v) => {
+      setLostItems(v.items);
+      setCauseLabels(Object.fromEntries(v.causes.map((c) => [c.id, c.label])));
+    }, () => setLostItems([]));
   }, [master?.workbook]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -307,7 +317,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     setFocusToken((t) => t + 1);
   };
 
-  const commit = async (dryRun: boolean, supervisor?: string) => {
+  const commit = async (dryRun: boolean, supervisor?: string, lost?: LostPick) => {
     if (!queue.length) return;
     setBusy(true);
     setMessage(null);
@@ -324,6 +334,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       if (res.status === "written" || res.status === "unchanged") {
         setQueue((items) => items.filter((it) => !planOf.has(it.id)));
         setForm((f) => (f.worker ? f : emptyForm())); // pushed: clear leftovers, keep a worker being typed
+        if (lost && (lost.causes.length || lost.dayTags.length || lost.note)) {
+          // the reason for this sheet's unallocated hours and the day's disruption (roadmap #5)
+          for (const s of new Set(sent.map((q) => q.input.sheet))) {
+            if (supervisor && (lost.causes.length || lost.note)) await api.setLostTime({ user, sheet: s, supervisor, causes: lost.causes, note: lost.note || null }).catch(fail);
+            if (lost.dayTags.length) await api.setLostTime({ user, sheet: s, causes: lost.dayTags, note: lost.note || null }).then((v) => setLostItems(v.items)).catch(fail);
+          }
+        }
         await Promise.all([...new Set(sent.map((q) => q.input.sheet))].map(reloadDay));
         refreshBatches();
         refreshStatus();
@@ -630,7 +647,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         {!master ? (
           <p className="muted">{status && !status.connected ? "Open the workbook in Excel; this page retries every 10 seconds." : "Loading…"}</p>
         ) : page === "analysis" ? (
-          <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} onMasterChanged={() => api.master(true).then(setMaster).catch(fail)} />
+          <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} onMasterChanged={() => api.master(true).then(setMaster).catch(fail)} user={user} />
         ) : page === "supervisors" ? (
           <Supervisors master={master} month={month} user={user} />
         ) : page === "cards" ? (
@@ -699,6 +716,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               sheet={sheet}
               counts={Object.fromEntries(master.sheets.map((s) => [s, month[s]?.entries.length]))}
               types={Object.fromEntries(master.sheets.map((s) => [s, month[s]?.header.day_type]))}
+              disrupted={disruptedDays}
               day={day}
               acknowledged={Boolean(headerAck[sheet])}
               onPick={setSheet}
@@ -752,10 +770,11 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 count={queue.length}
                 days={pushDays(queue.map((q) => q.input.sheet), month)}
                 busy={busy}
+                idleHours={queue.reduce((s, q) => s + Math.max(Number(q.plan?.preview?.zidle) || 0, 0), 0)}
                 onCancel={() => setSupervisorOpen(false)}
-                onPush={(name) => {
+                onPush={(name, lost) => {
                   setSupervisorOpen(false);
-                  commit(false, name);
+                  commit(false, name, lost);
                 }}
               />
             )}
