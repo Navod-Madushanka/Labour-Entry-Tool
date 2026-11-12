@@ -724,3 +724,134 @@ export function planned(plan: Record<string, Record<string, number>>, date: stri
   }
   return any ? sum : undefined;
 }
+
+// ------------------------------------------------------------------------ weekly site report
+
+export interface Period {
+  key: string; // "w:2026-10-05" or "month"
+  label: string;
+  from: number; // first day sheet
+  to: number; // last day sheet
+}
+
+/** The weeks of the loaded month (Monday to Sunday, cut at the month's ends), then the month. */
+export function periods(data: Data): Period[] {
+  const by = new Map<string, number[]>();
+  for (const d of data.days) {
+    if (!d.date) continue;
+    const w = weekOf(d.date);
+    by.set(w, [...(by.get(w) ?? []), d.day]);
+  }
+  const fmt = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
+  const weeks = [...by].sort((a, b) => a[0].localeCompare(b[0])).map(([w, ds]) => {
+    const from = Math.min(...ds), to = Math.max(...ds);
+    return { key: `w:${w}`, label: `Week commencing ${fmt(w)} (days ${from}–${to})`, from, to };
+  });
+  const all = data.days.map((d) => d.day);
+  return all.length ? [...weeks, { key: "month", label: "Whole month", from: Math.min(...all), to: Math.max(...all) }] : weeks;
+}
+
+export const within = (slices: Slice[], from: number, to: number) => slices.filter((s) => s.day >= from && s.day <= to);
+
+/** One line of "what changed": written by a rule, never by guesswork; `view` is the Analysis
+ * view with the table behind it. */
+export interface Change {
+  text: string;
+  view: "trades" | "activities" | "overtime" | "quality" | "attendance" | "overview" | "programme";
+  tone: "up" | "down" | "info" | "warn";
+}
+
+const pctTxt = (x: number) => `${Math.round(x * 100)}%`;
+const hTxt = (x: number) => Math.round(x).toLocaleString();
+
+/** The rule-written lines for a period against the one before it (`prev` empty: the first week,
+ * so only what stands out in this one). `label` names a code, e.g. with its description. */
+export function whatChanged(data: Data, cur: Period, prev: Period | null, label: (code: string) => string, money = false): Change[] {
+  const out: Change[] = [];
+  const now = within(data.slices, cur.from, cur.to);
+  const was = prev ? within(data.slices, prev.from, prev.to) : [];
+  if (!now.length) return [{ text: "No hours were booked in this period.", view: "overview", tone: "info" }];
+  const kn = kpis(now), kw = was.length ? kpis(was) : null;
+  const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+
+  // Periods with a different number of days with work (a week still being entered, a short first
+  // week) are compared per day with work, so a part-week does not read as a fall.
+  const perDay = Boolean(kw && kw.workDays !== kn.workDays && kn.workDays && kw.workDays);
+  const nowDiv = perDay ? kn.workDays : 1, wasDiv = perDay && kw ? kw.workDays : 1;
+  const unit = perDay ? " a day" : "";
+
+  // headline: hours (and cost) against the previous period
+  if (kw) {
+    const a = kn.hours / nowDiv, b = kw.hours / wasDiv, d = a - b;
+    const head = perDay ? `${hTxt(kn.hours)} hours over ${kn.workDays} day${kn.workDays === 1 ? "" : "s"} with work (${hTxt(a)} a day)` : `${hTxt(kn.hours)} hours worked`;
+    out.push({ text: `${head}, ${d >= 0 ? "up" : "down"} ${pctTxt(Math.abs(d) / (b || 1))}${unit} on the previous period (${hTxt(b)} h${unit})${money ? `; labour cost ${rs(kn.cost)} at standard rates (was ${rs(kw.cost)})` : ""}.`, view: "overview", tone: d >= 0 ? "up" : "down" });
+  } else {
+    out.push({ text: `${hTxt(kn.hours)} hours worked${money ? `, labour cost ${rs(kn.cost)} at standard rates` : ""}; no previous period in this workbook to compare with.`, view: "overview", tone: "info" });
+  }
+
+  // headcount
+  out.push({ text: `Average headcount ${Math.round(kn.avgHeadcount)} a day${kw ? ` (was ${Math.round(kw.avgHeadcount)})` : ""}; peak ${kn.peak?.count ?? 0} on day ${kn.peak?.day ?? "–"}.`, view: "overview", tone: "info" });
+
+  // biggest movers by trade
+  if (kw) {
+    const before = new Map(byTrade(was).map((g) => [g.key, g.hours / wasDiv]));
+    const moves = byTrade(now).map((g) => ({ key: g.key, now: g.hours / nowDiv, was: before.get(g.key) ?? 0 }));
+    for (const t of byTrade(was)) if (!moves.some((m) => m.key === t.key)) moves.push({ key: t.key, now: 0, was: t.hours / wasDiv });
+    const big = moves.filter((m) => Math.abs(m.now - m.was) >= Math.max(16 / (perDay ? 6 : 1), (0.1 * kw.hours) / wasDiv / Math.max(moves.length, 1)))
+      .sort((a, b) => Math.abs(b.now - b.was) - Math.abs(a.now - a.was)).slice(0, 2);
+    for (const m of big) {
+      const up = m.now > m.was;
+      out.push({ text: `${m.key}: ${hTxt(m.was)} → ${hTxt(m.now)} h${unit} (${up ? "+" : "−"}${m.was ? pctTxt(Math.abs(m.now - m.was) / m.was) : "new"}).`, view: "trades", tone: up ? "up" : "down" });
+    }
+  }
+
+  // activities started / with no hours any more
+  const earlier = new Set(data.slices.filter((s) => s.day < cur.from).map((s) => s.code));
+  const started = byCode(now).filter((g) => g.key !== NO_CODE && !earlier.has(g.key)).slice(0, 3);
+  if (started.length && cur.key !== "month") out.push({ text: `Started: ${started.map((g) => `${label(g.key)} (day ${g.first})`).join("; ")}.`, view: "programme", tone: "info" });
+  if (kw) {
+    const nowCodes = new Set(now.map((s) => s.code));
+    const later = new Set(data.slices.filter((s) => s.day > cur.to).map((s) => s.code));
+    const stopped = byCode(was).filter((g) => g.key !== NO_CODE && !nowCodes.has(g.key) && !later.has(g.key)).slice(0, 3);
+    if (stopped.length) out.push({ text: `No hours this period (finished or paused): ${stopped.map((g) => `${label(g.key)} (last day ${g.last})`).join("; ")}.`, view: "programme", tone: "info" });
+  }
+
+  // overtime share and who drove it
+  if (kw && Math.abs(kn.otPct - kw.otPct) >= 0.02) {
+    const rose = kn.otPct > kw.otPct;
+    const key = (s: Slice) => `${s.trade}|${s.code}`;
+    const sum = (xs: Slice[]) => { const m = new Map<string, number>(); for (const s of xs) m.set(key(s), (m.get(key(s)) ?? 0) + s.ot); return m; };
+    const a = sum(now), b = sum(was);
+    const drivers = [...new Set([...a.keys(), ...b.keys()])].map((k) => ({ k, d: (a.get(k) ?? 0) / nowDiv - (b.get(k) ?? 0) / wasDiv })).sort((x, y) => (rose ? y.d - x.d : x.d - y.d));
+    const top = drivers[0];
+    const [trade, code] = top ? top.k.split("|") : ["", ""];
+    const drive = top && Math.abs(top.d) > 0 ? `; ${trade} on ${code === NO_CODE ? "unallocated hours" : label(code)} account for ${hTxt(Math.abs(top.d))} h${unit} of the change` : "";
+    out.push({ text: `OT share ${rose ? "rose" : "fell"} from ${pctTxt(kw.otPct)} to ${pctTxt(kn.otPct)} of hours${drive}.`, view: "overtime", tone: rose ? "warn" : "down" });
+  } else {
+    out.push({ text: `Overtime ${hTxt(kn.ot)} h, ${pctTxt(kn.otPct)} of hours${money ? ` (OT premium ${rs(kn.otPremium)})` : ""}.`, view: "overtime", tone: "info" });
+  }
+
+  // unallocated hours
+  const idleShare = kn.hours ? kn.idle / kn.hours : 0;
+  const idleWas = kw && kw.hours ? kw.idle / kw.hours : null;
+  if (data.withActivities && (idleShare >= 0.05 || (idleWas !== null && idleShare - idleWas >= 0.02))) {
+    const perDay = new Map<number, number>();
+    for (const s of now) if (s.code === NO_CODE) perDay.set(s.day, (perDay.get(s.day) ?? 0) + s.hours);
+    const worst = [...perDay].sort((x, y) => y[1] - x[1])[0];
+    out.push({ text: `Unallocated hours (ZIDLE) ${pctTxt(idleShare)} of hours${idleWas !== null ? ` (was ${pctTxt(idleWas)})` : ""}${worst ? `; most on day ${worst[0]} (${hTxt(worst[1])} h)` : ""}.`, view: "quality", tone: "warn" });
+  }
+
+  // long runs without a day off, by the end of the period (counts only, no names)
+  const upTo = data.entries.filter((e) => e.day <= cur.to);
+  const runs = people(data, upTo).filter((p) => p.currentRun >= 14);
+  if (runs.length) out.push({ text: `${runs.length} worker${runs.length === 1 ? " has" : "s have"} worked 14 or more days in a row by day ${cur.to}.`, view: "attendance", tone: "warn" });
+  return out;
+}
+
+/** The monthly labour return: people of each trade (class of personnel) on site each day. */
+export function labourReturn(data: Data): { trades: string[]; rows: { day: number; date: string | null; kind: DayKind; byTrade: Map<string, number>; total: number }[] } {
+  const rows = daily(data, data.slices).map((d) => ({ day: d.day, date: d.date, kind: d.kind, byTrade: d.byTrade, total: d.headcount }));
+  const sums = new Map<string, number>();
+  for (const r of rows) for (const [t, n] of r.byTrade) sums.set(t, (sums.get(t) ?? 0) + n);
+  return { trades: [...sums].sort((a, b) => b[1] - a[1]).map(([t]) => t), rows };
+}

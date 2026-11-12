@@ -188,4 +188,28 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   near(A.kpis(data.slices).cost, 0, "no rates: no rupees");
 }
 
+// weekly site report: periods, rule-written changes, monthly labour return
+{
+  const ps = A.periods(data);
+  // 1-4 Oct 2026: Thu-Sun are the week of Mon 28 Sep
+  assert.deepEqual(ps.map((x) => [x.key, x.from, x.to]), [["w:2026-09-28", 1, 4], ["month", 1, 4]]);
+  const label = (c) => c;
+  const lines = A.whatChanged(data, ps[0], null, label);
+  assert.ok(lines[0].text.startsWith("61 hours worked") && lines[0].text.includes("no previous period"), lines[0].text);
+  assert.ok(lines.some((l) => l.view === "overtime"), "an overtime line");
+  assert.ok(lines.every((l) => !/AA-0|BB-0/.test(l.text)), "no worker names in the report");
+  // against a previous period: days 1-2 vs day 4
+  const cur = { key: "w:x", label: "x", from: 4, to: 4 }, prev = { key: "w:y", label: "y", from: 1, to: 2 };
+  const ch = A.whatChanged(data, cur, prev, label);
+  // 1 day with work against 2: compared per day (16 h a day against 22.5)
+  assert.ok(ch[0].text.startsWith("16 hours over 1 day with work") && ch[0].text.includes("down 29% a day") && ch[0].text.includes("(23 h a day)"), ch[0].text);
+  assert.ok(ch.some((l) => l.text.startsWith("OT share rose")), "OT share 29% -> 100%");
+  assert.ok(ch.some((l) => l.text.startsWith("Started: 99-99-99-99")), "a code first used on day 4");
+  assert.ok(ch.some((l) => l.text.includes("03-20-00-00-C-8 (last day 1)")), "a code with no hours any more");
+  const ret = A.labourReturn(data);
+  assert.deepEqual(ret.trades, ["Carpenter", "Helper"]);
+  assert.equal(ret.rows.find((r) => r.day === 1).total, 3);
+  assert.equal(ret.rows.find((r) => r.day === 3).total, 0, "a day without work stays in the return");
+}
+
 console.log("analysis: all passed");

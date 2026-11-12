@@ -40,6 +40,7 @@ import { describe } from "../codes";
 import { COLORS, DayBars, dayLabel, h } from "./charts";
 import { Programme } from "./Programme";
 import { RatesEditor } from "./RatesEditor";
+import { SiteReport } from "./SiteReport";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -86,6 +87,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
   const [moneyOn, setMoneyOn] = useState(() => store.get("labour.analysis.money") === "1");
   useEffect(() => store.set("labour.analysis.money", moneyOn ? "1" : "0"), [moneyOn]);
   const [ratesOpen, setRatesOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const rated = hasRates(master.rates);
   const money = moneyOn && rated;
 
@@ -145,6 +147,9 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
             <button className={moneyOn ? "active" : ""} onClick={() => setMoneyOn(true)}>Rs</button>
           </span>
           <button className="link small" onClick={() => setRatesOpen((o) => !o)}>Standard rates…</button>
+          <button onClick={() => setReportOpen(true)} disabled={!data.slices.length} title="One A4 page for a week or the month, and the monthly labour return">
+            Site report
+          </button>
         <button className="primary" onClick={doExport} disabled={exporting || !slices.length}>
           {exporting ? "Exporting…" : "Export to Excel"}
         </button>
@@ -156,6 +161,18 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
         Excel is not changed.
       </p>
       {error && <p className="error-text">{error}</p>}
+      {reportOpen && (
+        <SiteReport
+          data={data}
+          master={master}
+          desc={desc}
+          onClose={() => setReportOpen(false)}
+          onView={(v) => {
+            setFilter({});
+            setView(v === "trades" ? "places" : v);
+          }}
+        />
+      )}
       {ratesOpen && <RatesEditor onClose={() => setRatesOpen(false)} onSaved={() => onMasterChanged?.()} />}
       {moneyOn && !rated && !ratesOpen && (
         <div className="card empty-money">

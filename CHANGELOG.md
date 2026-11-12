@@ -1,5 +1,30 @@
 # Changelog
 
+## Roadmap #4, one-click site report and monthly labour return (12 Nov 2026)
+
+Asked for: roadmap #4, a one-page weekly (and monthly) report and a monthly labour return.
+
+- **Site report** button on Analysis opens an A4 sheet; **Print / Save as PDF** prints only the
+  sheet (the browser's print, "Save as PDF" makes the file; nothing installed). Esc closes.
+  - Period: each week of the month (Monday to Sunday, cut at the month's ends; the last week with
+    hours by default) or the whole month, compared with the week before.
+  - Headline tiles: hours, overtime, headcount (average and peak), worker-days, unallocated hours
+    and, with rates, labour cost and OT premium.
+  - **What changed**, written by rules (no AI, no worker names): hours against the previous
+    period, headcount, the biggest movers by trade, activities started and activities with no
+    hours any more, the OT share change and the trade and activity that drove it, unallocated
+    spikes and the worst day, workers with 14+ days in a row (a count). A week still being entered
+    (or a short first week) is compared **per day with work**, so a part-week does not read as a
+    fall. Each line has a "table →" link to the Analysis view behind it.
+  - Manpower by day and trade, the top 8 activities (description, place, hours, people, cost) and
+    their as-built bars.
+- **Monthly labour return**: people of each trade (class of personnel) on site each day, with
+  worker-day totals and Prepared / Checked / Approved (Engineer) lines; one landscape A4 page.
+- Both are checked to print on exactly one page.
+- Tests: `tests/analysis.test.cjs` (periods, the change rules, per-day comparison, the return),
+  `e2e/site-report.cjs` (prints both to PDF and counts the pages; a line's link opens its table),
+  on made-up data.
+
 ## Roadmap #3, rupee lens: labour cost at standard rates (12 Nov 2026)
 
 Asked for: roadmap #3, hours turned into rupees for the QS.
