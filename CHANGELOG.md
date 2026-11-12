@@ -1,5 +1,49 @@
 # Changelog
 
+## SQL panel: the functions of the common databases (12 Nov 2026)
+
+Asked for: every SQL function usable in any relational database.
+
+- **223 functions** (`frontend/src/sqlfuncs.ts`), under each database's own names where they
+  differ (MySQL / MariaDB, PostgreSQL, SQL Server, Oracle, SQLite): IFNULL / ISNULL / NVL,
+  SUBSTRING / SUBSTR / MID, LEN / LENGTH, DATEADD / DATE_ADD, GETDATE / NOW, CHARINDEX / INSTR /
+  LOCATE / POSITION / STRPOS, STRING_AGG / GROUP_CONCAT / LISTAGG, and so on.
+  - String (51): CONCAT, CONCAT_WS, LEFT, RIGHT, LPAD, RPAD, TRIM (LEADING / TRAILING / BOTH …
+    FROM), REPLACE, TRANSLATE, REVERSE, REPEAT, SPLIT_PART, SUBSTRING_INDEX, STUFF, OVERLAY,
+    INITCAP, SOUNDEX, DIFFERENCE, LEVENSHTEIN, REGEXP_LIKE / REPLACE / SUBSTR / INSTR / COUNT, HEX,
+    base64, FIELD, ELT, FIND_IN_SET, …
+  - Number (43): ROUND, CEIL, FLOOR, TRUNC, MOD (and %, MOD, DIV), POWER, SQRT, EXP, LN, LOG,
+    LOG10, LOG2, trigonometry, GREATEST, LEAST, GCD, LCM, FACTORIAL, WIDTH_BUCKET, ISNUMERIC, …
+  - Date and time (60): YEAR … SECOND, EXTRACT, DATE_PART / DATEPART, DATENAME, DAYNAME,
+    WEEKOFYEAR, WEEK, LAST_DAY / EOMONTH, DATEADD, DATE_ADD / DATE_SUB with INTERVAL, ADD_MONTHS,
+    DATEDIFF (both forms), TIMESTAMPDIFF, MONTHS_BETWEEN, TIMEDIFF, AGE, DATE_TRUNC, DATE_FORMAT,
+    STRFTIME, TO_CHAR, MAKE_DATE / DATEFROMPARTS, NOW / GETDATE / CURRENT_DATE, …; date +
+    INTERVAL 7 DAY, date + 3 (days), date - date (days). The in / out columns are clock hours and
+    the time functions read them: HOUR(out), TIMEDIFF(out, in), TIME(out).
+  - Conditional and NULL: CASE (both forms), IF, IIF, COALESCE, NVL2, NULLIF, DECODE, CHOOSE, …
+  - Conversion: CAST(x AS type), TRY_CAST, x::type, CONVERT (SQL Server with styles, and MySQL),
+    TO_NUMBER, TO_DATE, TO_TIMESTAMP, STR_TO_DATE, FORMAT (MySQL and .NET patterns), …
+  - Aggregates (34): COUNT, SUM, AVG, MIN, MAX, GROUP_CONCAT (DISTINCT, ORDER BY, SEPARATOR),
+    STRING_AGG, LISTAGG … WITHIN GROUP, ARRAY_AGG, STDDEV / VARIANCE (sample and population),
+    MEDIAN, PERCENTILE_CONT / DISC, MODE, BOOL_AND / OR, CORR, COVAR, REGR_*, and FILTER (WHERE …).
+  - Window functions: ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
+    FIRST_VALUE, LAST_VALUE, NTH_VALUE, and every aggregate with OVER (PARTITION BY … ORDER BY …
+    [ROWS / RANGE BETWEEN …]), also after GROUP BY (SUM(SUM(hours)) OVER ()).
+  - Operators: REGEXP / RLIKE / ~ / ~* / SIMILAR TO, ILIKE, IS [NOT] DISTINCT FROM, <=>, IS TRUE,
+    %, DIV, MOD, || and + for joining texts; ORDER BY … NULLS FIRST / LAST.
+- **SELECT without FROM** (or FROM dual) to try functions: `SELECT UPPER('abc'), NOW()`.
+- **In the panel**: a Functions list under the tables (by kind, with a search box; hover for the
+  signature and what it does, click to put it in the query); functions coloured in the editor;
+  Ctrl+Space completes any function name or alias; the help line explains a function under the
+  cursor; a misspelt name says "Did you mean UPPER?". Functions also work in UPDATE … SET and
+  WHERE (changes still go to the waiting list).
+- Worked-out numbers show as computed (ROUND(PI(), 4) = 3.1416); column values still show to 2
+  decimals.
+- Not included: functions on things these tables do not hold (JSON, XML, spatial, full-text,
+  encryption and hashing, sequences, system and session functions of a server).
+- Tests: 8 new SQL unit tests checking about 250 function results; e2e `sql-functions.cjs` (made-up
+  data). `sql-panel` and `sql-supervisor` still pass.
+
 ## SQL panel: supervisors (12 Nov 2026)
 
 Asked for: `SELECT * FROM entries WHERE supervisor = "Kamal";` and

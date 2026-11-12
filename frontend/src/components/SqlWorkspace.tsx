@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { api, type EntryInput } from "../api";
 import { CommandError, current, explain, parse, run as runCommand, suggest, tokenize, type CommandContext, type CommandResult } from "../commands";
 import { cleanPasted, explainSql, isSql, looksSql, parseSql, runSql, splitSql, sqlRowCounts, SQL_SCHEMA, suggestSql } from "../sql";
+import { FUNCTIONS, isFunction, type FnCategory } from "../sqlfuncs";
 import { formatClock } from "../time";
 import { store } from "../store";
 
@@ -30,7 +31,8 @@ const EXAMPLES: [string, string][] = [
 /** SQL, or one of the plain commands (set, copy, fill, move, swap, clear, …) that share some words. */
 const sqlStatement = (src: string) => isSql(src) || /^\s*update\b[\s\S]*\b(set|from)\b/i.test(src);
 const sqlTyping = (src: string) => sqlStatement(src) || looksSql(src);
-const KEYWORDS = /^(shift|copy|fill|move|swap|clear|replace|show|for|on|to|except|crew|of|trade|code|all|select|distinct|from|where|group|by|having|order|asc|desc|limit|offset|insert|into|values|update|set|delete|and|or|not|like|in|between|is|null|as|true|false|count|sum|avg|min|max|round|upper|lower|length|len|coalesce|ifnull|abs|trim)$/i;
+const KEYWORDS = /^(shift|copy|fill|move|swap|clear|replace|show|for|on|to|except|crew|of|trade|code|all|select|distinct|from|where|group|by|having|order|asc|desc|limit|offset|insert|into|values|update|set|delete|and|or|not|like|ilike|in|between|is|null|as|true|false|case|when|then|else|end|over|partition|rows|range|unbounded|preceding|following|current|row|within|filter|separator|interval|regexp|rlike|similar|escape|nulls|first|last|div|mod|using|placing)$/i;
+const FN_CATS: FnCategory[] = ["Aggregate", "Window", "String", "Number", "Date and time", "Conditional and NULL", "Conversion", "Other"];
 const TABLE_NAMES = new Set(SQL_SCHEMA.flatMap((t) => [t.name, ...t.aliases]).map((n) => n.toLowerCase()));
 const COL_NAMES = new Set(SQL_SCHEMA.flatMap((t) => t.cols.map((c) => c.name.toLowerCase())));
 
@@ -263,6 +265,7 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken, dock
               )}
             </div>
           ))}
+          <FunctionTree onInsert={(f) => insertAtCursor(f)} />
         </aside>
 
         <div className="sqlws-main">
@@ -341,7 +344,8 @@ function highlight(src: string, errorAt?: number): ReactNode[] {
   let i = 0;
   while ((m = re.exec(src))) {
     const [tok] = m;
-    const cls = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : m[4] ? (KEYWORDS.test(tok) ? "k" : TABLE_NAMES.has(tok.toLowerCase()) ? "tb" : COL_NAMES.has(tok.toLowerCase()) ? "col" : "id") : m[6] ? "op" : "";
+    const fnCall = /^\s*\(/.test(src.slice(m.index + tok.length));
+    const cls = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : m[4] ? (fnCall && isFunction(tok) ? "fn" : KEYWORDS.test(tok) ? "k" : TABLE_NAMES.has(tok.toLowerCase()) ? "tb" : COL_NAMES.has(tok.toLowerCase()) ? "col" : "id") : m[6] ? "op" : "";
     const err = errorAt !== undefined && errorAt >= m.index && errorAt < m.index + tok.length;
     out.push(cls || err ? <span key={i++} className={`${cls}${err ? " err" : ""}`}>{tok}</span> : tok);
   }
@@ -685,6 +689,56 @@ function PendingChanges({ pending, onDiscard, onApply, onClear }: { pending: Pen
         <button className="primary" onClick={onApply} disabled={!total}>Add {total} change{total === 1 ? "" : "s"} to the waiting list</button>
         <button className="link" onClick={onClear}>Discard all</button>
       </div>
+    </div>
+  );
+}
+
+/** Every SQL function, by kind, under the tables: hover for what it does, click to put it in the query. */
+function FunctionTree({ onInsert }: { onInsert: (text: string) => void }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const match = (f: (typeof FUNCTIONS)[number]) => !needle || [f.name, ...f.aliases].some((n) => n.toLowerCase().includes(needle)) || f.help.toLowerCase().includes(needle);
+  return (
+    <div className="tree-fns">
+      <div className="tree-title">
+        Functions <span className="muted small">({FUNCTIONS.length})</span>
+      </div>
+      <input className="tree-fn-search" placeholder="Find a function…" aria-label="Find a function" value={q} onChange={(e) => setQ(e.target.value)} />
+      {FN_CATS.map((cat) => {
+        const list = FUNCTIONS.filter((f) => f.cat === cat && match(f));
+        if (!list.length) return null;
+        const shown = Boolean(needle) || open === cat;
+        return (
+          <div key={cat} className="tree-table">
+            <div className="tree-row">
+              <button className="tree-toggle" aria-label={`${shown ? "Hide" : "Show"} ${cat} functions`} onClick={() => setOpen(open === cat ? null : cat)}>
+                {shown ? "▾" : "▸"}
+              </button>
+              <button className="tree-name" onClick={() => setOpen(open === cat ? null : cat)}>
+                <span className="tree-label">{cat}</span>
+              </button>
+              <span className="tree-count">{list.length}</span>
+            </div>
+            {shown && (
+              <ul className="tree-cols">
+                {list.map((f) => (
+                  <li key={f.name}>
+                    <button
+                      className="tree-col tree-fn"
+                      title={`${f.sig}\n${f.help}${f.aliases.length ? `\nAlso: ${f.aliases.join(", ")}` : ""}\nClick: insert into the query`}
+                      onClick={() => onInsert(cat === "Window" ? `${f.name}() OVER (ORDER BY )` : f.sig.startsWith(`${f.name}(`) || f.sig.startsWith(`${f.name} (`) ? `${f.name}(` : f.name)}
+                    >
+                      <span className="type t-fn">ƒ</span> {f.name}
+                      {f.aliases.length > 0 && <span className="muted small"> · {f.aliases.slice(0, 2).join(", ")}{f.aliases.length > 2 ? "…" : ""}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { codeKey, mergeSameCodes, CommandError, current, dateOf, didYouMean, who
 import { describe, placeName } from "./codes";
 import { clearInput, withTimes } from "./form";
 import { effectiveHours, formatClock, parseClock } from "./time";
+import { aggregate, AGGREGATES, callScalar, dateArith, fnName, FUNCTIONS, functionInfo, intervalText, isFunction, isUnitWord, NO_PARENS, SqlFnError, WINDOW_ONLY } from "./sqlfuncs";
 
 // --- tables and columns --------------------------------------------------------------------------
 
@@ -75,7 +76,10 @@ const norm = (id: string) => {
 };
 const tableIndex = new Map<string, TableDef>();
 for (const t of TABLES) for (const a of [t.name, ...t.aliases]) tableIndex.set(norm(a), t);
+/** SELECT with no FROM (or FROM dual, as in Oracle and MySQL): one empty row. */
+const DUAL: TableDef = { name: "dual", aliases: [], help: "No table: one row, for trying functions (SELECT UPPER('abc')).", cols: [] };
 function findTable(name: string): TableDef {
+  if (norm(name) === "dual") return DUAL;
   const t = tableIndex.get(norm(name));
   if (t) return t;
   const hint = didYouMean(name, TABLES.flatMap((x) => [x.name, ...x.aliases]));
@@ -127,6 +131,7 @@ function entryRows(ctx: CommandContext): { row: Row; input: EntryInput; inExcel:
 }
 
 function tableRows(t: TableDef, ctx: CommandContext): Row[] {
+  if (t === DUAL) return [{}];
   if (t.name === "entries") return entryRows(ctx).map((r) => r.row);
   if (t.name === "activities")
     return entryRows(ctx).flatMap(({ row, input }) =>
@@ -176,11 +181,17 @@ type Expr =
   | { k: "bin"; op: string; l: Expr; r: Expr }
   | { k: "not"; e: Expr }
   | { k: "neg"; e: Expr }
-  | { k: "fn"; name: string; args: Expr[]; distinct: boolean }
+  | { k: "fn"; name: string; args: Expr[]; distinct: boolean; order?: OrderBy[]; sep?: Expr; filter?: Expr; within?: OrderBy[]; over?: Win }
   | { k: "in"; e: Expr; list: Expr[]; neg: boolean }
   | { k: "between"; e: Expr; lo: Expr; hi: Expr; neg: boolean }
   | { k: "like"; e: Expr; pat: Expr; neg: boolean }
-  | { k: "isnull"; e: Expr; neg: boolean };
+  | { k: "isnull"; e: Expr; neg: boolean }
+  | { k: "case"; base: Expr | null; whens: [Expr, Expr][]; else: Expr | null }
+  | { k: "regexp"; e: Expr; pat: Expr; neg: boolean }
+  | { k: "distinctfrom"; l: Expr; r: Expr; neg: boolean };
+interface OrderBy { e: Expr; desc: boolean; nulls?: "first" | "last" }
+interface Bound { k: "unbounded" | "current" | "preceding" | "following"; n: number }
+interface Win { partition: Expr[]; order: OrderBy[]; frame: { rows: boolean; start: Bound; end: Bound } | null }
 
 interface Select {
   kind: "select";
@@ -190,7 +201,7 @@ interface Select {
   where: Expr | null;
   group: Expr[];
   having: Expr | null;
-  order: { e: Expr; desc: boolean }[];
+  order: OrderBy[];
   limit: number | null;
   offset: number;
 }
@@ -199,7 +210,9 @@ interface Update { kind: "update"; table: string; sets: { col: string; e: Expr }
 interface Delete { kind: "delete"; table: string; where: Expr | null }
 export type Statement = Select | Insert | Update | Delete;
 
-const SQL_START = /^\s*(select\b[\s\S]*\bfrom\b|select\s+(count|sum|avg|min|max|\*)|insert\s+into\b|update\s+[`"\w]+\s+set\b|delete\s+from\b)/i;
+// SELECT … FROM; or SELECT with no FROM that starts with a function, CASE, a text or a number
+// (SELECT UPPER('abc'), SELECT NOW()); never "select all on 3" (the SHOW command)
+const SQL_START = /^\s*(select\b[\s\S]*\bfrom\b|select\s+(count|sum|avg|min|max|\*)|select\s+(distinct\s+)?([A-Za-z_]\w*\s*\(|case\b|'|-?\d|current_(date|time|timestamp)\b)|insert\s+into\b|update\s+[`"\w]+\s+set\b|delete\s+from\b)/i;
 /** True when the text is SQL rather than one of the plain commands (which share some verbs). */
 export const isSql = (src: string) => SQL_START.test(src);
 /** SQL while it is still being typed (before FROM / INTO / SET): a capital first word, or SQL
@@ -215,9 +228,12 @@ export function sqlTokens(src: string): Token[] {
   return out;
 }
 
-const KW = new Set(["select", "distinct", "from", "where", "group", "by", "having", "order", "asc", "desc", "limit", "offset", "insert", "into", "values", "update", "set", "delete", "and", "or", "not", "like", "in", "between", "is", "null", "as", "true", "false"]);
-const AGG = new Set(["count", "sum", "avg", "min", "max"]);
-const FNS = new Set([...AGG, "round", "upper", "lower", "length", "len", "coalesce", "ifnull", "abs", "trim"]);
+const KW = new Set(["select", "distinct", "from", "where", "group", "by", "having", "order", "asc", "desc", "limit", "offset", "insert", "into", "values", "update", "set", "delete", "and", "or", "not", "like", "in", "between", "is", "null", "as", "true", "false", "case", "interval", "over", "partition", "within", "separator", "regexp", "rlike", "ilike", "div", "mod", "nulls", "escape", "similar"]);
+// words that end a CASE's parts: keywords only inside a CASE ("end" is also a name for out)
+const CASE_WORDS = new Set(["when", "then", "else", "end"]);
+/** Functions whose first value is a date part written bare: DATEADD(day, 1, date). */
+const UNIT_FIRST = new Set(["dateadd", "datediff", "datediff_big", "datepart", "datename", "datetrunc", "timestampdiff", "timestampadd", "date_part", "date_trunc", "trunc"]);
+const isAggName = (name: string) => AGGREGATES.has(fnName(name) ?? "");
 
 function parseStatement(src: string): Statement {
   const tokens = sqlTokens(src).filter((t, i, all) => !(t.text === ";" && i === all.length - 1));
@@ -236,11 +252,12 @@ function parseStatement(src: string): Statement {
     if (!t) throw new CommandError("A name is missing at the end.");
     if (/^[`"[]/.test(t.text)) { i++; return t.text.slice(1, -1); }
     const isInColumn = t.text.toLowerCase() === "in" && peek(1)?.text !== "(";
-    if (/^[A-Za-z_]/.test(t.text) && (!KW.has(t.text.toLowerCase()) || isInColumn)) {
+    const caseWord = caseDepth > 0 && CASE_WORDS.has(t.text.toLowerCase());
+    if (/^[A-Za-z_]/.test(t.text) && (!KW.has(t.text.toLowerCase()) || isInColumn) && !caseWord) {
       i++;
       // a bare name of several words (`in times` without quotes): join until a keyword or symbol
       let name = t.text;
-      while (peek() && /^[A-Za-z_]/.test(peek()!.text) && !KW.has(low()!) && !FNS.has(low()!) && peek(1)?.text !== "(" && peek()!.start === tokens[i - 1].end + 1 && name.split(" ").length < 3 && looksLikeContinuation(name, peek()!.text)) {
+      while (peek() && /^[A-Za-z_]/.test(peek()!.text) && !KW.has(low()!) && !(caseDepth > 0 && CASE_WORDS.has(low()!)) && !isFunction(low()!) && peek(1)?.text !== "(" && peek()!.start === tokens[i - 1].end + 1 && name.split(" ").length < 3 && looksLikeContinuation(name, peek()!.text)) {
         name += ` ${peek()!.text}`;
         i++;
       }
@@ -261,13 +278,27 @@ function parseStatement(src: string): Statement {
     const l = t.text.toLowerCase();
     if (l === "null") { i++; return { k: "lit", v: null }; }
     if (l === "true" || l === "false") { i++; return { k: "lit", v: l === "true" ? 1 : 0 }; }
-    if (FNS.has(l) && peek(1)?.text === "(") {
-      i += 2;
-      const distinct = accept("distinct");
-      const args: Expr[] = [];
-      if (peek()?.text !== ")") { args.push(expr()); while (accept(",")) args.push(expr()); }
-      eat(")");
-      return { k: "fn", name: l === "len" ? "length" : l === "ifnull" ? "coalesce" : l, args, distinct };
+    if (l === "case") return caseExpr();
+    if (l === "interval") { // INTERVAL 7 DAY · INTERVAL '7' DAY · INTERVAL '7 days'
+      i++;
+      const v = peek();
+      if (!v) throw new CommandError("INTERVAL needs a number and a unit, e.g. INTERVAL 7 DAY.");
+      i++;
+      const raw = v.text.replace(/^'|'$/g, "");
+      const both = raw.match(/^\s*(-?[\d.]+)\s+([A-Za-z]+)\s*$/);
+      if (both) return { k: "lit", v: intervalText(Number(both[1]), both[2].replace(/s$/i, "")) };
+      const unit = peek();
+      if (!unit || !isUnitWord(unit.text.replace(/s$/i, ""))) throw new CommandError(`INTERVAL ${raw} needs a unit: DAY, MONTH, YEAR, HOUR, MINUTE…`, unit ?? v);
+      i++;
+      return { k: "lit", v: intervalText(Number(raw), unit.text.replace(/s$/i, "")) };
+    }
+    if (NO_PARENS.has(l) && peek(1)?.text !== "(" && !(tableCols?.has(l))) { i++; return { k: "fn", name: l, args: [], distinct: false }; }
+    if (/^[A-Za-z_@][\w@]*$/.test(t.text) && peek(1)?.text === "(" && (!KW.has(l) || isFunction(l))) {
+      if (!isFunction(l)) {
+        const hint = didYouMean(l, FUNCTIONS.flatMap((f) => [f.name, ...f.aliases]));
+        throw new CommandError(`${t.text.toUpperCase()} is not a function here${hint ? `. Did you mean ${hint.toUpperCase()}?` : "."} The Functions list in the panel has them all.`, t);
+      }
+      return call(l);
     }
     if (t.text.startsWith('"') && !/^"[A-Za-z_ ]+"$/.test(t.text)) { i++; return { k: "lit", v: t.text.slice(1, -1) }; }
     const quoted = t.text.startsWith('"');
@@ -275,7 +306,181 @@ function parseStatement(src: string): Statement {
     if (peek()?.text === ".") { i++; name = ident(); } // table.column
     return { k: "col", name, raw: name, quoted };
   };
-  const unary = (): Expr => primary();
+  const unary = (): Expr => {
+    if (peek()?.text === "+") { i++; return unary(); }
+    let e = primary();
+    // PostgreSQL: value::type
+    while (peek()?.text === ":" && peek(1)?.text === ":" && peek(1)!.start === peek()!.end) { i += 2; e = { k: "fn", name: "cast", args: [e, { k: "lit", v: typeName() }], distinct: false }; }
+    return e;
+  };
+  /** A type as written: INT, DECIMAL(10, 2), VARCHAR(20), DOUBLE PRECISION, TIMESTAMP WITH TIME ZONE. */
+  const typeName = (): string => {
+    const parts: string[] = [];
+    while (peek() && /^[A-Za-z_]/.test(peek()!.text) && !["as", "from", "where", "and", "or", "using"].includes(low()!) && !(caseDepth > 0 && CASE_WORDS.has(low()!))) {
+      parts.push(tokens[i++].text);
+      if (peek()?.text === "(") { let d = 0; let txt = ""; do { const x = tokens[i++]; if (x.text === "(") d++; if (x.text === ")") d--; txt += x.text; } while (d > 0 && i < tokens.length); parts[parts.length - 1] += txt; }
+    }
+    if (!parts.length) throw new CommandError("A type is missing, e.g. INT, DECIMAL(10,2), VARCHAR(20), DATE.", at());
+    return parts.join(" ");
+  };
+  let caseDepth = 0;
+  /** CASE WHEN c THEN v … [ELSE v] END · CASE x WHEN a THEN v … END */
+  const caseExpr = (): Expr => {
+    i++;
+    caseDepth++;
+    try {
+      const base = low() === "when" ? null : expr();
+      const whens: [Expr, Expr][] = [];
+      while (accept("when")) { const w = expr(); eat("then"); whens.push([w, expr()]); }
+      if (!whens.length) throw new CommandError("CASE needs at least one WHEN … THEN …", at());
+      const otherwise = accept("else") ? expr() : null;
+      eat("end");
+      return { k: "case", base, whens, else: otherwise };
+    } finally {
+      caseDepth--;
+    }
+  };
+  const orderList = (): OrderBy[] => {
+    const out: OrderBy[] = [];
+    do {
+      const e = expr();
+      const desc = accept("desc");
+      if (!desc) accept("asc");
+      let nulls: OrderBy["nulls"];
+      if (accept("nulls")) { const w = low(); if (w !== "first" && w !== "last") throw new CommandError("NULLS FIRST or NULLS LAST.", at()); i++; nulls = w; }
+      out.push({ e, desc, nulls });
+    } while (accept(","));
+    return out;
+  };
+  const bound = (): Bound => {
+    if (accept("unbounded")) { const w = low(); i++; return { k: "unbounded", n: w === "following" ? 1 : -1 }; }
+    if (low() === "current") { i++; if (low() === "row") i++; return { k: "current", n: 0 }; }
+    const t = peek();
+    if (!t || !/^\d/.test(t.text)) throw new CommandError("A window frame bound: UNBOUNDED PRECEDING, n PRECEDING, CURRENT ROW, n FOLLOWING, UNBOUNDED FOLLOWING.", at());
+    i++;
+    const w = low();
+    if (w !== "preceding" && w !== "following") throw new CommandError("After the number: PRECEDING or FOLLOWING.", at());
+    i++;
+    return { k: w, n: Number(t.text) };
+  };
+  /** f( … ) [WITHIN GROUP (ORDER BY …)] [FILTER (WHERE …)] [OVER (PARTITION BY … ORDER BY … [ROWS …])] */
+  const call = (name: string): Expr => {
+    const nameTok = peek()!;
+    i += 2;
+    const canon = fnName(name)!;
+    let e: Extract<Expr, { k: "fn" }>;
+    if (canon === "cast" || (canon === "convert" && !isTypeAhead())) {
+      // CAST(x AS type) · TRY_CAST · MySQL CONVERT(x, type) / CONVERT(x USING utf8)
+      const x = expr();
+      let type = "varchar";
+      if (canon === "cast") { eat("as"); type = typeName(); }
+      else if (accept(",")) type = typeName();
+      else if (accept("using")) { i++; type = "varchar"; }
+      eat(")");
+      e = { k: "fn", name: canon, args: [x, { k: "lit", v: type }, ...(canon === "convert" ? [{ k: "lit", v: null } as Expr] : []), ...(/^(try|safe)_/i.test(name) ? [{ k: "lit", v: "try" } as Expr] : [])], distinct: false };
+      if (canon === "cast" && !/^(try|safe)_/i.test(name)) e.args = e.args.slice(0, 2);
+    } else if (canon === "convert") {
+      // SQL Server CONVERT(type, x [, style])
+      const type = typeName();
+      eat(",");
+      const x = expr();
+      const style = accept(",") ? expr() : ({ k: "lit", v: null } as Expr);
+      eat(")");
+      e = { k: "fn", name: canon, args: [x, { k: "lit", v: type }, style, ...(/^try_/i.test(name) ? [{ k: "lit", v: "try" } as Expr] : [])], distinct: false };
+    } else if (canon === "extract") {
+      const unit = tokens[i++]?.text ?? "";
+      eat("from");
+      const x = expr();
+      eat(")");
+      e = { k: "fn", name: canon, args: [{ k: "lit", v: unit.replace(/^'|'$/g, "") }, x], distinct: false };
+    } else if (canon === "position" && !listHasComma()) {
+      const needle = add();
+      eat("in");
+      const hay = expr();
+      eat(")");
+      e = { k: "fn", name: canon, args: [needle, hay], distinct: false };
+    } else if (name.toLowerCase() === "strpos") {
+      // STRPOS(text, needle): the other way round from POSITION
+      const hay = expr(); eat(","); const needle = expr(); eat(")");
+      e = { k: "fn", name: "position", args: [needle, hay], distinct: false };
+    } else if (canon === "substring" && !listHasComma() && hasFromAhead()) {
+      const x = expr();
+      const args: Expr[] = [x];
+      if (accept("from")) args.push(expr()); else args.push({ k: "lit", v: 1 });
+      if (accept("for")) args.push(expr());
+      eat(")");
+      e = { k: "fn", name: canon, args, distinct: false };
+    } else if (canon === "trim" && ["leading", "trailing", "both"].includes(low() ?? "") || (canon === "trim" && !listHasComma() && hasFromAhead())) {
+      // TRIM([LEADING|TRAILING|BOTH] [chars] FROM text)
+      const where = ["leading", "trailing", "both"].includes(low() ?? "") ? tokens[i++].text.toLowerCase() : "both";
+      const chars = low() === "from" ? ({ k: "lit", v: null } as Expr) : expr();
+      eat("from");
+      const x = expr();
+      eat(")");
+      e = { k: "fn", name: canon, args: [x, chars, { k: "lit", v: where }], distinct: false };
+    } else if (canon === "overlay" && !listHasComma()) {
+      const x = expr(); eat("placing"); const ins = expr(); eat("from"); const st = expr();
+      const args = [x, ins, st];
+      if (accept("for")) args.push(expr());
+      eat(")");
+      e = { k: "fn", name: canon, args, distinct: false };
+    } else {
+      const distinct = accept("distinct");
+      if (!distinct) accept("all");
+      const args: Expr[] = [];
+      if (peek()?.text !== ")" && low() !== "order") {
+        do {
+          // a bare date part first: DATEADD(day, 1, date), DATEDIFF(month, a, b)
+          if (!args.length && UNIT_FIRST.has(canon) && peek() && isUnitWord(peek()!.text) && peek(1)?.text === "," && !(canon === "datediff" && countArgs() === 2) && !(canon === "trunc")) { args.push({ k: "lit", v: tokens[i++].text }); continue; }
+          if (!args.length && UNIT_FIRST.has(canon) && peek() && isUnitWord(peek()!.text) && peek(1)?.text === ")" && canon === "trunc") { args.push({ k: "lit", v: tokens[i++].text }); continue; }
+          if (!args.length && UNIT_FIRST.has(canon) && canon !== "trunc" && peek() && /^[A-Za-z_]\w*$/.test(peek()!.text) && peek(1)?.text === "," && !isUnitWord(peek()!.text) && !(tableCols as Set<string> | null)?.has(low()!))
+            throw new CommandError(`${canon.toUpperCase()}: "${peek()!.text}" is not a date part (year, quarter, month, week, day, hour, minute, second).`, peek());
+          args.push(expr());
+        } while (accept(","));
+      }
+      const fe: Extract<Expr, { k: "fn" }> = { k: "fn", name: canon, args, distinct };
+      if (accept("order")) { eat("by"); fe.order = orderList(); }
+      if (accept("separator")) fe.sep = expr();
+      eat(")");
+      e = fe;
+    }
+    if (low() === "within" && low(1) === "group") { i += 2; eat("("); eat("order"); eat("by"); e.within = orderList(); eat(")"); }
+    if (low() === "filter" && peek(1)?.text === "(") { i += 2; eat("where"); e.filter = expr(); eat(")"); }
+    if (accept("over")) {
+      eat("(");
+      const w: Win = { partition: [], order: [], frame: null };
+      if (accept("partition")) { eat("by"); do w.partition.push(expr()); while (accept(",")); }
+      if (accept("order")) { eat("by"); w.order = orderList(); }
+      if (low() === "rows" || low() === "range" || low() === "groups") {
+        const rows = low() !== "range";
+        i++;
+        if (accept("between")) { const start = bound(); eat("and"); w.frame = { rows, start, end: bound() }; }
+        else w.frame = { rows, start: bound(), end: { k: "current", n: 0 } };
+      }
+      eat(")");
+      e.over = w;
+    } else if (WINDOW_ONLY.has(e.name)) throw new CommandError(`${e.name.toUpperCase()}() needs OVER (…), e.g. ${functionInfo(e.name)?.sig}.`, nameTok);
+    return e;
+  };
+  // look-aheads inside a call's brackets (i is just past "(")
+  const scanCall = () => {
+    let d = 0, commas = 0, from = false;
+    for (let j = i; j < tokens.length; j++) {
+      const x = tokens[j].text.toLowerCase();
+      if (x === "(") d++;
+      else if (x === ")") { if (!d) break; d--; }
+      else if (!d && x === ",") commas++;
+      else if (!d && x === "from") from = true;
+    }
+    return { commas, from };
+  };
+  const listHasComma = () => scanCall().commas > 0;
+  const hasFromAhead = () => scanCall().from;
+  const countArgs = () => scanCall().commas + 1;
+  const isTypeAhead = () => {
+    const w = low();
+    return Boolean(w && /^(n?var)?char|varchar2|nvarchar|text|int|integer|bigint|smallint|tinyint|decimal|numeric|float|real|double|money|date|datetime2?|smalldatetime|time|timestamp|bit|bool(ean)?|signed|unsigned|binary|varbinary|uniqueidentifier$/.test(w) && (peek(1)?.text === "," || peek(1)?.text === "("));
+  };
   // the table named so far (FROM / UPDATE / DELETE FROM come before WHERE): its column names
   let tableCols: Set<string> | null = null;
   const knowTable = (name: string) => {
@@ -285,7 +490,7 @@ function parseStatement(src: string): Statement {
    * taken as text as typed, up to the next comma: names need no quotes in a list. */
   const listItem = (): Expr => {
     const t = peek();
-    if (t && /^[A-Za-z]/.test(t.text) && !(FNS.has(t.text.toLowerCase()) && peek(1)?.text === "(")) {
+    if (t && /^[A-Za-z]/.test(t.text) && !(isFunction(t.text) && peek(1)?.text === "(")) {
       let j = i, depth = 0;
       while (j < tokens.length && !(depth === 0 && (tokens[j].text === "," || tokens[j].text === ")"))) {
         if (tokens[j].text === "(") depth++;
@@ -311,12 +516,37 @@ function parseStatement(src: string): Statement {
     }
     return false;
   };
-  const mul = (): Expr => { let e = unary(); while (["*", "/"].includes(peek()?.text ?? "")) { const op = tokens[i++].text; e = { k: "bin", op, l: e, r: unary() }; } return e; };
+  const mul = (): Expr => {
+    let e = unary();
+    while (["*", "/", "%"].includes(peek()?.text ?? "") || low() === "div" || (low() === "mod" && peek(1)?.text !== "(")) {
+      const op = tokens[i++].text.toLowerCase();
+      e = op === "mod" || op === "%" ? { k: "fn", name: "mod", args: [e, unary()], distinct: false } : op === "div" ? { k: "fn", name: "div", args: [e, unary()], distinct: false } : { k: "bin", op, l: e, r: unary() };
+    }
+    return e;
+  };
   const add = (): Expr => { let e = mul(); while (["+", "-", "||"].includes(peek()?.text ?? "")) { const op = tokens[i++].text; e = { k: "bin", op, l: e, r: mul() }; } return e; };
   const cmp = (): Expr => {
     const e = add();
-    const neg = low() === "not" && ["like", "in", "between"].includes(low(1) ?? "") ? (i++, true) : false;
-    if (accept("like")) return { k: "like", e, pat: add(), neg };
+    const neg = low() === "not" && ["like", "in", "between", "regexp", "rlike", "ilike", "similar"].includes(low(1) ?? "") ? (i++, true) : false;
+    if (accept("like") || accept("ilike")) { const pat = add(); if (accept("escape")) i++; return { k: "like", e, pat, neg }; }
+    if (accept("regexp") || accept("rlike")) return { k: "regexp", e, pat: add(), neg };
+    if (accept("similar")) { eat("to"); const pat = add(); return { k: "regexp", e, pat: { k: "fn", name: "similar_to_regex", args: [pat], distinct: false }, neg }; }
+    if (peek()?.text === "~" || (peek()?.text === "!" && peek(1)?.text === "~")) {
+      const not = peek()!.text === "!"; if (not) i++; i++;
+      const ci = peek()?.text === "*" ? (i++, true) : false;
+      const pat = add();
+      return { k: "regexp", e, pat: ci ? pat : { k: "fn", name: "regex_case", args: [pat], distinct: false }, neg: not };
+    }
+    if (low() === "is" && (low(1) === "distinct" || (low(1) === "not" && low(2) === "distinct"))) {
+      i++; const n = accept("not"); eat("distinct"); eat("from");
+      return { k: "distinctfrom", l: e, r: add(), neg: n };
+    }
+    if (low() === "is" && (["true", "false"].includes(low(1) ?? "") || (low(1) === "not" && ["true", "false"].includes(low(2) ?? "")))) {
+      i++; const n = accept("not"); const want = low() === "true"; i++;
+      const test: Expr = { k: "bin", op: "=", l: { k: "fn", name: "if", args: [e, { k: "lit", v: 1 }, { k: "lit", v: 0 }], distinct: false }, r: { k: "lit", v: want ? 1 : 0 } };
+      return n ? { k: "not", e: test } : test;
+    }
+    if (peek()?.text === "<=" && peek(1)?.text === ">" && peek(1)!.start === peek()!.end) { i += 2; return { k: "distinctfrom", l: e, r: add(), neg: true }; }
     if (accept("in")) return { k: "in", e, list: list(), neg };
     if (accept("between")) { const lo = add(); eat("and"); return { k: "between", e, lo, hi: add(), neg }; }
     if (accept("is")) { const n = accept("not"); eat("null"); return { k: "isnull", e, neg: n }; }
@@ -350,15 +580,15 @@ function parseStatement(src: string): Statement {
         items.push({ e, alias, text });
       } while (accept(","));
     }
-    eat("from");
-    const table = ident();
+    // SELECT UPPER('abc') with no FROM (or FROM dual): one row to try functions on
+    const table = accept("from") ? ident() : "dual";
     knowTable(table);
     const where = accept("where") ? expr() : null;
     const group: Expr[] = [];
     if (accept("group")) { eat("by"); do group.push(expr()); while (accept(",")); }
     const having = accept("having") ? expr() : null;
     const order: Select["order"] = [];
-    if (accept("order")) { eat("by"); do { const e = expr(); const desc = accept("desc"); if (!desc) accept("asc"); order.push({ e, desc }); } while (accept(",")); }
+    if (accept("order")) { eat("by"); order.push(...orderList()); }
     let limit: number | null = null, offset = 0;
     if (accept("limit")) { limit = Number(tokens[i++]?.text); if (accept(",")) { offset = limit; limit = Number(tokens[i++]?.text); } if (accept("offset")) offset = Number(tokens[i++]?.text); }
     st = { kind: "select", table, distinct, items, where, group, having, order, limit, offset };
@@ -425,6 +655,8 @@ interface Env {
   t: TableDef;
   row: Row;
   group: Row[] | null;
+  idx?: number; // this row's place among the rows windows run over
+  wins?: Map<Expr, Val[]>; // window function values, by expression
 }
 
 function colOf(env: Env, e: Expr): ColDef | null {
@@ -455,39 +687,199 @@ function evaluate(e: Expr, env: Env): Val {
       if (e.op === "or") return truthy(evaluate(e.l, env)) || truthy(evaluate(e.r, env)) ? 1 : 0;
       if (["=", "!=", "<", ">", "<=", ">="].includes(e.op)) return compare(e.l, e.r, e.op, env) ? 1 : 0;
       const a = evaluate(e.l, env), b = evaluate(e.r, env);
-      if (e.op === "||") return `${a ?? ""}${b ?? ""}`;
+      if (e.op === "||") return a === null || b === null ? null : `${a}${b}`;
       if (a === null || b === null) return null;
+      if (e.op === "+" || e.op === "-") {
+        try {
+          const d = dateArith(a, b, e.op);
+          if (d !== undefined) return d;
+        } catch (err) {
+          if (err instanceof SqlFnError) throw new CommandError(err.message);
+          throw err;
+        }
+        const isDate = (v: Val) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
+        if (isDate(a) && typeof b === "number") return callScalar("date_add", [a, intervalText(e.op === "+" ? b : -b, "day")]); // date + 7: a week later
+        if (e.op === "-" && isDate(a) && isDate(b)) return callScalar("datediff", [a, b]); // date - date: days
+        // SQL Server: 'a' + 'b' joins texts
+        if (e.op === "+" && typeof a === "string" && typeof b === "string" && (Number.isNaN(Number(a)) || Number.isNaN(Number(b)) || a.trim() === "" || b.trim() === "")) return a + b;
+      }
       const x = Number(a), y = Number(b);
+      if (Number.isNaN(x) || Number.isNaN(y)) throw new CommandError(`"${Number.isNaN(x) ? a : b}" is not a number (${e.op}).`);
       return e.op === "+" ? x + y : e.op === "-" ? x - y : e.op === "*" ? x * y : y === 0 ? null : x / y;
     }
     case "fn": {
-      if (AGG.has(e.name)) {
-        const rows = env.group ?? [env.row];
-        const vals = e.args[0]?.k === "star" || !e.args.length ? rows.map(() => 1) : rows.map((r) => evaluate(e.args[0], { ...env, row: r, group: null })).filter((v) => v !== null && v !== "");
-        const list = e.distinct ? [...new Set(vals.map(String))].map((v) => (Number.isNaN(Number(v)) ? v : Number(v))) : vals;
-        if (e.name === "count") return list.length;
-        if (!list.length) return null;
-        const nums = list.map(Number);
-        if (e.name === "sum") return Math.round(nums.reduce((s, v) => s + v, 0) * 100) / 100;
-        if (e.name === "avg") return Math.round((nums.reduce((s, v) => s + v, 0) / nums.length) * 100) / 100;
-        const cmpv = (a: Val, b: Val) => (typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b)));
-        return [...list].sort(cmpv)[e.name === "min" ? 0 : list.length - 1] as Val;
+      if (e.over) {
+        const vals = env.wins?.get(e);
+        if (!vals || env.idx === undefined) throw new CommandError(`${e.name.toUpperCase()} … OVER (…) works in the SELECT list and ORDER BY, not in WHERE (filter on it with a sub-step: not available here).`);
+        return vals[env.idx];
       }
-      const args = e.args.map((a) => evaluate(a, env));
-      switch (e.name) {
-        case "round": return args[0] === null ? null : Math.round(Number(args[0]) * 10 ** Number(args[1] ?? 0)) / 10 ** Number(args[1] ?? 0);
-        case "upper": return args[0] === null ? null : String(args[0]).toUpperCase();
-        case "lower": return args[0] === null ? null : String(args[0]).toLowerCase();
-        case "trim": return args[0] === null ? null : String(args[0]).trim();
-        case "length": return args[0] === null ? null : String(args[0]).length;
-        case "abs": return args[0] === null ? null : Math.abs(Number(args[0]));
-        case "coalesce": return args.find((a) => a !== null && a !== "") ?? null;
+      if (e.name === "__envval") { const m = (env.row as unknown as { __env?: number }).__env; return evaluate(e.args[0], m === undefined ? env : windowEnvs[m]); }
+      if (isAggName(e.name)) return aggregateOver(e, env.group ?? [env.row], env);
+      try {
+        return callScalar(e.name, e.args.map((a) => evaluate(a, env)));
+      } catch (err) {
+        if (err instanceof SqlFnError) throw new CommandError(err.message);
+        throw err;
       }
-      throw new CommandError(`Unknown function ${e.name.toUpperCase()}.`);
+    }
+    case "case": {
+      if (e.base) {
+        for (const [w, v] of e.whens) if (compare(e.base, w, "=", env)) return evaluate(v, env);
+      } else for (const [w, v] of e.whens) if (truthy(evaluate(w, env))) return evaluate(v, env);
+      return e.else ? evaluate(e.else, env) : null;
+    }
+    case "regexp": {
+      const v = evaluate(e.e, env);
+      if (v === null) return null;
+      let flags = "i", pat: Expr = e.pat;
+      if (pat.k === "fn" && pat.name === "regex_case") { flags = ""; pat = pat.args[0]; }
+      let p = String(evaluate(pat.k === "fn" && pat.name === "similar_to_regex" ? pat.args[0] : pat, env) ?? "");
+      if (pat.k === "fn" && pat.name === "similar_to_regex") p = `^(?:${p.replace(/[.^$\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")})$`;
+      let re: RegExp;
+      try { re = new RegExp(p, flags); } catch { throw new CommandError(`"${p}" is not a valid regular expression.`); }
+      return re.test(typeof v === "number" ? String(v) : v) !== e.neg ? 1 : 0;
+    }
+    case "distinctfrom": {
+      const a = evaluate(e.l, env), b = evaluate(e.r, env);
+      const same = a === null || b === null ? a === b : compare(e.l, e.r, "=", env);
+      return (same ? e.neg : !e.neg) ? 1 : 0; // IS NOT DISTINCT FROM / <=> : 1 when the same
     }
   }
 }
 const truthy = (v: Val) => v !== null && v !== 0 && v !== "" && v !== "0";
+
+/** Sort helper shared by ORDER BY and windows: numbers as numbers, text with numbers in order;
+ * NULLs last ascending (first descending) unless NULLS FIRST / LAST says otherwise. */
+function compareVals(x: Val, y: Val, desc: boolean, nulls?: "first" | "last"): number {
+  if (x === y) return 0;
+  const nullsFirst = nulls ? nulls === "first" : desc;
+  if (x === null) return nullsFirst ? -1 : 1;
+  if (y === null) return nullsFirst ? 1 : -1;
+  const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
+  return desc ? -c : c;
+}
+const sortEnvs = <T,>(list: T[], order: OrderBy[], envOf: (x: T) => Env): T[] =>
+  order.length
+    ? list.map((x) => ({ x, keys: order.map((o) => evaluate(o.e, envOf(x))) })).sort((a, b) => { for (let k = 0; k < order.length; k++) { const c = compareVals(a.keys[k], b.keys[k], order[k].desc, order[k].nulls); if (c) return c; } return 0; }).map((o) => o.x)
+    : list;
+
+/** An aggregate over rows (a group, or a window frame), with DISTINCT, ORDER BY, SEPARATOR,
+ * WITHIN GROUP and FILTER. */
+function aggregateOver(e: Extract<Expr, { k: "fn" }>, rows: Row[], env: Env): Val {
+  const sub = (row: Row): Env => ({ ...env, row, group: null, idx: undefined });
+  let list = e.filter ? rows.filter((r) => truthy(evaluate(e.filter!, sub(r)))) : rows;
+  if (e.order?.length) list = sortEnvs(list, e.order, sub);
+  const name = e.name;
+  const star = !e.args.length || e.args[0]?.k === "star";
+  try {
+    if (e.within) {
+      // PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY x), MODE() WITHIN GROUP, LISTAGG(x, ', ') WITHIN GROUP (ORDER BY …)
+      list = sortEnvs(list, e.within, sub);
+      if (name === "listagg") return aggregate(name, list.map((r) => evaluate(e.args[0], sub(r))), { distinct: e.distinct, sep: e.args[1] ? String(evaluate(e.args[1], env) ?? "") : "" });
+      const param = e.args[0] ? evaluate(e.args[0], env) : null;
+      const vals = list.map((r) => evaluate(e.within![0].e, sub(r)));
+      return aggregate(name, e.within[0].desc && name.startsWith("percentile") ? [...vals].reverse() : vals, { param });
+    }
+    const vals = star ? list.map(() => 1 as Val) : list.map((r) => evaluate(e.args[0], sub(r)));
+    const sep = e.sep ? String(evaluate(e.sep, env) ?? "") : ["string_agg", "listagg"].includes(name) && e.args[1] ? String(evaluate(e.args[1], env) ?? "") : undefined;
+    const xs = ["corr", "covar_pop", "covar_samp", "regr_slope", "regr_intercept", "regr_count", "regr_r2"].includes(name) ? list.map((r) => evaluate(e.args[1] ?? e.args[0], sub(r))) : undefined;
+    const param = ["percentile_cont", "percentile_disc"].includes(name) ? (e.args[1] ? evaluate(e.args[1], env) : null) : undefined;
+    return aggregate(name, vals, { star, rows: list.length, distinct: e.distinct, sep, xs, param });
+  } catch (err) {
+    if (err instanceof SqlFnError) throw new CommandError(err.message);
+    throw err;
+  }
+}
+
+/** Every window function in these expressions, worked out over the rows (row envs, or group envs
+ * after GROUP BY): partitions, order, frames. */
+function computeWindows(exprs: Expr[], envs: Env[]): void {
+  const wins: Extract<Expr, { k: "fn" }>[] = [];
+  const walk = (e: Expr | null | undefined): void => {
+    if (!e) return;
+    if (e.k === "fn") { if (e.over) wins.push(e); else e.args.forEach(walk); }
+    else if (e.k === "bin" || e.k === "distinctfrom") { walk(e.l); walk(e.r); }
+    else if (e.k === "not" || e.k === "neg") walk(e.e);
+    else if (e.k === "case") { walk(e.base); e.whens.forEach(([a, b]) => { walk(a); walk(b); }); walk(e.else); }
+    else if (e.k === "in") { walk(e.e); e.list.forEach(walk); }
+    else if (e.k === "between") { walk(e.e); walk(e.lo); walk(e.hi); }
+    else if (e.k === "like" || e.k === "regexp") { walk(e.e); walk(e.pat); }
+    else if (e.k === "isnull") walk(e.e);
+  };
+  exprs.forEach(walk);
+  if (!wins.length) return;
+  const map = new Map<Expr, Val[]>();
+  envs.forEach((env, n) => { env.idx = n; env.wins = map; });
+  windowEnvs = envs;
+  for (const w of wins) {
+    const out: Val[] = Array(envs.length).fill(null);
+    const parts = new Map<string, number[]>();
+    envs.forEach((env, n) => {
+      const key = JSON.stringify(w.over!.partition.map((p) => evaluate(p, env)));
+      parts.set(key, [...(parts.get(key) ?? []), n]);
+    });
+    const order = w.over!.order;
+    for (const idxs of parts.values()) {
+      const sorted = sortEnvs(idxs, order, (n) => envs[n]);
+      const keys = sorted.map((n) => JSON.stringify(order.map((o) => evaluate(o.e, envs[n]))));
+      const N = sorted.length;
+      // peers: rows with the same ORDER BY values
+      const peerEnd = (p: number) => { let q = p; while (q + 1 < N && keys[q + 1] === keys[p]) q++; return q; };
+      const peerStart = (p: number) => { let q = p; while (q > 0 && keys[q - 1] === keys[p]) q--; return q; };
+      const frameOf = (p: number): [number, number] => {
+        const f = w.over!.frame;
+        if (!f) return order.length ? [0, peerEnd(p)] : [0, N - 1]; // default: up to this row's peers, or the whole partition
+        const at = (b: Bound, isStart: boolean) =>
+          b.k === "unbounded" ? (b.n < 0 ? 0 : N - 1) : b.k === "current" ? (f.rows ? p : isStart ? peerStart(p) : peerEnd(p)) : b.k === "preceding" ? p - b.n : p + b.n;
+        return [Math.max(0, at(f.start, true)), Math.min(N - 1, at(f.end, false))];
+      };
+      const arg = (k: number, n: number) => (w.args[k] ? evaluate(w.args[k], envs[n]) : null);
+      sorted.forEach((n, p) => {
+        let v: Val = null;
+        switch (w.name) {
+          case "row_number": v = p + 1; break;
+          case "rank": v = peerStart(p) + 1; break;
+          case "dense_rank": v = new Set(keys.slice(0, p + 1)).size; break;
+          case "percent_rank": v = N > 1 ? Math.round((peerStart(p) / (N - 1)) * 1e6) / 1e6 : 0; break;
+          case "cume_dist": v = Math.round(((peerEnd(p) + 1) / N) * 1e6) / 1e6; break;
+          case "ntile": {
+            const b = Math.max(1, Math.trunc(Number(arg(0, n) ?? 1))), q = Math.floor(N / b), r = N % b;
+            v = p < r * (q + 1) ? Math.floor(p / (q + 1)) + 1 : r + Math.floor((p - r * (q + 1)) / Math.max(q, 1)) + 1;
+            break;
+          }
+          case "lag": case "lead": {
+            const off = w.args[1] ? Math.trunc(Number(evaluate(w.args[1], envs[n]))) : 1;
+            const t = w.name === "lag" ? p - off : p + off;
+            v = t >= 0 && t < N ? evaluate(w.args[0], envs[sorted[t]]) : w.args[2] ? evaluate(w.args[2], envs[n]) : null;
+            break;
+          }
+          case "first_value": case "last_value": case "nth_value": {
+            const [a, b] = frameOf(p);
+            const k = w.name === "first_value" ? a : w.name === "last_value" ? b : a + Math.trunc(Number(arg(1, n) ?? 1)) - 1;
+            v = k >= a && k <= b ? evaluate(w.args[0], envs[sorted[k]]) : null;
+            break;
+          }
+          default: {
+            if (!isAggName(w.name)) throw new CommandError(`${w.name.toUpperCase()} cannot be used with OVER (…).`);
+            const [a, b] = frameOf(p);
+            const frame = sorted.slice(a, b + 1);
+            const plain: Extract<Expr, { k: "fn" }> = { ...w, over: undefined };
+            if (envs[n].group) {
+              // after GROUP BY each row is a group: SUM(SUM(hours)) OVER (…) runs over the groups' values
+              const rowsOf = frame.map((m) => ({ __env: m } as unknown as Row));
+              const wrap = (x: Expr): Expr => ({ k: "fn", name: "__envval", args: [x], distinct: false });
+              v = aggregateOver({ ...plain, args: plain.args.map(wrap), filter: plain.filter && wrap(plain.filter) }, rowsOf, { ...envs[n], group: null });
+            } else v = aggregateOver(plain, frame.map((m) => envs[m].row), { ...envs[n], group: null });
+          }
+        }
+        out[n] = v;
+      });
+    }
+    map.set(w, out);
+  }
+}
+/** The envs the current window aggregate runs over (rows carry an index into them). */
+let windowEnvs: Env[] = [];
 
 function compare(l: Expr, r: Expr, op: string, env: Env): boolean {
   const lc = colOf(env, l), rc = colOf(env, r);
@@ -521,13 +913,25 @@ function compare(l: Expr, r: Expr, op: string, env: Env): boolean {
   return op === "=" ? c === 0 : op === "!=" ? c !== 0 : op === "<" ? c < 0 : op === ">" ? c > 0 : op === "<=" ? c <= 0 : c >= 0;
 }
 
-const hasAgg = (e: Expr): boolean =>
-  e.k === "fn" ? AGG.has(e.name) || e.args.some(hasAgg) : e.k === "bin" ? hasAgg(e.l) || hasAgg(e.r) : e.k === "not" || e.k === "neg" ? hasAgg(e.e) : false;
+const hasAgg = (e: Expr | null | undefined): boolean => {
+  if (!e) return false;
+  switch (e.k) {
+    case "fn": return (isAggName(e.name) && !e.over) || e.args.some(hasAgg);
+    case "bin": case "distinctfrom": return hasAgg(e.l) || hasAgg(e.r);
+    case "not": case "neg": case "isnull": return hasAgg(e.e);
+    case "case": return hasAgg(e.base) || e.whens.some(([a, b]) => hasAgg(a) || hasAgg(b)) || hasAgg(e.else);
+    case "in": return hasAgg(e.e) || e.list.some(hasAgg);
+    case "between": return hasAgg(e.e) || hasAgg(e.lo) || hasAgg(e.hi);
+    case "like": case "regexp": return hasAgg(e.e) || hasAgg(e.pat);
+    default: return false;
+  }
+};
 
 function display(v: Val, c: ColDef | null): string | number | null {
   if (v === null) return null;
   if (c?.type === "time" && typeof v === "number") return `${formatClock(v)}${v >= 24 ? " (+1)" : ""}`;
-  if (typeof v === "number") return Number.isInteger(v) ? v : Math.round(v * 100) / 100;
+  // a column's hours to 2 decimals; a worked-out value as the expression says (float noise trimmed)
+  if (typeof v === "number") return Number.isInteger(v) ? v : c ? Math.round(v * 100) / 100 : Math.round(v * 1e10) / 1e10;
   return v;
 }
 
@@ -687,8 +1091,9 @@ function quotedValues(st: Statement, t: TableDef): void {
     else if (e.k === "between") { asValue(e.lo); asValue(e.hi); walk(e.e); }
     else if (e.k === "not" || e.k === "neg") walk(e.e);
     else if (e.k === "fn") e.args.forEach(walk);
+    else if (e.k === "case") { if (e.base) walk(e.base); e.whens.forEach(([a, b]) => { walk(a); asValue(b); walk(b); }); if (e.else) { asValue(e.else); walk(e.else); } }
   };
-  if (st.kind === "select") { walk(st.where); walk(st.having); }
+  if (st.kind === "select") { walk(st.where); walk(st.having); if (st.items !== "*") st.items.forEach((x) => walk(x.e)); }
   else if (st.kind === "update") { st.sets.forEach((x) => asValue(x.e)); walk(st.where); }
   else if (st.kind === "delete") walk(st.where);
   else st.rows.forEach((r) => r.forEach(asValue));
@@ -702,14 +1107,25 @@ export function parseSql(src: string, ctx: CommandContext): Statement {
   const walk = (e: Expr | null): void => {
     if (!e) return;
     if (e.k === "col") findCol(t, e.name);
-    else if (e.k === "bin") { walk(e.l); walk(e.r); }
+    else if (e.k === "bin" || e.k === "distinctfrom") { walk(e.l); walk(e.r); }
     else if (e.k === "not" || e.k === "neg") walk(e.e);
-    else if (e.k === "fn") e.args.forEach(walk);
+    else if (e.k === "fn") {
+      e.args.forEach(walk);
+      [...(e.order ?? []), ...(e.within ?? []), ...(e.over?.order ?? [])].forEach((o) => walk(o.e));
+      e.over?.partition.forEach(walk);
+      walk(e.filter ?? null); walk(e.sep ?? null);
+    }
+    else if (e.k === "case") { walk(e.base); e.whens.forEach(([a, b]) => { walk(a); walk(b); }); walk(e.else); }
     else if (e.k === "in") { walk(e.e); e.list.forEach(walk); }
     else if (e.k === "between") { walk(e.e); walk(e.lo); walk(e.hi); }
-    else if (e.k === "like") { walk(e.e); walk(e.pat); }
+    else if (e.k === "like" || e.k === "regexp") { walk(e.e); walk(e.pat); }
     else if (e.k === "isnull") walk(e.e);
   };
+  const hasWin = (e: Expr | null): boolean => !!e && JSON.stringify(e).includes('"over":{');
+  if (st.kind === "select" && (hasWin(st.where) || st.group.some(hasWin) || hasWin(st.having)))
+    throw new CommandError("Window functions (… OVER (…)) belong in the SELECT list or ORDER BY, not in WHERE, GROUP BY or HAVING.");
+  if (st.kind !== "select" && (hasWin(st.kind === "update" ? st.where : st.kind === "delete" ? st.where : null) || (st.kind === "update" && st.sets.some((x) => hasWin(x.e)))))
+    throw new CommandError("Window functions (… OVER (…)) work in SELECT only.");
   if (st.kind === "select") {
     const aliases = new Set(st.items === "*" ? [] : st.items.map((x) => x.alias?.toLowerCase()).filter(Boolean));
     if (st.items !== "*") st.items.forEach((x) => walk(x.e));
@@ -740,7 +1156,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
     const items = st.items === "*" ? t.cols.map((c) => ({ e: { k: "col", name: c.name, raw: c.name } as Expr, alias: null, text: c.name })) : st.items;
     const grouped = st.group.length > 0 || items.some((x) => hasAgg(x.e)) || (st.having !== null);
     type Out = { vals: Val[]; env: Env };
-    let out: Out[];
+    let envs: Env[];
     if (grouped) {
       const groups = new Map<string, Row[]>();
       for (const row of rows) {
@@ -748,29 +1164,29 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
         groups.set(key, [...(groups.get(key) ?? []), row]);
       }
       if (!groups.size && !st.group.length) groups.set("[]", []);
-      out = [...groups.values()].map((g) => {
-        const env: Env = { t, row: g[0] ?? {}, group: g };
-        return { vals: items.map((x) => evaluate(x.e, env)), env };
-      });
-      if (st.having) out = out.filter((o) => truthy(evaluate(st.having!, o.env)));
-    } else out = rows.map((row) => { const env: Env = { t, row, group: null }; return { vals: items.map((x) => evaluate(x.e, env)), env }; });
+      envs = [...groups.values()].map((g) => ({ t, row: g[0] ?? {}, group: g }));
+      if (st.having) envs = envs.filter((env) => truthy(evaluate(st.having!, env)));
+    } else envs = rows.map((row) => ({ t, row, group: null }));
+    // window functions (… OVER (…)) run over these rows, before the SELECT list is worked out
+    computeWindows([...items.map((x) => x.e), ...st.order.map((o) => o.e)], envs);
+    let out: Out[] = envs.map((env) => ({ vals: items.map((x) => evaluate(x.e, env)), env }));
     if (st.order.length) {
       const keyOf = (o: Out, e: Expr): Val => {
         if (e.k === "lit" && typeof e.v === "number") return o.vals[e.v - 1] ?? null; // ORDER BY 2
         if (e.k === "col") { const ix = items.findIndex((x) => x.alias?.toLowerCase() === e.name.toLowerCase()); if (ix >= 0) return o.vals[ix]; }
         return evaluate(e, o.env);
       };
-      out.sort((a, b) => {
-        for (const ob of st.order) {
-          const x = keyOf(a, ob.e), y = keyOf(b, ob.e);
-          if (x === y) continue;
-          if (x === null) return 1;
-          if (y === null) return -1;
-          const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
-          if (c) return ob.desc ? -c : c;
+      const keyed = out.map((o) => ({ o, keys: st.order.map((ob) => keyOf(o, ob.e)) }));
+      keyed.sort((a, b) => {
+        for (let k = 0; k < st.order.length; k++) {
+          const ob = st.order[k];
+          // (kept: NULLs last whichever way, as before, unless NULLS FIRST / LAST is written)
+          const c = compareVals(a.keys[k], b.keys[k], ob.desc, ob.nulls ?? "last");
+          if (c) return c;
         }
         return 0;
       });
+      out = keyed.map((x) => x.o);
     }
     let table = out.map((o) => o.vals.map((v, n) => display(v, items[n].e.k === "col" ? findCol(t, (items[n].e as { name: string }).name) : null)));
     if (st.distinct) { const seen = new Set<string>(); table = table.filter((r) => { const k = JSON.stringify(r); return seen.has(k) ? false : (seen.add(k), true); }); }
@@ -894,8 +1310,19 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
 // --- help while typing -------------------------------------------------------------------------
 
 const SQL_WORDS: Record<string, string> = {
+  CASE: "CASE WHEN condition THEN value … ELSE value END, or CASE x WHEN a THEN … END: a value chosen by conditions.",
+  WHEN: "Part of CASE: WHEN condition THEN value.", THEN: "Part of CASE: the value when the WHEN holds.", ELSE: "Part of CASE: the value when no WHEN holds.", END: "Ends a CASE.",
+  OVER: "Makes a window function: SUM(hours) OVER (PARTITION BY calling_name ORDER BY day) is a running total per worker.",
+  PARTITION: "PARTITION BY in OVER (…): the window restarts for each value.",
+  WITHIN: "WITHIN GROUP (ORDER BY x): the order for PERCENTILE_CONT, MODE, LISTAGG.",
+  INTERVAL: "A length of time: INTERVAL 7 DAY, INTERVAL '2' MONTH. date + INTERVAL 7 DAY is a week later.",
+  CAST: "CAST(value AS type): INT, DECIMAL(10,2), VARCHAR(20), DATE, DATETIME, TIME, BOOLEAN. value::type works too.",
+  REGEXP: "text REGEXP 'pattern': a regular expression match (also RLIKE, ~, ~*, SIMILAR TO).",
+  ILIKE: "LIKE ignoring case (LIKE here ignores case anyway).",
+  DIV: "Whole-number division: 7 DIV 2 = 3.", MOD: "Remainder: 7 MOD 2 = 1 (also 7 % 2, MOD(7, 2)).",
+  NULLS: "ORDER BY x NULLS FIRST / NULLS LAST.",
   SELECT: "Lists columns of a table: SELECT calling_name, hours FROM entries WHERE … Nothing is changed.",
-  FROM: "The table to read: entries (labor), activities, workers, codes, days.",
+  FROM: "The table to read: entries (labor), activities, workers, codes, supervisors, days. Leave FROM out to try functions: SELECT UPPER('abc').",
   WHERE: "Only rows that match: =, !=, <, >, <=, >=, LIKE 'B%', IN (…), BETWEEN a AND b, IS NULL; join with AND / OR / NOT.",
   "GROUP BY": "One row per group, with COUNT, SUM, AVG, MIN, MAX: SELECT code, SUM(hours) FROM entries GROUP BY code.",
   GROUP: "GROUP BY: one row per group, with COUNT, SUM, AVG, MIN, MAX.",
@@ -938,6 +1365,8 @@ export function explainSql(word: string, src: string, ctx: CommandContext): Word
       /* not a column */
     }
   }
+  const fi = functionInfo(w);
+  if (fi) return { name: fi.name, kind: "keyword", text: `${fi.sig} — ${fi.help}${fi.aliases.length ? ` Also written: ${fi.aliases.join(", ")}.` : ""} (${fi.cat} function)`, synonyms: fi.aliases };
   const lit = timeLiteral(w);
   if (lit?.date) return { name: w, kind: "days", text: `${lit.date}${lit.hours ? ` at ${formatClock(lit.hours)}` : ""}: day ${Number(lit.date.slice(8, 10))} of the month.`, synonyms: [] };
   void ctx;
@@ -958,10 +1387,13 @@ export function suggestSql(src: string, cursor: number, ctx: CommandContext, lim
     ...TABLES.map((x) => ({ insert: x.name, label: x.name, detail: x.help.split(".")[0] })),
     ...TABLES.flatMap((x) => x.aliases.map((a) => ({ insert: a, label: `${a} → ${x.name}`, detail: x.help.split(".")[0] }))),
   ];
-  const fns = () => kw(["COUNT(*)", "SUM(", "AVG(", "MIN(", "MAX(", "ROUND("]).map((x) => ({ ...x, detail: SQL_WORDS[x.label.replace(/[(*)]/g, "")]?.split(".")[0] ?? "" }));
+  const fns = () => [
+    ...kw(["COUNT(*)", "SUM(", "AVG(", "MIN(", "MAX(", "ROUND("]).map((x) => ({ ...x, detail: SQL_WORDS[x.label.replace(/[(*)]/g, "")]?.split(".")[0] ?? "" })),
+    ...FUNCTIONS.flatMap((f) => [f.name, ...f.aliases].map((n) => ({ insert: `${n}(`, label: n === f.name ? f.sig.split(" · ")[0] : `${n} → ${f.name}`, detail: f.help.split(/[.:]/)[0] }))),
+  ];
   let items: Suggestion[];
   if (["from", "into", "update"].includes(last)) items = tables();
-  else if (["select", ",", "(", "by", "where", "and", "or", "set", "not", "distinct", "having"].includes(last)) items = [...cols(), ...(["select", ",", "having"].includes(last) ? fns() : [])];
+  else if (["select", ",", "(", "by", "where", "and", "or", "set", "not", "distinct", "having", "+", "-", "*", "/", "when", "then", "else", "case"].includes(last)) items = [...cols(), ...(partial ? fns() : ["select", ",", "having"].includes(last) ? fns().slice(0, 6) : [])];
   else if (["=", "!=", "<>", "like", "in"].includes(last) && words[words.length - 2] && /code/.test(words[words.length - 2])) items = ctx.activities.map((a) => ({ insert: `'${a}'`, label: a, detail: "activity code" }));
   else if (["=", "!=", "<>", "like", "in"].includes(last) && words[words.length - 2] && /supervisor|foreman|owner/.test(words[words.length - 2]))
     items = supervisorNames(ctx).map((n) => ({ insert: `'${n.replace(/'/g, "''")}'`, label: n, detail: "supervisor" }));

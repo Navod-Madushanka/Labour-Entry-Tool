@@ -1271,3 +1271,11 @@ tr:hover > th .pick-hint, tr:focus-within > th .pick-hint { display: inline-bloc
 .sup-kept { border: 1px solid var(--line); border-left: 3px solid var(--primary); background: var(--primary-bg); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
 .sup-kept.off { border-left-color: var(--line); background: var(--row); }
 .sup-kept p { margin: 0 0 4px; }
+
+/* SQL panel: functions */
+.hl .fn { color: var(--c4); }
+.sqlws-editor .hl .fn { color: #d2a8ff; }
+.tree-fns { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.tree-fn-search { width: 100%; margin: 4px 0 6px; font-size: 12.5px; padding: 3px 6px; }
+.tree-fn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.type.t-fn { color: var(--c4); font-style: italic; font-weight: 700; }
