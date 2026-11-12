@@ -147,6 +147,9 @@ class Config(BaseModel):
     check_activities: bool = True  # activity codes and their hours are checked (per workbook)
     places: dict[str, str] = {}  # activity-code suffix -> place name, e.g. "P": "Parking area"
     descriptions: dict[str, str] = {}  # activity code -> the office's own description (project)
+    place_order: list[str] = []  # place suffixes bottom to top, for the flowline (project)
+    # planned people per trade per week (Monday ISO date), from the PM's look-ahead (workbook)
+    plan: dict[str, dict[str, float]] = {}
     # calling-name trade letter -> trade ("R": "Rigger"); a worker's trade comes from it, else
     # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
     trade_letters: dict[str, str] | None = None

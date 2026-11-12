@@ -1013,3 +1013,22 @@ section.desc-card { border-top-color: var(--accent); }
 .desc-table { width: 100%; }
 .desc-card table.places.desc-table input { width: 100%; min-width: 28ch; }
 .desc-card table.places.desc-table td:nth-child(2) { width: 42%; }
+
+/* As-built programme (roadmap #2) */
+.chart .legend i.line { width: 18px; height: 0; border-top: 2.5px dashed; border-radius: 0; background: none; vertical-align: 3px; }
+.gantt-row:hover rect:first-of-type { stroke: var(--accent); }
+.seg { display: inline-flex; border: 1px solid var(--field-line); border-radius: 6px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; background: transparent; padding: 4px 10px; font-size: 12.5px; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--field-line); }
+.seg button.active { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+.plan-editor { margin-top: 10px; }
+.plan-grid input { width: 7ch; padding: 3px 6px; text-align: right; }
+.plan-grid th { white-space: nowrap; }
+.flow-wrap { display: flex; gap: 16px; align-items: flex-start; }
+.flow-order { flex: none; width: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--row); }
+.flow-order ol { list-style: none; margin: 6px 0 8px; padding: 0; display: flex; flex-direction: column-reverse; gap: 2px; }
+.flow-order li { display: flex; align-items: center; gap: 4px; font-size: 13px; padding: 2px 0; }
+.flow-order li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 800px) { .flow-wrap { flex-direction: column; } .flow-order { width: 100%; } }
+table.data.plan-grid { width: auto; }
+.plan-grid td, .plan-grid th { padding: 3px 10px 3px 0; }

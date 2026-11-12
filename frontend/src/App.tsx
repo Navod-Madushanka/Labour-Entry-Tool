@@ -630,7 +630,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         {!master ? (
           <p className="muted">{status && !status.connected ? "Open the workbook in Excel; this page retries every 10 seconds." : "Loading…"}</p>
         ) : page === "analysis" ? (
-          <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} />
+          <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} onMasterChanged={() => api.master(true).then(setMaster).catch(fail)} />
         ) : page === "supervisors" ? (
           <Supervisors master={master} month={month} user={user} />
         ) : page === "cards" ? (

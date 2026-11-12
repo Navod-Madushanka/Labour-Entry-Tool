@@ -1,5 +1,33 @@
 # Changelog
 
+## Roadmap #2, as-built programme: Gantt, manpower histogram with the plan, S-curves, flowline (12 Nov 2026)
+
+Asked for: roadmap #2, the programme drawn straight from the daily sheets.
+
+- New Analysis view **As-built programme** (second tab; every filter applies):
+  - **Programme bars**: one row per activity code with its description, from its first to its last
+    day with hours; each day shaded by the crew on it (darker = more people), gaps left empty,
+    Sundays and holidays marked; hours and peak crew at the end. The 10/20/40/all activities with
+    most hours, sorted by start. Click a row to filter by that code.
+  - **Manpower histogram by trade** with a dashed **planned headcount** line. The plan is typed or
+    pasted from the PM's look-ahead in Excel (people a day per trade per week, week commencing
+    Monday; rows starting with a trade name go to that trade). With a trade filter the line is that
+    trade's plan. Kept per workbook file (`POST /api/setup/plan`).
+  - **S-curves**: cumulative labour hours by day for all work and the 6 activities (or places)
+    with most hours, in hours or % of each one's total.
+  - **Flowline**: time across, places up the side; each activity (code without its place) is a
+    line climbing through the places, one segment per place from its first to last day there. The
+    PM orders the places once (▲ ▼, Save order), kept for the project
+    (`POST /api/setup/place-order`); places not ordered yet follow by name.
+  - **Save image** on every chart: a PNG with the chart's title, in the page's colours, for the
+    progress meeting.
+- The day bar chart moved to `components/charts.tsx` (shared) and can draw a line over the bars.
+- `/api/master` carries `place_order` and `plan`.
+- Tests: `tests/analysis.test.cjs` (bars, crew per day, S-curves, flowline levels and segments, week
+  of a date, planned headcount), `backend/tests/test_descriptions.py` (place order and plan saved and
+  checked), `e2e/programme.cjs` (paste a look-ahead row, save, plan line, % S-curves, reorder places,
+  PNG download); made-up data.
+
 ## Roadmap #1, speak their language: descriptions beside codes, plain words in Analysis (12 Nov 2026)
 
 Asked for: go through the PM & QS roadmap one by one; #1 first.

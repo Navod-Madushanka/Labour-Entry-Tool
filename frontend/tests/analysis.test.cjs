@@ -138,4 +138,36 @@ const work = A.supervisorWork(sup.slices);
 const kp = work.find((x) => x.supervisor === "Kamal" && x.code === "03-11-00-00-P");
 near(kp.hours, 19, "Kamal's people on -P: AA-01 8 + AA-02 11"); assert.equal(kp.place, "Parking area"); assert.equal(kp.people, 2);
 assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
+// as-built programme: bars, S-curves, flowline, planned headcount
+{
+  const bars = A.programme(data.slices);
+  const park = bars.find((b) => b.key === "03-11-00-00-P");
+  assert.equal(park.first, 1); assert.equal(park.last, 4); assert.equal(park.activeDays, 3);
+  assert.equal(park.people.get(1), 3, "three people on -P on day 1"); assert.equal(park.peak, 3);
+  assert.ok(!bars.some((b) => b.key === A.NO_CODE), "no bar for unallocated hours");
+  assert.equal(bars[0].first, 1, "sorted by first day");
+
+  const curves = A.sCurves(data.slices, (s) => s.code, [1, 2, 3, 4], 2);
+  assert.equal(curves[0].key, A.ALL);
+  near(curves[0].total, 61, "all work total");
+  assert.deepEqual(curves[0].points.map((x) => x.day), [1, 2, 3, 4]);
+  near(curves[0].points[2].cum, curves[0].points[1].cum, "nothing on day 3: flat");
+  assert.equal(curves.length, 3, "all + top 2");
+
+  assert.equal(A.workPart("03-20-00-00-C-8"), "03-20-00-00");
+  const f = A.flowline(data.slices, ["C-8"]);
+  assert.deepEqual(f.levels, ["C-8", "P"], "the PM's order first, then the rest");
+  const seg = f.segments.find((x) => x.activity === "03-11-00-00" && x.suffix === "P");
+  assert.equal(seg.first, 1); assert.equal(seg.last, 4);
+
+  assert.equal(A.weekOf("2026-10-01"), "2026-09-28"); // Thursday -> Monday
+  assert.equal(A.weekOf("2026-10-05"), "2026-10-05");
+  assert.equal(A.weekOf("2026-10-04"), "2026-09-28"); // Sunday belongs to the week before
+  const plan = { Carpenter: { "2026-09-28": 5 }, Helper: { "2026-09-28": 2, "2026-10-05": 3 } };
+  assert.equal(A.planned(plan, "2026-10-02"), 7);
+  assert.equal(A.planned(plan, "2026-10-06", "Carpenter"), undefined);
+  assert.equal(A.planned(plan, "2026-10-06"), 3);
+  assert.equal(A.planned(plan, null), undefined);
+}
+
 console.log("analysis: all passed");

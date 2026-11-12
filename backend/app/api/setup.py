@@ -191,6 +191,8 @@ class Session:
                 saved = self.settings.get_key(book.places_key)
                 update["places"] = saved.get("places", {})
                 update["descriptions"] = saved.get("descriptions", {})
+                update["place_order"] = saved.get("place_order", [])
+            update["plan"] = self.settings.get_key(plan_key(book.name)).get("plan", {})
         saved = self.settings.get_key(TRADE_KEY).get("letters")
         if isinstance(saved, dict):
             update["trade_letters"] = {str(k): str(v) for k, v in saved.items()}
@@ -779,6 +781,61 @@ def set_descriptions(body: DescriptionsRequest, request: Request) -> SetupState:
         else:
             custom.pop(code.strip(), None)
     session.settings.set_key(book.places_key, descriptions=custom)
+    _apply(request, session)
+    return session.sync()
+
+
+# --- the as-built programme: the PM's place order and planned manpower -------------------------
+
+
+def plan_key(name: str) -> str:
+    """Planned manpower belongs to one workbook file (one month of one labour source)."""
+    return f"plan:{Path(name).name.casefold()}"
+
+
+class PlaceOrderRequest(BaseModel):
+    order: list[str] = Field(max_length=200)  # place suffixes, bottom (first) to top
+
+
+@router.post("/place-order", response_model=SetupState)
+def set_place_order(body: PlaceOrderRequest, request: Request) -> SetupState:
+    """The order of the places for the flowline (bottom to top), kept for the project."""
+    session = _require(request)
+    book = session.book
+    if book.places_key is None:
+        raise HTTPException(409, "Check the workbook first.")
+    order = list(dict.fromkeys(s.strip() for s in body.order if s.strip()))
+    if bad := [s for s in order if not re.fullmatch(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*", s)]:
+        raise HTTPException(422, f"Not a code ending: {bad[0]}")
+    session.settings.set_key(book.places_key, place_order=order)
+    _apply(request, session)
+    return session.sync()
+
+
+class PlanRequest(BaseModel):
+    plan: dict[str, dict[str, float]]  # trade -> week (Monday, YYYY-MM-DD) -> people a day
+
+
+@router.post("/plan", response_model=SetupState)
+def set_plan(body: PlanRequest, request: Request) -> SetupState:
+    """Planned people per trade per week from the PM's look-ahead (this workbook's month)."""
+    session = _require(request)
+    plan: dict[str, dict[str, float]] = {}
+    for trade, weeks in body.plan.items():
+        name = re.sub(r"\s+", " ", trade).strip()[:40]
+        clean = {}
+        for week, n in weeks.items():
+            try:
+                dt.date.fromisoformat(week)
+            except ValueError as exc:
+                raise HTTPException(422, f"{week!r} is not a date (YYYY-MM-DD)") from exc
+            if not 0 <= n <= 10_000:
+                raise HTTPException(422, f"{n} people is out of range")
+            if n:
+                clean[week] = round(float(n), 2)
+        if name and clean:
+            plan[name] = clean
+    session.settings.set_key(plan_key(session.book.name), plan=plan)
     _apply(request, session)
     return session.sync()
 

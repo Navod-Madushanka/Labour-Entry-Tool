@@ -36,12 +36,15 @@ import { store } from "../store";
 import { fingerprint, recordColumns } from "./ManpowerSheet";
 import { formatShift } from "../time";
 import { describe } from "../codes";
+import { COLORS, DayBars, dayLabel, h } from "./charts";
+import { Programme } from "./Programme";
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
+  ["programme", "As-built programme"],
   ["activities", "Activities"],
   ["places", "Places & trades"],
   ["supervisors", "Supervisors"],
@@ -55,9 +58,7 @@ const VIEWS: [View, string][] = [
 ];
 const SUMMARY_PREFIX = "labour.summary.";
 const RUN_FLAG = 14; // days in a row without a day off that are flagged
-const COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)"];
 
-const h = (n: number) => (Math.abs(n) < 0.005 ? "0" : n.toLocaleString(undefined, { maximumFractionDigits: 1 }));
 const pct = (n: number) => `${(n * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
 
 interface Props {
@@ -65,9 +66,10 @@ interface Props {
   month: Month;
   loaded: number;
   total: number;
+  onMasterChanged?: () => void; // place order or plan saved: read the master again
 }
 
-export function Analysis({ master, month, loaded, total }: Props) {
+export function Analysis({ master, month, loaded, total, onMasterChanged }: Props) {
   const [view, setView] = useState<View>(() => (store.get("labour.analysis.view") as View) || "overview");
   const [filter, setFilter] = useState<Filter>({});
   const [exporting, setExporting] = useState(false);
@@ -200,6 +202,8 @@ export function Analysis({ master, month, loaded, total }: Props) {
         <p className="muted">{data.slices.length ? "Nothing matches these filters." : "No entries with worked hours yet."}</p>
       ) : view === "overview" ? (
         <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} desc={desc} />
+      ) : view === "programme" ? (
+        <Programme slices={slices} days={daily(data, slices, filter)} master={master} trade={filter.trade} desc={desc} onPick={(code) => set({ code })} onSaved={() => onMasterChanged?.()} />
       ) : view === "activities" ? (
         <Activities groups={byCode(slices)} onPick={(code) => set({ code })} withActivities={data.withActivities} desc={desc} />
       ) : view === "places" ? (
@@ -958,83 +962,6 @@ function SuggestionLog() {
 }
 
 // ------------------------------------------------------------------------- building blocks
-
-const dayLabel = (d: { day: number; date: string | null }) => {
-  if (!d.date) return `Day ${d.day}`;
-  const wd = new Date(`${d.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
-  return `${wd} ${d.day}`;
-};
-
-/** Bars per day, stacked by series; Sundays and holidays marked under the axis. */
-function DayBars({ days, series, value, unit }: {
-  days: DayRow[];
-  series: { key: string; label: string; color: string }[];
-  value: (d: DayRow, key: string) => number;
-  unit: string;
-}) {
-  const totals = days.map((d) => series.reduce((s, x) => s + value(d, x.key), 0));
-  const max = Math.max(1, ...totals);
-  const step = niceStep(max);
-  const top = Math.ceil(max / step) * step;
-  const bw = 22, gap = 6, left = 40, bottom = 34, height = 220;
-  const width = left + days.length * (bw + gap) + 8;
-  const y = (v: number) => height - bottom - (v / top) * (height - bottom - 12);
-  const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
-  return (
-    <div className="chart">
-      {series.length > 1 && (
-        <div className="legend">
-          {series.map((s) => (
-            <span key={s.key}><i style={{ background: s.color }} />{s.label}</span>
-          ))}
-        </div>
-      )}
-      <div className="table-wrap">
-        <svg viewBox={`0 0 ${width} ${height}`} width={Math.max(width, 320)} height={height} role="img" aria-label={`${series.map((s) => s.label).join(", ")} by day`}>
-          {ticks.map((t) => (
-            <g key={t}>
-              <line x1={left} x2={width - 4} y1={y(t)} y2={y(t)} stroke="var(--line)" />
-              <text x={left - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">{t}</text>
-            </g>
-          ))}
-          {days.map((d, i) => {
-            const x = left + i * (bw + gap) + gap / 2;
-            let acc = 0;
-            const off = d.kind === "Sunday" || d.kind === "Holiday";
-            return (
-              <g key={d.sheet}>
-                {series.map((s) => {
-                  const v = value(d, s.key);
-                  if (!v) return null;
-                  const y0 = y(acc), y1 = y(acc + v);
-                  acc += v;
-                  return (
-                    <rect key={s.key} x={x} y={y1} width={bw} height={Math.max(y0 - y1, 0.5)} fill={s.color}>
-                      <title>{`${dayLabel(d)}: ${s.label} ${h(v)} ${unit}`}</title>
-                    </rect>
-                  );
-                })}
-                {totals[i] > 0 && series.length > 1 && (
-                  <text x={x + bw / 2} y={y(totals[i]) - 3} textAnchor="middle" fontSize="9.5" fill="var(--muted)">{Math.round(totals[i])}</text>
-                )}
-                <text x={x + bw / 2} y={height - bottom + 14} textAnchor="middle" fontSize="11" fill={off ? "var(--sun)" : d.kind === "Saturday" ? "var(--sat)" : "var(--text)"} fontWeight={off ? 600 : 400}>
-                  {d.day}
-                </text>
-                {off && <text x={x + bw / 2} y={height - bottom + 27} textAnchor="middle" fontSize="9" fill="var(--sun)">{d.kind === "Sunday" ? "Sun" : "Hol"}</text>}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function niceStep(max: number): number {
-  const raw = max / 5;
-  const p = 10 ** Math.floor(Math.log10(raw));
-  return [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw) ?? p * 10;
-}
 
 interface Col<T> {
   key: string;

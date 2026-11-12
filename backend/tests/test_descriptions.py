@@ -1,4 +1,5 @@
-"""What each activity code is, in words: MasterFormat titles as the seed, the office's own wins."""
+"""What each activity code is (MasterFormat titles, the office's own wins); the PM's place order and
+planned manpower for the as-built programme."""
 
 from fastapi.testclient import TestClient
 
@@ -56,3 +57,24 @@ def test_office_descriptions_kept_per_project(small_snapshot, tmp_path):
         assert c.get("/api/master").json()["descriptions"]["03-11-00-00-P"] == "Formwork, parking"
         c.post("/api/setup/descriptions", json={"descriptions": {"03-11-00-00-P": ""}})
         assert c.get("/api/master").json()["descriptions"]["03-11-00-00-P"] == "Concrete Forming"
+
+
+def test_place_order_and_planned_manpower(small_snapshot, tmp_path):
+    cfg = Config(
+        month="2026-10", backups={"dir": tmp_path / "b"}, settings_file=tmp_path / "s.json"
+    )
+    app = create_app(cfg)
+    path = save_snapshot(small_snapshot, tmp_path / "Labour Entry Sheet October 2026.json")
+    setup_api.choose(app, path, path.name, practice=True, real_file=False)
+    with TestClient(app) as c:
+        c.post("/api/setup/check")
+        assert c.get("/api/master").json()["place_order"] == []
+        c.post("/api/setup/place-order", json={"order": ["C-8", " P ", "C-8"]})
+        assert c.get("/api/master").json()["place_order"] == ["C-8", "P"]
+        assert c.post("/api/setup/place-order", json={"order": ["P/1"]}).status_code == 422
+
+        plan = {"Carpenter": {"2026-10-05": 12, "2026-10-12": 0}, " ": {"2026-10-05": 3}}
+        c.post("/api/setup/plan", json={"plan": plan})
+        assert c.get("/api/master").json()["plan"] == {"Carpenter": {"2026-10-05": 12.0}}
+        bad = {"plan": {"Helper": {"next week": 4}}}
+        assert c.post("/api/setup/plan", json=bad).status_code == 422

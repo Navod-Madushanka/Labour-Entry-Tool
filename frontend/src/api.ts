@@ -56,6 +56,8 @@ export interface Master {
   check_activities: boolean; // false: this workbook is kept without activity codes
   places: Record<string, string>; // activity-code suffix -> place name, e.g. P -> Parking area
   descriptions?: Record<string, string>; // activity code -> description (office's own, else MasterFormat title)
+  place_order?: string[]; // place suffixes bottom to top, for the flowline (the PM's order)
+  plan?: Record<string, Record<string, number>>; // trade -> week (Monday) -> planned people a day
 }
 
 export interface Place {
@@ -564,6 +566,8 @@ export const api = {
   setupProgress: () => call<{ done?: number; total?: number; step?: string }>("GET", "/api/setup/progress"),
   saveSetupPlaces: (names: Record<string, string>) => call<SetupState>("POST", "/api/setup/places", { names }),
   descriptions: () => call<DescriptionsView>("GET", "/api/setup/descriptions"),
+  savePlaceOrder: (order: string[]) => call<SetupState>("POST", "/api/setup/place-order", { order }),
+  savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   saveDescriptions: (descriptions: Record<string, string>) => call<SetupState>("POST", "/api/setup/descriptions", { descriptions }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),

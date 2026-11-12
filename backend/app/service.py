@@ -227,6 +227,8 @@ class MasterView(BaseModel):
     places: dict[str, str] = {}  # activity-code suffix -> place name (named on the start page)
     # activity code -> what it is in words (the office's own, else the MasterFormat title)
     descriptions: dict[str, str] = {}
+    place_order: list[str] = []  # place suffixes bottom to top (the PM's order, for the flowline)
+    plan: dict[str, dict[str, float]] = {}  # trade -> week (Monday) -> planned people a day
 
 
 class EntryView(BaseModel):
@@ -365,6 +367,8 @@ class EntryService:
             places=self.config.places,
             descriptions=descriptions(list(dict.fromkeys(a.code for a in m.activities)),
                                       self.config.descriptions),
+            place_order=self.config.place_order,
+            plan=self.config.plan,
         )  # fmt: skip
 
     def day_view(self, sheet: str, fresh: bool = False) -> DayView:

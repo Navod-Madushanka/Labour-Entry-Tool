@@ -552,3 +552,133 @@ export function summarise(workbook: string, monthIso: string, data: Data, now = 
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// ---------------------------------------------------------------------- as-built programme
+
+/** The work part of a code, without its place: "03-11-00-00-P" -> "03-11-00-00". */
+export function workPart(code: string): string {
+  const suffix = placeSuffix(code);
+  return suffix ? code.slice(0, code.length - suffix.length - 1) : code;
+}
+
+/** One activity's bar on the as-built programme: first to last day, and the crew each day. */
+export interface ProgrammeBar {
+  key: string; // activity code
+  place: string;
+  first: number;
+  last: number;
+  hours: number;
+  people: Map<number, number>; // day -> distinct people on the code that day
+  activeDays: number; // days with work between first and last
+  peak: number; // most people on one day
+}
+
+export function programme(slices: Slice[]): ProgrammeBar[] {
+  const by = new Map<string, { b: ProgrammeBar; sets: Map<number, Set<string>> }>();
+  for (const s of slices) {
+    if (s.code === NO_CODE) continue;
+    let r = by.get(s.code);
+    if (!r) {
+      r = { b: { key: s.code, place: s.place, first: s.day, last: s.day, hours: 0, people: new Map(), activeDays: 0, peak: 0 }, sets: new Map() };
+      by.set(s.code, r);
+    }
+    r.b.first = Math.min(r.b.first, s.day);
+    r.b.last = Math.max(r.b.last, s.day);
+    r.b.hours += s.hours;
+    r.sets.set(s.day, (r.sets.get(s.day) ?? new Set()).add(s.person));
+  }
+  return [...by.values()]
+    .map(({ b, sets }) => {
+      for (const [d, p] of sets) b.people.set(d, p.size);
+      b.activeDays = sets.size;
+      b.peak = Math.max(0, ...[...b.people.values()]);
+      return b;
+    })
+    .sort((a, b) => a.first - b.first || b.hours - a.hours || a.key.localeCompare(b.key));
+}
+
+/** Cumulative hours by day per key (the `top` keys with most hours), plus "All": S-curves. */
+export interface Curve {
+  key: string;
+  total: number;
+  points: { day: number; cum: number }[]; // one point per day in `days`
+}
+
+export const ALL = "All work";
+
+export function sCurves(slices: Slice[], keyOf: (s: Slice) => string, days: number[], top = 6): Curve[] {
+  const per = new Map<string, Map<number, number>>();
+  const add = (k: string, d: number, h: number) => {
+    const m = per.get(k) ?? new Map<number, number>();
+    m.set(d, (m.get(d) ?? 0) + h);
+    per.set(k, m);
+  };
+  for (const s of slices) {
+    add(ALL, s.day, s.hours);
+    add(keyOf(s), s.day, s.hours);
+  }
+  const totals = [...per].map(([k, m]) => ({ k, total: [...m.values()].reduce((a, b) => a + b, 0) }));
+  const keep = totals.filter((t) => t.k !== ALL).sort((a, b) => b.total - a.total).slice(0, top).map((t) => t.k);
+  return [ALL, ...keep].filter((k) => per.has(k)).map((k) => {
+    const m = per.get(k)!;
+    let cum = 0;
+    const points = days.map((day) => ({ day, cum: (cum += m.get(day) ?? 0) }));
+    return { key: k, total: cum, points };
+  });
+}
+
+/** Flowline: each activity (work part) at each place, from its first to its last day there.
+ * Places run bottom to top in the PM's order; places not in it follow, by name. */
+export interface FlowSegment {
+  activity: string; // work part, e.g. 03-11-00-00
+  suffix: string; // place suffix
+  first: number;
+  last: number;
+  hours: number;
+}
+
+export function flowline(slices: Slice[], order: string[]): { levels: string[]; activities: string[]; segments: FlowSegment[] } {
+  const by = new Map<string, FlowSegment>();
+  const hoursOf = new Map<string, number>();
+  for (const s of slices) {
+    if (s.code === NO_CODE) continue;
+    const suffix = placeSuffix(s.code);
+    if (!suffix) continue;
+    const activity = workPart(s.code);
+    const key = `${activity}|${suffix}`;
+    const seg = by.get(key) ?? { activity, suffix, first: s.day, last: s.day, hours: 0 };
+    seg.first = Math.min(seg.first, s.day);
+    seg.last = Math.max(seg.last, s.day);
+    seg.hours += s.hours;
+    by.set(key, seg);
+    hoursOf.set(activity, (hoursOf.get(activity) ?? 0) + s.hours);
+  }
+  const present = new Set([...by.values()].map((x) => x.suffix));
+  const levels = [...order.filter((x) => present.has(x)), ...[...present].filter((x) => !order.includes(x)).sort()];
+  const activities = [...hoursOf].sort((a, b) => b[1] - a[1]).map(([a]) => a);
+  return { levels, activities, segments: [...by.values()] };
+}
+
+/** Monday of the week a date is in (ISO date). */
+export function weekOf(date: string): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+/** Planned people a day from the PM's look-ahead (trade -> week Monday -> people), for one trade
+ * or all; undefined for a day whose week has no plan. */
+export function planned(plan: Record<string, Record<string, number>>, date: string | null, trade?: string): number | undefined {
+  if (!date) return undefined;
+  const week = weekOf(date);
+  const trades = trade ? [trade] : Object.keys(plan);
+  let sum = 0, any = false;
+  for (const t of trades) {
+    const v = plan[t]?.[week];
+    if (v !== undefined) {
+      sum += v;
+      any = true;
+    }
+  }
+  return any ? sum : undefined;
+}
