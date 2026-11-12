@@ -229,6 +229,10 @@ class MasterView(BaseModel):
     descriptions: dict[str, str] = {}
     place_order: list[str] = []  # place suffixes bottom to top (the PM's order, for the flowline)
     plan: dict[str, dict[str, float]] = {}  # trade -> week (Monday) -> planned people a day
+    # standard costing rates: {"trades": {trade: daily rate}, "workers": {calling name: daily
+    # rate} (Labour Detail's column, when used), "ot", "sunday", "holiday": multipliers,
+    # "day_hours": hours in a standard day}; empty when the QS has not given any
+    rates: dict = {}
 
 
 class EntryView(BaseModel):
@@ -369,7 +373,20 @@ class EntryService:
                                       self.config.descriptions),
             place_order=self.config.place_order,
             plan=self.config.plan,
+            rates=self._rates(m),
         )  # fmt: skip
+
+    def _rates(self, m: MasterData) -> dict:
+        r = self.config.rates
+        if not r or not (r.get("trades") or r.get("use_worker_rates")):
+            return {}
+        workers = {}
+        if r.get("use_worker_rates"):
+            for w in m.workers:
+                v = as_number(w.daily_rate)
+                if isinstance(w.calling_name, str) and v and v > 0:
+                    workers[w.calling_name] = v
+        return {**{k: v for k, v in r.items() if k != "use_worker_rates"}, "workers": workers}
 
     def day_view(self, sheet: str, fresh: bool = False) -> DayView:
         day, t = self.day(sheet, fresh), self.template

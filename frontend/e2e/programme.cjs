@@ -61,7 +61,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
 
   await p.locator(".card", { hasText: "As-built programme" }).first().screenshot({ path: out + "/programme-gantt.png" });
   await p.locator(".card", { hasText: "Manpower histogram" }).first().screenshot({ path: out + "/programme-histogram.png" });
-  await p.getByRole("button", { name: "Hours", exact: true }).click();
+  await p.locator(".card", { hasText: "S-curves" }).getByRole("button", { name: "Hours", exact: true }).click();
   await p.locator(".card", { hasText: "S-curves" }).first().screenshot({ path: out + "/programme-scurve.png" });
   await p.locator(".card", { hasText: "Flowline" }).first().screenshot({ path: out + "/programme-flowline.png" });
 

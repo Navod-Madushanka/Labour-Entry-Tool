@@ -150,6 +150,8 @@ class Config(BaseModel):
     place_order: list[str] = []  # place suffixes bottom to top, for the flowline (project)
     # planned people per trade per week (Monday ISO date), from the PM's look-ahead (workbook)
     plan: dict[str, dict[str, float]] = {}
+    # standard costing rates for this workbook's labour source (app/api/setup.py: rates)
+    rates: dict = {}
     # calling-name trade letter -> trade ("R": "Rigger"); a worker's trade comes from it, else
     # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
     trade_letters: dict[str, str] | None = None

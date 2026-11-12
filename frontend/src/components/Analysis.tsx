@@ -1,7 +1,7 @@
 // Analysis tab: what the loaded month says about hours, manpower, overtime, attendance and data
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, type ExportTable, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
@@ -27,6 +27,7 @@ import {
   workerSupervisors,
   type Slice,
   type BookSummary,
+  hasRates,
   type DayRow,
   type Filter,
   type Group,
@@ -38,6 +39,13 @@ import { formatShift } from "../time";
 import { describe } from "../codes";
 import { COLORS, DayBars, dayLabel, h } from "./charts";
 import { Programme } from "./Programme";
+import { RatesEditor } from "./RatesEditor";
+
+/** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
+const MoneyCtx = createContext(false);
+const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+const rsShort = (n: number) => (Math.abs(n) >= 1e6 ? `Rs ${(n / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })} M` : rs(n));
+const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
@@ -75,6 +83,11 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => store.set("labour.analysis.view", view), [view]);
+  const [moneyOn, setMoneyOn] = useState(() => store.get("labour.analysis.money") === "1");
+  useEffect(() => store.set("labour.analysis.money", moneyOn ? "1" : "0"), [moneyOn]);
+  const [ratesOpen, setRatesOpen] = useState(false);
+  const rated = hasRates(master.rates);
+  const money = moneyOn && rated;
 
   // whose manpower sheet each pushed entry came from (Supervisors page), and their reviews
   const [owned, setOwned] = useState<Owned[]>([]);
@@ -122,12 +135,20 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
   };
 
   return (
+    <MoneyCtx.Provider value={money}>
     <section className="analysis">
       <div className="section-head">
         <h2>Analysis · {master.workbook}</h2>
+        <span className="row analysis-tools">
+          <span className="seg" role="group" aria-label="Show hours or rupees">
+            <button className={!moneyOn ? "active" : ""} onClick={() => setMoneyOn(false)}>Hours</button>
+            <button className={moneyOn ? "active" : ""} onClick={() => setMoneyOn(true)}>Rs</button>
+          </span>
+          <button className="link small" onClick={() => setRatesOpen((o) => !o)}>Standard rates…</button>
         <button className="primary" onClick={doExport} disabled={exporting || !slices.length}>
           {exporting ? "Exporting…" : "Export to Excel"}
         </button>
+        </span>
       </div>
       <p className="muted small">
         Worked out from the day sheets as loaded ({loaded} of {total}
@@ -135,6 +156,20 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
         Excel is not changed.
       </p>
       {error && <p className="error-text">{error}</p>}
+      {ratesOpen && <RatesEditor onClose={() => setRatesOpen(false)} onSaved={() => onMasterChanged?.()} />}
+      {moneyOn && !rated && !ratesOpen && (
+        <div className="card empty-money">
+          <b>Add rates to see rupees.</b>{" "}
+          <span className="muted small">A standard daily rate per trade (about 10 numbers from the QS) turns every view into labour cost.</span>{" "}
+          <button className="small primary" onClick={() => setRatesOpen(true)}>Add standard rates</button>
+        </div>
+      )}
+      {money && (
+        <p className="muted small money-note">
+          Rupees at standard rates (costing rates, not pay), rates known for {pct(kpis(slices).coverage)} of the hours. Overtime per activity is
+          attributed by hours; Excel books it as its own line.
+        </p>
+      )}
 
       <div className="filters card">
         <label>
@@ -224,6 +259,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged }: Prop
         <Compare current={master.workbook} />
       )}
     </section>
+    </MoneyCtx.Provider>
   );
 }
 
@@ -241,10 +277,19 @@ function Kpi({ label, value, note, def }: { label: string; value: string; note?:
 }
 
 function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>; data: ReturnType<typeof applyFilter>; days: DayRow[]; onView: (v: View) => void; desc: Desc }) {
+  const money = useContext(MoneyCtx);
   const top = byCode(data.slices).filter((g) => g.key !== NO_CODE).slice(0, 5);
   const trades = byTrade(data.slices).slice(0, 5);
   return (
     <>
+      {money && (
+        <div className="kpis money">
+          <Kpi label="labour cost" value={rsShort(k.cost)} note="at standard rates" def="Normal hours × hourly rate, plus overtime × hourly rate × its multiplier." />
+          <Kpi label="OT premium" value={rsShort(k.otPremium)} note={k.cost ? `${pct(k.otPremium / k.cost)} of the cost` : undefined} def="Only the amount above the normal rate: what the overtime adds." />
+          <Kpi label="unallocated cost (ZIDLE)" value={rsShort(k.idleCost)} note={k.cost ? `${pct(k.idleCost / k.cost)} of the cost` : undefined} def="Cost of worked hours not booked to an activity code." />
+          <Kpi label="cost per worker-day" value={rs(k.costPerWorkerDay)} note={`rates known for ${pct(k.coverage)} of hours`} def="Labour cost over worker-days with a rate." />
+        </div>
+      )}
       <div className="kpis">
         <Kpi label="hours worked" value={h(k.hours)} note={`${h(k.normal)} normal`} def="Effective hours, as Excel works them out (after lunch and dinner)." />
         <Kpi label="overtime hours" value={h(k.ot)} note={`${pct(k.otPct)} of all hours`} def="After 8 h on a normal day, 5.5 h on Saturday, every hour on Sundays and holidays." />
@@ -266,21 +311,21 @@ function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>;
             <h3>Top activities</h3>
             <button className="link small" onClick={() => onView("activities")}>all →</button>
           </div>
-          <ShareList items={top.map((g) => ({ key: g.key, value: g.hours, note: [desc(g.key), g.place].filter(Boolean).join(" · ") }))} total={k.hours} />
+          <ShareList money={money} items={(money ? byCost(top) : top).map((g) => ({ key: g.key, value: money ? g.cost : g.hours, note: [desc(g.key), g.place].filter(Boolean).join(" · ") }))} total={money ? k.cost : k.hours} />
         </div>
         <div className="card">
           <div className="card-head">
             <h3>Hours by trade</h3>
             <button className="link small" onClick={() => onView("places")}>all →</button>
           </div>
-          <ShareList items={trades.map((g) => ({ key: g.key, value: g.hours, note: `${g.workers} people` }))} total={k.hours} />
+          <ShareList money={money} items={(money ? byCost(trades) : trades).map((g) => ({ key: g.key, value: money ? g.cost : g.hours, note: `${g.workers} people` }))} total={money ? k.cost : k.hours} />
         </div>
       </div>
     </>
   );
 }
 
-function ShareList({ items, total }: { items: { key: string; value: number; note?: string }[]; total: number }) {
+function ShareList({ items, total, money }: { items: { key: string; value: number; note?: string }[]; total: number; money?: boolean }) {
   return (
     <ul className="share-list">
       {items.map((i) => (
@@ -289,7 +334,7 @@ function ShareList({ items, total }: { items: { key: string; value: number; note
             {i.key}
             {i.note && <span className="muted small"> · {i.note}</span>}
           </span>
-          <span className="share-value">{h(i.value)} h</span>
+          <span className="share-value">{money ? rs(i.value) : `${h(i.value)} h`}</span>
           <Bar frac={total ? i.value / total : 0} />
         </li>
       ))}
@@ -303,9 +348,16 @@ const Bar = ({ frac, color = COLORS[0] }: { frac: number; color?: string }) => (
   </span>
 );
 
-const groupCols = (first: string, extra: Col<Group>[] = []): Col<Group>[] => [
+const groupCols = (first: string, extra: Col<Group>[] = [], money = false): Col<Group>[] => [
   { key: "key", label: first, value: (g) => g.key },
   ...extra,
+  ...(money
+    ? ([
+        { key: "cost", label: "Cost (Rs)", value: (g) => g.cost, num: true, fmt: (v) => rs(v as number), title: "At standard rates: normal hours × hourly rate + overtime × hourly rate × multiplier" },
+        { key: "otp", label: "OT premium (Rs)", value: (g) => g.otPremium, num: true, fmt: (v) => rs(v as number), title: "The part of the cost above the normal rate" },
+        { key: "costPct", label: "Cost share", value: (g) => g.costPct, num: true, fmt: (v) => <span className="share-cell">{pct(v as number)}<Bar frac={v as number} color={COLORS[2]} /></span> },
+      ] as Col<Group>[])
+    : []),
   { key: "hours", label: "Hours", value: (g) => g.hours, num: true, fmt: (v) => h(v as number) },
   { key: "normal", label: "Normal", value: (g) => g.normal, num: true, fmt: (v) => h(v as number) },
   { key: "ot", label: "OT", value: (g) => g.ot, num: true, fmt: (v) => h(v as number) },
@@ -335,17 +387,18 @@ function Breakdown({ g, label }: { g: Group; label: string }) {
 }
 
 function Activities({ groups, onPick, withActivities, desc }: { groups: Group[]; onPick: (code: string) => void; withActivities: boolean; desc: Desc }) {
+  const money = useContext(MoneyCtx);
   return (
     <div className="card">
-      <h3>Hours by activity code</h3>
+      <h3>{money ? "Labour cost by activity code (at standard rates)" : "Hours by activity code"}</h3>
       <p className="muted small">
         {withActivities
           ? "Overtime and worker-days are shared over each entry's lines by their hours. Click a row for its trades; the filter button shows only that code everywhere."
           : "This workbook is kept without activity codes, so all hours are unallocated (ZIDLE)."}
       </p>
       <SortTable
-        cols={groupCols("Activity", [{ key: "desc", label: "Description", value: (g) => desc(g.key) ?? "" }, { key: "place", label: "Place", value: (g) => g.place ?? "" }])}
-        rows={groups}
+        cols={groupCols("Activity", [{ key: "desc", label: "Description", value: (g) => desc(g.key) ?? "" }, { key: "place", label: "Place", value: (g) => g.place ?? "" }], money)}
+        rows={money ? byCost(groups) : groups}
         rowKey={(g) => g.key}
         expand={(g) => (
           <>
@@ -359,19 +412,20 @@ function Activities({ groups, onPick, withActivities, desc }: { groups: Group[];
 }
 
 function PlacesTrades({ places, trades, onPlace, onTrade }: { places: Group[]; trades: Group[]; onPlace: (p: string) => void; onTrade: (t: string) => void }) {
+  const money = useContext(MoneyCtx);
   return (
     <>
       <div className="card">
-        <h3>Hours by place</h3>
+        <h3>{money ? "Labour cost by place (at standard rates)" : "Hours by place"}</h3>
         <p className="muted small">From the activity code's place ending (named once per project on the start page).</p>
-        <SortTable cols={groupCols("Place")} rows={places} rowKey={(g) => g.key}
+        <SortTable cols={groupCols("Place", [], money)} rows={money ? byCost(places) : places} rowKey={(g) => g.key}
           expand={(g) => (<><Breakdown g={g} label="By trade" /><button className="link small" onClick={() => onPlace(g.key)}>Filter by this place</button></>)} />
       </div>
       <div className="card">
-        <h3>Hours by trade</h3>
+        <h3>{money ? "Labour cost by trade (at standard rates)" : "Hours by trade"}</h3>
         <SortTable
-          cols={groupCols("Trade", [])}
-          rows={trades}
+          cols={groupCols("Trade", [], money)}
+          rows={money ? byCost(trades) : trades}
           rowKey={(g) => g.key}
           expand={(g) => (<><Breakdown g={g} label="By activity" /><button className="link small" onClick={() => onTrade(g.key)}>Filter by this trade</button></>)}
         />
@@ -415,6 +469,7 @@ function SupervisorsView({ data, entries, slices, days, owned, reviews, month, o
   const whose = workerSupervisors(entries);
   const work = supervisorWork(slices);
   const groups = bySupervisor(slices);
+  const money = useContext(MoneyCtx);
   const counts = sheetCounts(owned, reviews, month);
   const none = groups.find((g) => g.key === NO_SUPERVISOR);
   const perDay = supervisorDays(slices);
@@ -437,8 +492,8 @@ function SupervisorsView({ data, entries, slices, days, owned, reviews, month, o
               { key: "sheets", label: "Sheets", value: (g) => cols(g.key)?.sheets ?? 0, num: true, title: "Day sheets with entries from this supervisor (whole month)" },
               { key: "ok", label: "Reviewed", value: (g) => cols(g.key)?.ok ?? 0, num: true, title: "Sheets checked against the paper and matching (not changed since)" },
               { key: "problem", label: "Problems", value: (g) => cols(g.key)?.problem ?? 0, num: true, fmt: (v) => (v ? <span className="warn-text">{v as number}</span> : "0") },
-            ])}
-            rows={groups}
+            ], money)}
+            rows={money ? byCost(groups) : groups}
             rowKey={(g) => g.key}
             expand={(g) => (
               <>
@@ -649,6 +704,7 @@ function Timeline({ slices, days, onPick, desc }: { slices: ReturnType<typeof ap
 }
 
 function Overtime({ days, trades, persons }: { days: DayRow[]; trades: Group[]; persons: PersonRow[] }) {
+  const money = useContext(MoneyCtx);
   const ot = trades.reduce((s, t) => s + t.ot, 0);
   const all = trades.reduce((s, t) => s + t.hours, 0);
   return (
@@ -670,6 +726,7 @@ function Overtime({ days, trades, persons }: { days: DayRow[]; trades: Group[]; 
             { key: "hours", label: "All hours", value: (g) => g.hours, num: true, fmt: (v) => h(v as number) },
             { key: "share", label: "OT share", value: (g) => (g.hours ? g.ot / g.hours : 0), num: true, fmt: (v) => <span className="share-cell">{pct(v as number)}<Bar frac={v as number} color={COLORS[1]} /></span> },
             { key: "per", label: "OT per person", value: (g) => (g.workers ? g.ot / g.workers : 0), num: true, fmt: (v) => h(v as number) },
+            ...(money ? [{ key: "otp", label: "OT premium (Rs)", title: "At standard rates", value: (g: Group) => g.otPremium, num: true, fmt: (v: string | number | null) => rs(v as number) }] : []),
           ]}
           rows={trades}
           rowKey={(g) => g.key}
@@ -1062,9 +1119,11 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
     (filter.from || filter.to) && `days ${filter.from ?? "first"}–${filter.to ?? "last"}`].filter(Boolean).join(", "); // prettier-ignore
   const note = `${master.workbook} · ${master.month}${f ? ` · filtered: ${f}` : ""}`;
   const d = (code: string) => describe(code, master.descriptions) ?? "";
+  const money = hasRates(master.rates);
   const groupRows = (gs: Group[], withPlace = false) =>
-    gs.map((g) => [g.key, ...(withPlace ? [d(g.key), g.place ?? ""] : []), r(g.hours), r(g.normal), r(g.ot), r(g.workerDays), g.workers, g.days, g.first, g.last, r(g.pct * 100)]);
-  const groupColsX = ["Hours", "Normal", "OT", "Worker-days", "People", "Days", "First day", "Last day", "Share %"];
+    gs.map((g) => [g.key, ...(withPlace ? [d(g.key), g.place ?? ""] : []), r(g.hours), r(g.normal), r(g.ot), r(g.workerDays), g.workers, g.days, g.first, g.last, r(g.pct * 100),
+      ...(money ? [Math.round(g.cost), Math.round(g.otPremium)] : [])]); // prettier-ignore
+  const groupColsX = ["Hours", "Normal", "OT", "Worker-days", "People", "Days", "First day", "Last day", "Share %", ...(money ? ["Cost (Rs, standard rates)", "OT premium (Rs)"] : [])];
   const days = daily(data, slices, filter);
   const { top, rest } = topTrades(days, 20);
   const ps = people(data, entries);
@@ -1074,6 +1133,8 @@ function exportTables(data: ReturnType<typeof buildData>, slices: ReturnType<typ
       ["Hours worked", r(k.hours)], ["Normal hours", r(k.normal)], ["Overtime hours", r(k.ot)], ["OT share %", r(k.otPct * 100)],
       ["Worker-days", r(k.workerDays)], ["People", k.people], ["Days with work", k.workDays], ["Average people a day", r(k.avgHeadcount)],
       ["Peak headcount", k.peak?.count ?? 0], ["Peak day", k.peak?.day ?? null], ["Unallocated hours (ZIDLE)", r(k.idle)], ["Activity codes used", k.codes],
+      ...(money ? [["Labour cost (Rs, standard rates)", Math.round(k.cost)], ["OT premium (Rs)", Math.round(k.otPremium)], ["Unallocated cost (Rs)", Math.round(k.idleCost)],
+        ["Cost per worker-day (Rs)", Math.round(k.costPerWorkerDay)], ["Rates known for % of hours", r(k.coverage * 100)]] : []),
     ] }, // prettier-ignore
     { name: "Activities", note, columns: ["Activity", "Description", "Place", ...groupColsX], rows: groupRows(byCode(slices), true) },
     { name: "Places", note, columns: ["Place", ...groupColsX], rows: groupRows(byPlace(slices)) },

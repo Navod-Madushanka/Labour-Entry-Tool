@@ -4,7 +4,7 @@
 // Every entry is cut into slices, one per activity line (plus one for ZIDLE hours), each carrying
 // its share of the entry's worked hours, overtime and the worker-day. Filters (trade, place, code,
 // days) keep or drop slices, so every table and chart below adds up the same way.
-import type { Issue, Master, Worker } from "./api";
+import type { Issue, Master, Rates, Worker } from "./api";
 import type { Month } from "./history";
 import { placeSuffix } from "./codes";
 
@@ -27,6 +27,9 @@ export interface Slice {
   hours: number; // worked hours on this line
   ot: number; // its share of the entry's overtime
   share: number; // its share of the worker-day (0..1)
+  cost: number; // at standard rates: normal hours x hourly rate + OT x hourly rate x multiplier
+  otPremium: number; // the part of the cost above the normal rate (OT x hourly x (multiplier - 1))
+  rated: boolean; // a rate was known for the worker (else cost is 0)
 }
 
 export interface EntryRow {
@@ -71,14 +74,28 @@ export function dayKind(dayType: unknown, date: string | null, holidays: string[
   return "Normal";
 }
 
+/** Standard daily rate of a worker: Labour Detail's own (when the QS uses it), else the trade's. */
+export function dailyRate(rates: Rates, name: string, trade: string): number {
+  return rates.workers?.[name] || rates.trades?.[trade] || 0;
+}
+
+/** What an overtime hour costs against a normal one, by day kind. Excel counts every hour of a
+ * Sunday or holiday as overtime, so those days cost hours x rate x their multiplier. */
+export function multiplier(rates: Rates, kind: DayKind): number {
+  return kind === "Holiday" ? rates.holiday ?? 2 : kind === "Sunday" ? rates.sunday ?? 1.5 : rates.ot ?? 1.5;
+}
+
+export const hasRates = (rates: Rates | undefined) => Boolean(rates && (Object.keys(rates.trades ?? {}).length || Object.keys(rates.workers ?? {}).length));
+
 /** Cut the month into slices and entry rows. Blank blocks and junk values are skipped. */
 export function buildData(
   month: Month,
-  master: Pick<Master, "workers" | "places" | "holidays" | "activities" | "check_activities">,
+  master: Pick<Master, "workers" | "places" | "holidays" | "activities" | "check_activities"> & { rates?: Rates },
   owners: Map<string, string> = new Map(), // "sheet|calling name" -> supervisor
 ): Data {
   const workers = new Map(master.workers.map((w) => [w.calling_name, w]));
   const valid = new Set(master.activities.map((a) => a.trim()));
+  const rates = master.rates ?? {};
   const slices: Slice[] = [];
   const entries: EntryRow[] = [];
   const days: Data["days"] = [];
@@ -111,6 +128,9 @@ export function buildData(
       if (idle > 0) lines.push({ code: NO_CODE, hours: idle });
       if (!lines.length) lines.push({ code: NO_CODE, hours: worked });
       const total = lines.reduce((s, l) => s + l.hours, 0);
+      const daily = dailyRate(rates, name, trade);
+      const hourly = daily / (rates.day_hours || 8);
+      const mult = multiplier(rates, kind);
       for (const l of lines) {
         const share = total > 0 ? l.hours / total : 0;
         const suffix = l.code === NO_CODE ? null : placeSuffix(l.code);
@@ -118,6 +138,7 @@ export function buildData(
           sheet, day, kind, name, person, trade, supervisor, code: l.code,
           place: (suffix && master.places?.[suffix]) || (suffix ? `-${suffix}` : NO_PLACE),
           hours: worked * share, ot: ot * share, share,
+          cost: hourly * ((worked - ot) * share + ot * share * mult), otPremium: hourly * ot * share * (mult - 1), rated: daily > 0,
         }); // prettier-ignore
       }
       const codes = coded.map((a) => text(a.code));
@@ -163,23 +184,31 @@ export interface Group {
   last: number | null;
   days: number; // days with any hours
   pct: number; // share of all hours
+  cost: number; // at standard rates
+  otPremium: number;
+  ratedHours: number; // hours with a known rate
+  costPct: number; // share of all cost
   place?: string;
   breakdown: { key: string; hours: number }[]; // by trade (codes, places) or by code (trades)
 }
 
 function group(slices: Slice[], keyOf: (s: Slice) => string, subOf: (s: Slice) => string): Group[] {
   const total = slices.reduce((s, x) => s + x.hours, 0);
+  const totalCost = slices.reduce((s, x) => s + x.cost, 0);
   const m = new Map<string, { g: Group; people: Set<string>; dayset: Set<number>; sub: Map<string, number> }>();
   for (const s of slices) {
     const k = keyOf(s);
     let item = m.get(k);
     if (!item) {
-      item = { g: { key: k, hours: 0, ot: 0, normal: 0, workerDays: 0, workers: 0, first: null, last: null, days: 0, pct: 0, place: s.place, breakdown: [] }, people: new Set(), dayset: new Set(), sub: new Map() };
+      item = { g: { key: k, hours: 0, ot: 0, normal: 0, workerDays: 0, workers: 0, first: null, last: null, days: 0, pct: 0, cost: 0, otPremium: 0, ratedHours: 0, costPct: 0, place: s.place, breakdown: [] }, people: new Set(), dayset: new Set(), sub: new Map() };
       m.set(k, item);
     }
     const g = item.g;
     g.hours += s.hours;
     g.ot += s.ot;
+    g.cost += s.cost;
+    g.otPremium += s.otPremium;
+    if (s.rated) g.ratedHours += s.hours;
     g.workerDays += s.share;
     g.first = g.first === null ? s.day : Math.min(g.first, s.day);
     g.last = g.last === null ? s.day : Math.max(g.last, s.day);
@@ -194,6 +223,7 @@ function group(slices: Slice[], keyOf: (s: Slice) => string, subOf: (s: Slice) =
       workers: people.size,
       days: dayset.size,
       pct: total > 0 ? g.hours / total : 0,
+      costPct: totalCost > 0 ? g.cost / totalCost : 0,
       breakdown: [...sub].map(([key, hours]) => ({ key, hours })).sort((a, b) => b.hours - a.hours),
     }))
     .sort((a, b) => b.hours - a.hours);
@@ -313,6 +343,11 @@ export interface Kpis {
   peak: { day: number; count: number } | null;
   idle: number; // ZIDLE hours
   codes: number;
+  cost: number; // labour cost at standard rates
+  otPremium: number;
+  idleCost: number; // cost of unallocated hours
+  coverage: number; // share of hours with a known rate (0..1)
+  costPerWorkerDay: number;
 }
 
 export function kpis(slices: Slice[]): Kpis {
@@ -333,6 +368,11 @@ export function kpis(slices: Slice[]): Kpis {
     workDays: perDay.size, avgHeadcount: perDay.size ? sum / perDay.size : 0, peak,
     idle: slices.filter((s) => s.code === NO_CODE).reduce((s, x) => s + x.hours, 0),
     codes: new Set(slices.filter((s) => s.code !== NO_CODE).map((s) => s.code)).size,
+    cost: sumBy(slices, (x) => x.cost), otPremium: sumBy(slices, (x) => x.otPremium),
+    idleCost: sumBy(slices.filter((s) => s.code === NO_CODE), (x) => x.cost),
+    coverage: hours > 0 ? sumBy(slices.filter((s) => s.rated), (x) => x.hours) / hours : 0,
+    // over the rated worker-days only, so missing rates do not pull the average down
+    costPerWorkerDay: sumBy(slices, (x) => x.cost) / (sumBy(slices.filter((s) => s.rated), (x) => x.share) || 1),
   }; // prettier-ignore
 }
 
@@ -550,6 +590,8 @@ export function summarise(workbook: string, monthIso: string, data: Data, now = 
     avgHeadcount: round2(k.avgHeadcount), peak: k.peak?.count ?? 0, idle: round2(k.idle), trades, codes,
   }; // prettier-ignore
 }
+
+const sumBy = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0);
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 

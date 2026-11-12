@@ -58,6 +58,7 @@ export interface Master {
   descriptions?: Record<string, string>; // activity code -> description (office's own, else MasterFormat title)
   place_order?: string[]; // place suffixes bottom to top, for the flowline (the PM's order)
   plan?: Record<string, Record<string, number>>; // trade -> week (Monday) -> planned people a day
+  rates?: Rates; // standard costing rates for this workbook's labour source ({} when none)
 }
 
 export interface Place {
@@ -568,6 +569,8 @@ export const api = {
   descriptions: () => call<DescriptionsView>("GET", "/api/setup/descriptions"),
   savePlaceOrder: (order: string[]) => call<SetupState>("POST", "/api/setup/place-order", { order }),
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
+  rates: () => call<RatesView>("GET", "/api/setup/rates"),
+  saveRates: (body: Omit<RatesView, "source" | "known" | "worker_rates" | "other_sources">) => call<RatesView>("POST", "/api/setup/rates", body),
   saveDescriptions: (descriptions: Record<string, string>) => call<SetupState>("POST", "/api/setup/descriptions", { descriptions }),
   setupOptions: (check_activities: boolean) => call<SetupState>("POST", "/api/setup/options", { check_activities }),
   timecards: () => call<TimeCardSheet[]>("GET", "/api/timecards"),
@@ -590,4 +593,27 @@ export interface DescriptionRow {
 export interface DescriptionsView {
   project: string | null;
   codes: DescriptionRow[];
+}
+
+/** Standard costing rates (not pay): daily rate per trade, optional per worker, and multipliers. */
+export interface Rates {
+  trades?: Record<string, number>;
+  workers?: Record<string, number>; // calling name -> Labour Detail's Daily Rate (when used)
+  ot?: number; // overtime on a normal day or Saturday
+  sunday?: number;
+  holiday?: number;
+  day_hours?: number; // hours in a standard day (daily rate / day_hours = hourly rate)
+}
+
+export interface RatesView {
+  source: string;
+  trades: Record<string, number>;
+  known: string[];
+  use_worker_rates: boolean;
+  worker_rates: number;
+  ot: number;
+  sunday: number;
+  holiday: number;
+  day_hours: number;
+  other_sources: string[];
 }

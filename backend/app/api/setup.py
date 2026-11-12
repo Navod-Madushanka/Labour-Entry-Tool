@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 from app.api.entries import run_service
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
-from app.books import BookSettings, project_key
+from app.books import BookSettings, project_key, workbook_kind
 from app.config import Config
 from app.domain.health import HealthReport, run_health
 from app.domain.models import SnapshotMeta, WorkbookSnapshot
@@ -193,6 +193,7 @@ class Session:
                 update["descriptions"] = saved.get("descriptions", {})
                 update["place_order"] = saved.get("place_order", [])
             update["plan"] = self.settings.get_key(plan_key(book.name)).get("plan", {})
+            update["rates"] = rates_for(self.settings.get_key(RATES_KEY), book.name)
         saved = self.settings.get_key(TRADE_KEY).get("letters")
         if isinstance(saved, dict):
             update["trade_letters"] = {str(k): str(v) for k, v in saved.items()}
@@ -838,6 +839,102 @@ def set_plan(body: PlanRequest, request: Request) -> SetupState:
     session.settings.set_key(plan_key(session.book.name), plan=plan)
     _apply(request, session)
     return session.sync()
+
+
+# --- standard costing rates (the rupee lens) ------------------------------------------------
+
+RATES_KEY = (
+    "rates"  # in the settings file, for every workbook: {"sources": {kind: {trade: rate}}, …}
+)
+DEFAULT_MULTIPLIERS = {"ot": 1.5, "sunday": 1.5, "holiday": 2.0, "day_hours": 8.0}
+
+
+def rates_for(saved: dict, workbook: str) -> dict:
+    """The rates of this workbook's labour source (its kind: INDIAN, SUB CONTRACT, …)."""
+    trades = (saved.get("sources") or {}).get(workbook_kind(workbook), {})
+    use_workers = bool((saved.get("use_worker_rates") or {}).get(workbook_kind(workbook)))
+    if not trades and not use_workers:
+        return {}
+    mult = {k: float(saved.get(k, v)) for k, v in DEFAULT_MULTIPLIERS.items()}
+    return {"trades": trades, "use_worker_rates": use_workers, **mult}
+
+
+class RatesView(BaseModel):
+    source: str  # the labour source: this workbook's kind
+    trades: dict[str, float]  # trade -> standard daily rate (Rs)
+    known: list[str]  # trades of this workbook's workers, most workers first
+    use_worker_rates: bool  # Labour Detail's Daily Rate column wins where filled
+    worker_rates: int  # workers with a Daily Rate in Labour Detail
+    ot: float
+    sunday: float
+    holiday: float
+    day_hours: float
+    other_sources: list[str]  # labour sources with rates already
+
+
+class RatesRequest(BaseModel):
+    trades: dict[str, float]
+    use_worker_rates: bool = False
+    ot: float = Field(1.5, ge=1, le=5)
+    sunday: float = Field(1.5, ge=1, le=5)
+    holiday: float = Field(2.0, ge=1, le=5)
+    day_hours: float = Field(8.0, ge=1, le=24)
+
+
+@router.get("/rates", response_model=RatesView)
+async def get_rates(request: Request) -> RatesView:
+    """The QS's standard daily rates for this workbook's labour source, and the multipliers."""
+    from app.domain.models import as_number
+
+    session = _require(request)
+    kind = workbook_kind(session.book.name)
+    saved = session.settings.get_key(RATES_KEY)
+    master = await run_service(request, lambda s: s.master_view())
+    raw = await run_service(request, lambda s: s.master().workers)
+    counts: dict[str, int] = {}
+    for w in master.workers:
+        t = str(w.trade_group or "").strip()
+        if t:
+            counts[t] = counts.get(t, 0) + 1
+    worker_rates = sum(1 for w in raw if (v := as_number(w.daily_rate)) and v > 0)
+    return RatesView(
+        source=kind,
+        trades=(saved.get("sources") or {}).get(kind, {}),
+        known=sorted(counts, key=lambda t: (-counts[t], t)),
+        use_worker_rates=bool((saved.get("use_worker_rates") or {}).get(kind)),
+        worker_rates=worker_rates,
+        other_sources=sorted(k for k, v in (saved.get("sources") or {}).items() if v and k != kind),
+        **{k: float(saved.get(k, v)) for k, v in DEFAULT_MULTIPLIERS.items()},
+    )
+
+
+@router.post("/rates", response_model=RatesView)
+async def set_rates(body: RatesRequest, request: Request) -> RatesView:
+    """Save the standard rates: costing rates, not pay. Kept on this PC, never in Excel."""
+    session = _require(request)
+    kind = workbook_kind(session.book.name)
+    saved = session.settings.get_key(RATES_KEY)
+    trades = {}
+    for t, v in body.trades.items():
+        name = re.sub(r"\s+", " ", t).strip()[:40]
+        if not name or not v:
+            continue
+        if not 0 < v <= 1_000_000:
+            raise HTTPException(422, f"{v} is not a daily rate")
+        trades[name] = round(float(v), 2)
+    sources = {**(saved.get("sources") or {}), kind: trades}
+    use = {**(saved.get("use_worker_rates") or {}), kind: body.use_worker_rates}
+    session.settings.set_key(
+        RATES_KEY,
+        sources=sources,
+        use_worker_rates=use,
+        ot=body.ot,
+        sunday=body.sunday,
+        holiday=body.holiday,
+        day_hours=body.day_hours,
+    )
+    _apply(request, session)
+    return await get_rates(request)
 
 
 # --- trades by calling-name letter ("INR-01" is a Rigger) ----------------------------------------

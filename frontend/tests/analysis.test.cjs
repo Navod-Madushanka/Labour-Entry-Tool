@@ -170,4 +170,22 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   assert.equal(A.planned(plan, null), undefined);
 }
 
+// rupee lens: cost at standard rates, OT premium, coverage
+{
+  const rated = A.buildData(month, { ...master, rates: { trades: { Carpenter: 8000 }, ot: 1.5, sunday: 1.5, holiday: 2, day_hours: 8 } });
+  const k2 = A.kpis(rated.slices);
+  // Carpenters (hourly 1000): AA-01 d1 8 + 3x1.5 = 12.5k; AA-02 d1 the same; AA-01 CH d2 8 + 7x1.5 = 18.5k;
+  // AA-01 Sunday d4 8 h all OT x1.5 = 12k. Helpers have no rate.
+  near(k2.cost, 12500 + 12500 + 18500 + 12000, "labour cost");
+  near(k2.otPremium, (3 + 3 + 7 + 8) * 1000 * 0.5, "OT premium");
+  near(k2.coverage, (11 + 11 + 15 + 8) / 61, "rates known for the carpenters' hours");
+  near(k2.costPerWorkerDay, k2.cost / 4, "over rated worker-days");
+  const core = A.byCode(rated.slices).find((g) => g.key === "03-20-00-00-C-8");
+  near(core.cost, 12500 * 3 / 11, "cost shared over the lines like the hours");
+  assert.equal(A.multiplier({ holiday: 2.5 }, "Holiday"), 2.5);
+  assert.equal(A.dailyRate({ trades: { Helper: 100 }, workers: { "BB-01": 300 } }, "BB-01", "Helper"), 300, "Labour Detail's own rate wins");
+  assert.equal(A.hasRates({}), false);
+  near(A.kpis(data.slices).cost, 0, "no rates: no rupees");
+}
+
 console.log("analysis: all passed");

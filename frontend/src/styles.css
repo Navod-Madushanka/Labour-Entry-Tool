@@ -1032,3 +1032,16 @@ section.desc-card { border-top-color: var(--accent); }
 @media (max-width: 800px) { .flow-wrap { flex-direction: column; } .flow-order { width: 100%; } }
 table.data.plan-grid { width: auto; }
 .plan-grid td, .plan-grid th { padding: 3px 10px 3px 0; }
+
+/* Rupee lens (roadmap #3) */
+.analysis-tools { margin-top: 0; gap: 12px; }
+.kpis.money .kpi { border-top: 3px solid var(--c3); }
+.empty-money { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 4px solid var(--c3); }
+.money-note { margin: 4px 0 8px; }
+.rates-card { border-top-color: var(--c3); }
+.rates-grid { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.rates-table input { width: 12ch; text-align: right; }
+.rates-table td:first-child input { width: 16ch; text-align: left; font-weight: 400; font-family: inherit; }
+.rates-mult { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 6px; }
+.rates-row { display: grid; grid-template-columns: 1fr 7ch 2ch; gap: 8px; align-items: center; font-size: 13px; }
+.rates-row input { text-align: right; padding: 5px 8px; }

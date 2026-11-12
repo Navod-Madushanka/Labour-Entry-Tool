@@ -1,5 +1,32 @@
 # Changelog
 
+## Roadmap #3, rupee lens: labour cost at standard rates (12 Nov 2026)
+
+Asked for: roadmap #3, hours turned into rupees for the QS.
+
+- **Standard rates** (Analysis → *Standard rates…*): a daily rate per trade for this workbook's
+  labour source (INDIAN, SUB CONTRACT, … kept apart), the hourly rate shown beside it, and the
+  multipliers: overtime on a normal day or Saturday 1.5×, every hour on a Sunday 1.5×, every hour
+  on a public holiday 2×, an 8-hour standard day (defaults, to be confirmed with HR). Optionally
+  Labour Detail's own Daily Rate column wins where it is filled. Kept on this PC (settings file),
+  never written to Excel. Costing rates, not pay: no figure is shown per person.
+- **Hours / Rs switch** on Analysis (remembered):
+  - Overview gets four tiles: labour cost, OT premium (only the amount above the normal rate),
+    unallocated cost (ZIDLE) and cost per worker-day, with how much of the hours have a rate.
+  - Activities, Places, Trades and Supervisors tables get Cost (Rs), OT premium (Rs) and Cost
+    share columns and sort by cost; the top-activities and trade lists show rupees; Overtime by
+    trade shows the OT premium.
+  - A line says every figure is "at standard rates" and that OT per activity is attributed.
+  - Without rates, Rs shows a small "Add rates to see rupees" card instead of zeros.
+- Cost per slice = normal hours × hourly rate + OT hours × hourly rate × the day's multiplier
+  (Excel counts every Sunday and holiday hour as OT, so those days cost hours × rate × their
+  multiplier); every table still adds up to the same totals.
+- **Excel export**: when rates exist, the Activities, Places, Trades and Supervisors sheets get
+  Cost and OT premium columns and the Summary sheet the cost figures and the rate coverage.
+- API: `GET/POST /api/setup/rates`; `/api/master` carries `rates` for this labour source.
+- Tests: `backend/tests/test_rates.py`, cost checks in `tests/analysis.test.cjs` (worked by hand),
+  `e2e/rupees.cjs` (made-up rates); `e2e/programme.cjs` now picks the S-curve's Hours button.
+
 ## Roadmap #2, as-built programme: Gantt, manpower histogram with the plan, S-curves, flowline (12 Nov 2026)
 
 Asked for: roadmap #2, the programme drawn straight from the daily sheets.
