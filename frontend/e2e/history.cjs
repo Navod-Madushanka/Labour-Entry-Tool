@@ -2,15 +2,15 @@
 // month, and a run carried over the month end on Fatigue & OT risk. Made-up data:
 //   cd backend && python ../scripts/demo_two_books.py 8012 big   then  node e2e/history.cjs [shots]
 const { chromium } = require("playwright");
-const fs = require("fs"), os = require("os"), path = require("path");
+const fs = require("fs"), path = require("path");
 const out = process.argv[2] || ".";
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
-// the made-up September book the demo writes next to October (newest demo folder)
-const dirs = fs.readdirSync(os.tmpdir()).filter((d) => d.startsWith("labour_two_books_")).map((d) => path.join(os.tmpdir(), d))
-  .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-const sept = dirs.map((d) => path.join(d, "Labour Entry Sheet September 2026 - DEMO A.json")).find((f) => fs.existsSync(f));
 (async () => {
-  if (!sept) throw new Error("start the demo with 'big' (it writes a September book)");
+  // the made-up September book the running demo wrote next to its October book (not the newest
+  // demo folder in the temp dir: a folder left by an earlier 'big' run would not match a plain demo)
+  const book = (await (await fetch(new URL("api/setup", BASE))).json()).path;
+  const sept = book && path.join(path.dirname(book), "Labour Entry Sheet September 2026 - DEMO A.json");
+  if (!sept || !fs.existsSync(sept)) throw new Error("start the demo with 'big' (it writes a September book next to October)");
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
@@ -37,7 +37,10 @@ const sept = dirs.map((d) => path.join(d, "Labour Entry Sheet September 2026 - D
   // runs carried over the month end
   await p.getByRole("tab", { name: "Fatigue & OT risk" }).click();
   await p.getByLabel("everyone").check();
-  const carried = await p.locator(".fatigue-table tbody tr", { hasText: "last month" }).count();
+  // the carry is fetched when the view opens: wait for it rather than count once
+  const carriedRows = p.locator(".fatigue-table tbody tr", { hasText: "last month" });
+  await carriedRows.first().waitFor({ timeout: 15000 }).catch(() => undefined);
+  const carried = await carriedRows.count();
   console.log("people with a run carried from September:", carried);
   if (!carried) throw new Error("no run carried over the month end");
 

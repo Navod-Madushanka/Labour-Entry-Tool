@@ -8,6 +8,10 @@ const out = process.argv[2] || ".";
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
 const pages = (buf) => (buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
 (async () => {
+  // the OT line and its link need two weeks with work to compare: only the 'big' demo has them
+  // (the plain demo's DEMO A has 12 workers on days 1-3, one week, so no "OT share" line)
+  const workers = (await (await fetch(new URL("api/master", BASE))).json()).workers.length;
+  if (workers < 250) throw new Error(`start the demo with 'big' (DEMO A has ${workers} workers, not 250)`);
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
