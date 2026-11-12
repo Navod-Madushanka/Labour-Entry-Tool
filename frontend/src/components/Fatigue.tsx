@@ -43,7 +43,7 @@ export function Fatigue({ data, entries, days, master, disrupted, carry = {}, on
       </div>
       <div className="card">
         <h3>People over the 7-day hours limit, by day</h3>
-        <DayBars days={days} series={[{ key: "n", label: "People", color: COLORS[5] }]} value={(d) => trend.get(d.day) ?? 0} unit="people" />
+        <DayBars days={days} series={[{ key: "n", label: "People", color: COLORS[5] }]} value={(d) => trend.get(d.day) ?? 0} unit="people" disrupted={disrupted} />
       </div>
       <div className="card fatigue-evidence">
         <h3>Why it matters for output</h3>

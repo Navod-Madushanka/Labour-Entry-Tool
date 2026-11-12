@@ -5,6 +5,8 @@ import { Fragment, useMemo, useState, type ClipboardEvent } from "react";
 import { api, type Master } from "../api";
 import { byCode, periods, productivity, NO_CODE, type Data, type Norm, type ProdRow } from "../analysis";
 import { h } from "./charts";
+import { EmptyState } from "./EmptyState";
+import { store } from "../store";
 
 type Desc = (code: string) => string | null;
 const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
@@ -30,12 +32,36 @@ export function Productivity({ data, master, desc, disrupted, money, onSaved }: 
   const lastWeek = (r: ProdRow) => [...r.weeks].reverse().find((w) => w.qty && w.hours);
   const through = measured.length ? Math.max(...measured.flatMap((r) => r.weeks.filter((w) => w.qty && w.hours).map((w) => Number(w.label.split("–")[1])))) : null;
   const miles = rows.filter((r) => r.mile.clean !== null && r.mile.disrupted !== null);
+  const [mileSeen, setMileSeen] = useState(() => store.get("labour.coach.mile") === "1");
   return (
     <>
       <p className="muted small">
         Labour hours (and rupees) per unit of work done, from the daily sheets and a weekly quantity for each code. The index is earned
         hours (quantity × norm) over actual hours: below 1 is slower than the norm.{through ? ` Quantities to day ${through}.` : ""}
       </p>
+      {measured.length === 0 && (
+        <EmptyState
+          title="No measured weeks yet"
+          steps={[
+            <>Add the codes you measure in <b>Quantities done (weekly)</b> below, with their unit (m², m³, nos…).</>,
+            <>Enter the quantity finished each week. A week counts once its day sheets have hours on the code.</>,
+            <>Optionally give a norm (hours per unit, from the BOQ or BSR); without one the site's own median is used after two weeks.</>,
+          ]}
+        >
+          Hours per unit, rupees per unit and the productivity index appear here once a code has a weekly quantity.
+        </EmptyState>
+      )}
+      {measured.length > 0 && miles.length === 0 && !mileSeen && (
+        <div className="card coach">
+          <b>Next: the measured mile</b>
+          <p className="muted small">
+            Tag the days that went wrong (rain, power cut, waiting for concrete) on <b>Lost time → Tag a disrupted day</b>. Once a measured code has
+            both clean and disrupted weeks, this page compares them and gives the extra hours the disruption cost: the usual basis for a
+            disruption claim.
+          </p>
+          <button className="link small" onClick={() => { store.set("labour.coach.mile", "1"); setMileSeen(true); }}>Got it</button>
+        </div>
+      )}
       {measured.length > 0 && (
         <div className="card prod-readout">
           {measured.map((r) => {
@@ -110,6 +136,10 @@ export function Productivity({ data, master, desc, disrupted, money, onSaved }: 
       {miles.length > 0 && (
         <div className="card">
           <h3>Measured mile: clean weeks against disrupted weeks</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            The same work on the same site, in weeks that ran clean and weeks with a disrupted day. The difference in hours per unit, times the
+            quantity done in the disrupted weeks, is the labour the disruption cost.
+          </p>
           <table className="data">
             <thead><tr><th>Activity</th><th className="num">Clean h / unit</th><th className="num">Disrupted h / unit</th><th className="num">Extra hours in disrupted weeks</th></tr></thead>
             <tbody>

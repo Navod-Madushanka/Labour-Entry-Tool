@@ -1,5 +1,9 @@
 // Charts shared by Analysis and the as-built programme: hand-drawn SVG, theme colours from CSS.
+import { createContext } from "react";
 import type { DayRow } from "../analysis";
+
+/** Days tagged as disrupted in Lost time, for every day chart under the Analysis tab. */
+export const DisruptedCtx = createContext<Set<number>>(new Set());
 
 export const COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)"];
 export const h = (n: number) => (Math.abs(n) < 0.005 ? "0" : n.toLocaleString(undefined, { maximumFractionDigits: 1 }));
@@ -11,12 +15,13 @@ export const dayLabel = (d: { day: number; date: string | null }) => {
 };
 
 /** Bars per day, stacked by series; Sundays and holidays marked under the axis. */
-export function DayBars({ days, series, value, unit, line }: {
+export function DayBars({ days, series, value, unit, line, disrupted }: {
   days: DayRow[];
   series: { key: string; label: string; color: string }[];
   value: (d: DayRow, key: string) => number;
   unit: string;
   line?: { label: string; color: string; value: (d: DayRow) => number | undefined }; // e.g. planned people
+  disrupted?: Set<number>; // days tagged as disrupted (Lost time): marked over the day number
 }) {
   const totals = days.map((d) => series.reduce((s, x) => s + value(d, x.key), 0));
   const lineVals = days.map((d) => line?.value(d));
@@ -47,8 +52,22 @@ export function DayBars({ days, series, value, unit, line }: {
           ))}
           {days.map((d, i) => {
             const x = left + i * (bw + gap) + gap / 2;
+            const off = d.kind === "Sunday" || d.kind === "Holiday";
+            const tint = off ? "var(--sun-bg)" : d.kind === "Saturday" ? "var(--sat-bg)" : null;
+            return tint ? <rect key={`t${d.sheet}`} className="day-tint" x={x - gap / 2} y={8} width={bw + gap} height={height - bottom - 8} fill={tint} opacity="0.55" /> : null;
+          })}
+          {days.map((d, i) => {
+            const x = left + i * (bw + gap) + gap / 2;
             let acc = 0;
             const off = d.kind === "Sunday" || d.kind === "Holiday";
+            const bad = disrupted?.has(d.day);
+            const tip = [
+              `${dayLabel(d)}${d.kind !== "Normal" ? ` (${d.kind})` : ""}`,
+              ...(series.length > 1 ? series.map((s) => [s.label, value(d, s.key)] as const).filter(([, v]) => v).map(([l, v]) => `${l}: ${h(v)}`) : []),
+              `${series.length > 1 ? "Total" : series[0]?.label ?? "Value"}: ${h(totals[i])} ${unit}`,
+              ...(lineVals[i] !== undefined ? [`${line!.label}: ${h(lineVals[i]!)} (${totals[i] - lineVals[i]! >= 0 ? "+" : "−"}${h(Math.abs(totals[i] - lineVals[i]!))})`] : []),
+              ...(bad ? ["Disrupted day (Lost time)"] : []),
+            ].join("\n");
             return (
               <g key={d.sheet}>
                 {series.map((s) => {
@@ -69,6 +88,8 @@ export function DayBars({ days, series, value, unit, line }: {
                   {d.day}
                 </text>
                 {off && <text x={x + bw / 2} y={height - bottom + 27} textAnchor="middle" fontSize="9" fill="var(--sun)">{d.kind === "Sunday" ? "Sun" : "Hol"}</text>}
+                {bad && <path className="disrupted-mark" d={`M${x + bw / 2 - 4},${height - bottom + 4} L${x + bw / 2 + 4},${height - bottom + 4} L${x + bw / 2},${height - bottom - 2} Z`} fill="var(--warn)" />}
+                <rect className="day-hit" x={x - gap / 2} y={8} width={bw + gap} height={height - 8} fill="transparent"><title>{tip}</title></rect>
               </g>
             );
           })}

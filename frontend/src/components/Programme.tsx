@@ -2,10 +2,10 @@
 // A bar per activity from its first to last day, shaded by the crew each day; the manpower
 // histogram by trade against the PM's planned line; cumulative hours (S-curves); and a flowline
 // once the PM puts the places in order.
-import { useMemo, useState, type ClipboardEvent } from "react";
+import { useContext, useMemo, useState, type ClipboardEvent } from "react";
 import { api, type Master } from "../api";
 import { ALL, flowline, planned, programme, sCurves, weekOf, type DayRow, type Slice } from "../analysis";
-import { COLORS, DayBars, SaveImage, h } from "./charts";
+import { COLORS, DayBars, DisruptedCtx, SaveImage, h } from "./charts";
 
 type Desc = (code: string) => string | null;
 
@@ -84,12 +84,14 @@ function Gantt({ slices, days, desc, onPick }: { slices: Slice[]; days: DayRow[]
             const y = head + r * rh;
             const d = desc(b.key);
             return (
-              <g key={b.key} className="gantt-row" onClick={() => onPick(b.key)} style={{ cursor: "pointer" }}>
-                <title>{`${b.key}${d ? ` — ${d}` : ""}\nDays ${b.first}–${b.last}, ${b.activeDays} with work, ${h(b.hours)} h, peak ${b.peak} people`}</title>
+              <g key={b.key} className="gantt-row" onClick={() => onPick(b.key)} style={{ cursor: "pointer" }} tabIndex={0} role="button"
+                aria-label={`Filter by ${b.key}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(b.key); } }}>
+                <title>{`${b.key}${d ? ` — ${d}` : ""}\nDays ${b.first}–${b.last}, ${b.activeDays} with work, ${h(b.hours)} h, peak ${b.peak} people\nClick to filter every view by this activity`}</title>
+                <rect className="gantt-hover" x={0} y={y} width={width} height={rh} fill="var(--primary-bg)" opacity="0" />
                 <line x1={0} x2={width} y1={y + rh} y2={y + rh} stroke="var(--line)" />
                 <text x={6} y={y + 11} fontSize="11.5" fontWeight="600" fill="var(--text)" fontFamily="ui-monospace, Consolas, monospace">{b.key}</text>
                 <text x={6} y={y + 21} fontSize="10" fill="var(--muted)">{(d ?? b.place).slice(0, 36)}</text>
-                <rect x={x(b.first) + 1} y={y + 5} width={x(b.last) - x(b.first) + cw - 2} height={rh - 10} rx="3" fill="var(--row)" stroke="var(--line)" />
+                <rect className="gantt-bar" x={x(b.first) + 1} y={y + 5} width={x(b.last) - x(b.first) + cw - 2} height={rh - 10} rx="3" fill="var(--row)" stroke="var(--line)" />
                 {[...b.people].map(([day, n]) => (
                   <rect key={day} x={x(day) + 2} y={y + 6} width={cw - 4} height={rh - 12} rx="2" fill="var(--c1)" opacity={0.25 + 0.75 * (n / peak)}>
                     <title>{`${b.key}, day ${day}: ${n} people`}</title>
@@ -97,6 +99,7 @@ function Gantt({ slices, days, desc, onPick }: { slices: Slice[]; days: DayRow[]
                 ))}
                 <text x={left + days.length * cw + 8} y={y + 15} fontSize="11" fill="var(--text)">{h(b.hours)} h</text>
                 <text x={left + days.length * cw + 58} y={y + 15} fontSize="10" fill="var(--muted)">peak {b.peak}</text>
+                <text className="gantt-pick" x={left - 8} y={y + 12} fontSize="10" textAnchor="end" fill="var(--primary)" opacity="0">filter ⏵</text>
               </g>
             );
           })}
@@ -109,6 +112,7 @@ function Gantt({ slices, days, desc, onPick }: { slices: Slice[]; days: DayRow[]
 // ------------------------------------------------------------------- manpower histogram
 
 function Histogram({ days, master, trade, onSaved }: { days: DayRow[]; master: Master; trade?: string; onSaved: () => void }) {
+  const disrupted = useContext(DisruptedCtx);
   const plan = master.plan ?? {};
   const sums = new Map<string, number>();
   for (const d of days) for (const [t, c] of d.byTrade) sums.set(t, (sums.get(t) ?? 0) + c);
@@ -136,6 +140,7 @@ function Histogram({ days, master, trade, onSaved }: { days: DayRow[]; master: M
         series={series}
         value={value}
         unit="people"
+        disrupted={disrupted}
         line={hasPlan ? { label: `Planned${trade ? ` (${trade})` : ""}`, color: "var(--text)", value: (d) => (d.headcount || d.kind !== "Sunday" ? planned(plan, d.date, trade) : undefined) } : undefined}
       />
       <PlanEditor days={days} trades={order} plan={plan} onSaved={onSaved} />

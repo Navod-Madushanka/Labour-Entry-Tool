@@ -1,5 +1,50 @@
 # Changelog
 
+## Analysis tab: visual system, sticky filters, clearer interactions (12 Nov 2026)
+
+Asked for: a design pass on the Analysis tab, in this order: the visual system, a sticky header
+with filter chips, progressive disclosure and empty states, chart micro-interactions, then dark
+mode and accessibility.
+
+- **Colours with meaning** (`styles.css`, defined on `:root` so saved chart images match):
+  primary/selected is a deep teal (`--primary`); positive green, caution amber (overtime,
+  fatigue) and critical coral (data problems) as tokens for both themes. Chart series `--c1..c6`
+  re-picked to stay apart in light and dark; `--c7` stays the single grey for "Other". In the
+  Analysis tab the selected tab, Hours/Rs, primary buttons and links use the teal; the orange
+  stays the brand mark in the status bar and the rest of the app.
+- **Spacing and numbers**: one 20 px gap between the major blocks, more padding in cards and
+  tiles; the tile number is 30 px, medium weight, tabular lining figures, with label, note and
+  definition stepping down; tiles stretch to fill the row. A **Comfortable / Compact** switch
+  (remembered on this PC) tightens gaps and table rows and hides the tile definitions.
+- **Sticky filters and tabs**: the filter bar and view tabs stay under the status bar while the
+  page scrolls (not on narrow or short screens); the tabs scroll sideways in one row. Active
+  filters show as **chips**, each with ✕ to remove it, next to "Clear filters".
+- **Progressive disclosure**:
+  - rows that open a breakdown show a caret (▸, ▾ when open), open with Enter or Space too, and
+    the table says so under it;
+  - As-built bars: hovering a row highlights it and shows "filter ⏵"; rows are keyboard
+    focusable; Task timeline rows show a "filter" hint on hover. The tooltips say a click
+    filters every view;
+  - Productivity: a short empty state with the three steps when no code has a measured week; a
+    one-time hint about the measured mile once quantities exist but no day is tagged as
+    disrupted; a sentence explaining the measured mile above its table;
+  - Supervisors: the tab is hidden until some sheet was pushed with a supervisor (a saved view
+    shows an empty state instead);
+  - Rs: the labour cost and cost per worker-day tiles get a **partial** badge when rates are
+    known for under 100% of the hours.
+- **Day charts**: Saturday, Sunday and holiday columns are tinted; days tagged as disrupted
+  (Lost time) get an amber marker over the day number, on Overview, Daily manpower, Overtime,
+  the manpower histogram and the fatigue trend. One tooltip per day gives the day type, each
+  series, the total, the planned headcount with the difference, and whether it was disrupted.
+- **Tables**: header rows stick inside scrolling tables, rows highlight on hover, numbers use
+  tabular figures.
+- **Accessibility**: a teal focus ring on everything focusable in the tab; chips, the spacing
+  switch and the expandable rows work from the keyboard.
+
+Not changed: the figures, filters and exports. Checked on the made-up demo workbook in light and
+dark. The e2e tests for the Analysis views pass, except `site-report` and `history`, which fail
+the same way on the previous code.
+
 ## BP bill check: against the BP Bill sheet and the supplier's claim (12 Nov 2026)
 
 Asked for: the BP Bill comparison left open in roadmap #8, with an educated guess at the sheet's

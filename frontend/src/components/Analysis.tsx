@@ -37,8 +37,9 @@ import { store } from "../store";
 import { fingerprint, recordColumns } from "./ManpowerSheet";
 import { formatShift } from "../time";
 import { describe } from "../codes";
-import { COLORS, DayBars, dayLabel, h } from "./charts";
+import { COLORS, DayBars, DisruptedCtx, dayLabel, h } from "./charts";
 import { Programme } from "./Programme";
+import { EmptyState } from "./EmptyState";
 import { RatesEditor } from "./RatesEditor";
 import { SiteReport } from "./SiteReport";
 import { LostTime } from "./LostTime";
@@ -98,6 +99,20 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
   const [error, setError] = useState<string | null>(null);
   useEffect(() => store.set("labour.analysis.view", view), [view]);
   const [moneyOn, setMoneyOn] = useState(() => store.get("labour.analysis.money") === "1");
+  // compact: tighter spacing for people who want more on one screen (remembered on this PC)
+  const [compact, setCompact] = useState(() => store.get("labour.analysis.compact") === "1");
+  useEffect(() => store.set("labour.analysis.compact", compact ? "1" : "0"), [compact]);
+  // the filters and view tabs stay in sight under the status bar while the page scrolls
+  const [barH, setBarH] = useState(0);
+  useEffect(() => {
+    const bar = document.querySelector(".statusbar") as HTMLElement | null;
+    if (!bar) return;
+    const fit = () => setBarH(bar.offsetHeight);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => store.set("labour.analysis.money", moneyOn ? "1" : "0"), [moneyOn]);
   const [ratesOpen, setRatesOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -153,6 +168,14 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
 
   const set = (patch: Partial<Filter>) => setFilter((f) => ({ ...f, ...patch }));
   const filtered = Boolean(filter.trade || filter.supervisor || filter.place || filter.code || filter.from || filter.to);
+  const dayName = (d?: number) => { const x = allDays.find((y) => y.day === d); return x ? dayLabel(x) : String(d); };
+  const chips: { key: string; label: string; value: string; clear: Partial<Filter> }[] = [
+    filter.trade ? { key: "trade", label: "Trade", value: filter.trade, clear: { trade: undefined } } : null,
+    filter.supervisor ? { key: "supervisor", label: "Supervisor", value: filter.supervisor, clear: { supervisor: undefined } } : null,
+    filter.place ? { key: "place", label: "Place", value: filter.place, clear: { place: undefined } } : null,
+    filter.code ? { key: "code", label: "Activity", value: [filter.code, desc(filter.code)].filter(Boolean).join(" · "), clear: { code: undefined } } : null,
+    filter.from || filter.to ? { key: "days", label: "Days", value: `${filter.from ? dayName(filter.from) : "first"} – ${filter.to ? dayName(filter.to) : "last"}`, clear: { from: undefined, to: undefined } } : null,
+  ].filter((c): c is NonNullable<typeof c> => c !== null);
 
   const doExport = async () => {
     setExporting(true);
@@ -173,13 +196,18 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
 
   return (
     <MoneyCtx.Provider value={money}>
-    <section className="analysis">
+    <DisruptedCtx.Provider value={disruptedSet}>
+    <section className={`analysis${compact ? " compact" : ""}`}>
       <div className="section-head">
         <h2>Analysis · {master.workbook}</h2>
         <span className="row analysis-tools">
           <span className="seg" role="group" aria-label="Show hours or rupees">
             <button className={!moneyOn ? "active" : ""} onClick={() => setMoneyOn(false)}>Hours</button>
             <button className={moneyOn ? "active" : ""} onClick={() => setMoneyOn(true)}>Rs</button>
+          </span>
+          <span className="seg" role="group" aria-label="Spacing">
+            <button className={!compact ? "active" : ""} aria-pressed={!compact} onClick={() => setCompact(false)} title="More space between sections">Comfortable</button>
+            <button className={compact ? "active" : ""} aria-pressed={compact} onClick={() => setCompact(true)} title="More on one screen">Compact</button>
           </span>
           <button className="link small" onClick={() => setRatesOpen((o) => !o)}>Standard rates…</button>
           <button onClick={() => setReportOpen(true)} disabled={!data.slices.length} title="One A4 page for a week or the month, and the monthly labour return">
@@ -224,6 +252,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         </p>
       )}
 
+      <div className="analysis-sticky" style={{ top: barH }}>
       <div className="filters card">
         <label>
           Trade
@@ -269,20 +298,29 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
             {allDays.map((d) => <option key={d.sheet} value={d.day}>{dayLabel(d)}</option>)}
           </select>
         </label>
-        {filtered && (
-          <button className="link" onClick={() => setFilter({})}>
+      </div>
+      {filtered && (
+        <div className="filter-chips" aria-label="Active filters">
+          {chips.map((c) => (
+            <span key={c.key} className="chip">
+              <span className="chip-label">{c.label}</span> {c.value}
+              <button className="chip-x" aria-label={`Remove filter ${c.label}: ${c.value}`} title="Remove this filter" onClick={() => set(c.clear)}>✕</button>
+            </span>
+          ))}
+          <button className="link small" onClick={() => setFilter({})}>
             Clear filters
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <nav className="subtabs" role="tablist">
-        {VIEWS.map(([v, label]) => (
+        {VIEWS.filter(([v]) => v !== "supervisors" || owned.length > 0 || view === v).map(([v, label]) => (
           <button key={v} role="tab" aria-selected={view === v} className={view === v ? "active" : ""} onClick={() => setView(v)}>
             {label}
           </button>
         ))}
       </nav>
+      </div>
 
       {view === "suggestions" ? (
         <SuggestionLog />
@@ -308,6 +346,11 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         <Activities groups={byCode(slices)} onPick={(code) => set({ code })} withActivities={data.withActivities} desc={desc} />
       ) : view === "places" ? (
         <PlacesTrades places={byPlace(slices)} trades={byTrade(slices)} onPlace={(place) => set({ place })} onTrade={(trade) => set({ trade })} />
+      ) : view === "supervisors" && !owned.length ? (
+        <EmptyState title="No supervisor sheets yet">
+          This view fills in once day sheets are pushed from supervisors' manpower sheets (Manpower sheet → Push, with the supervisor
+          chosen). Entries typed straight into a day sheet have no supervisor.
+        </EmptyState>
       ) : view === "supervisors" ? (
         <SupervisorsView data={data} entries={entries} slices={slices} days={daily(data, slices, filter)} owned={owned} reviews={reviews} month={month} onPick={(supervisor) => set({ supervisor })} desc={desc} />
       ) : view === "manpower" ? (
@@ -324,16 +367,20 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         <Compare current={master.workbook} />
       )}
     </section>
+    </DisruptedCtx.Provider>
     </MoneyCtx.Provider>
   );
 }
 
 // ------------------------------------------------------------------------------ the views
 
-function Kpi({ label, value, note, def }: { label: string; value: string; note?: string; def?: string }) {
+function Kpi({ label, value, note, def, badge }: { label: string; value: string; note?: string; def?: string; badge?: { text: string; title: string } }) {
   return (
     <div className="kpi">
-      <div className="kpi-value">{value}</div>
+      <div className="kpi-value">
+        {value}
+        {badge && <span className="badge warn kpi-badge" title={badge.title}>{badge.text}</span>}
+      </div>
       <div className="kpi-label">{label}</div>
       {note && <div className="kpi-note">{note}</div>}
       {def && <div className="kpi-def">{def}</div>}
@@ -342,17 +389,20 @@ function Kpi({ label, value, note, def }: { label: string; value: string; note?:
 }
 
 function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>; data: ReturnType<typeof applyFilter>; days: DayRow[]; onView: (v: View) => void; desc: Desc }) {
+  const disrupted = useContext(DisruptedCtx);
   const money = useContext(MoneyCtx);
   const top = byCode(data.slices).filter((g) => g.key !== NO_CODE).slice(0, 5);
   const trades = byTrade(data.slices).slice(0, 5);
+  // some hours have no rate: the cost is understated, and says so on the tile
+  const partial = k.coverage < 0.995 ? { text: "partial", title: `Rates known for ${pct(k.coverage)} of the hours: the cost leaves out the rest` } : undefined;
   return (
     <>
       {money && (
         <div className="kpis money">
-          <Kpi label="labour cost" value={rsShort(k.cost)} note="at standard rates" def="Normal hours × hourly rate, plus overtime × hourly rate × its multiplier." />
+          <Kpi label="labour cost" value={rsShort(k.cost)} note="at standard rates" badge={partial} def="Normal hours × hourly rate, plus overtime × hourly rate × its multiplier." />
           <Kpi label="OT premium" value={rsShort(k.otPremium)} note={k.cost ? `${pct(k.otPremium / k.cost)} of the cost` : undefined} def="Only the amount above the normal rate: what the overtime adds." />
           <Kpi label="unallocated cost (ZIDLE)" value={rsShort(k.idleCost)} note={k.cost ? `${pct(k.idleCost / k.cost)} of the cost` : undefined} def="Cost of worked hours not booked to an activity code." />
-          <Kpi label="cost per worker-day" value={rs(k.costPerWorkerDay)} note={`rates known for ${pct(k.coverage)} of hours`} def="Labour cost over worker-days with a rate." />
+          <Kpi label="cost per worker-day" value={rs(k.costPerWorkerDay)} note={`rates known for ${pct(k.coverage)} of hours`} badge={partial} def="Labour cost over worker-days with a rate." />
         </div>
       )}
       <div className="kpis">
@@ -368,7 +418,7 @@ function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>;
           <h3>Headcount by day</h3>
           <button className="link small" onClick={() => onView("manpower")}>by trade →</button>
         </div>
-        <DayBars days={days} series={[{ key: "all", label: "People", color: COLORS[0] }]} value={(d) => d.headcount} unit="people" />
+        <DayBars days={days} series={[{ key: "all", label: "People", color: COLORS[0] }]} value={(d) => d.headcount} unit="people" disrupted={disrupted} />
       </div>
       <div className="two-col">
         <div className="card">
@@ -671,6 +721,7 @@ function topTrades(days: DayRow[], n = 6) {
 }
 
 function Manpower({ days }: { days: DayRow[] }) {
+  const disrupted = useContext(DisruptedCtx);
   const { top, rest } = topTrades(days);
   const series = [
     ...top.map((t, i) => ({ key: t, label: t, color: COLORS[i] })),
@@ -683,7 +734,7 @@ function Manpower({ days }: { days: DayRow[] }) {
     <>
       <div className="card">
         <h3>People on site by day, by trade</h3>
-        <DayBars days={days} series={series} value={value} unit="people" />
+        <DayBars days={days} series={series} value={value} unit="people" disrupted={disrupted} />
       </div>
       <div className="card">
         <h3>By day</h3>
@@ -747,7 +798,8 @@ function Timeline({ slices, days, onPick, desc }: { slices: ReturnType<typeof ap
               return (
                 <tr key={c}>
                   <th>
-                    <button className="link" onClick={() => onPick(c)} title={desc(c) ?? undefined}>{c}</button>
+                    <button className="link" onClick={() => onPick(c)} title={`${desc(c) ? `${desc(c)}\n` : ""}Click to filter every view by this activity`}>{c}</button>
+                    <span className="pick-hint" aria-hidden="true">filter</span>
                     {desc(c) && <div className="muted small heat-desc">{desc(c)}</div>}
                   </th>
                   {days.map((d) => {
@@ -769,6 +821,7 @@ function Timeline({ slices, days, onPick, desc }: { slices: ReturnType<typeof ap
 }
 
 function Overtime({ days, trades, persons }: { days: DayRow[]; trades: Group[]; persons: PersonRow[] }) {
+  const disrupted = useContext(DisruptedCtx);
   const money = useContext(MoneyCtx);
   const ot = trades.reduce((s, t) => s + t.ot, 0);
   const all = trades.reduce((s, t) => s + t.hours, 0);
@@ -780,7 +833,7 @@ function Overtime({ days, trades, persons }: { days: DayRow[]; trades: Group[]; 
           {h(ot)} h overtime, {pct(all ? ot / all : 0)} of all hours. Overtime as Excel works it out (after 8 h on a normal day,
           5.5 h on Saturday, all hours on Sundays and holidays).
         </p>
-        <DayBars days={days} series={[{ key: "ot", label: "OT hours", color: COLORS[1] }]} value={(d) => d.ot} unit="h" />
+        <DayBars days={days} series={[{ key: "ot", label: "OT hours", color: COLORS[1] }]} value={(d) => d.ot} unit="h" disrupted={disrupted} />
       </div>
       <div className="card">
         <h3>By trade</h3>
@@ -1153,11 +1206,14 @@ function SortTable<T>({ cols, rows, rowKey, initial, limit = 30, expand, search 
           </tbody>
         </table>
       </div>
-      {shown.length > limit && (
-        <button className="link small" onClick={() => setAll(!all)}>
-          {all ? "Show fewer" : `Show all ${shown.length}`}
-        </button>
-      )}
+      <div className="table-foot">
+        {expand && visible.length > 0 && <span className="muted small">▸ Click a row (or press Enter on it) to open its breakdown.</span>}
+        {shown.length > limit && (
+          <button className="link small" onClick={() => setAll(!all)}>
+            {all ? "Show fewer" : `Show all ${shown.length}`}
+          </button>
+        )}
+      </div>
     </>
   );
 }
@@ -1165,7 +1221,15 @@ function SortTable<T>({ cols, rows, rowKey, initial, limit = 30, expand, search 
 function RowWithDetail({ open, cols, detail, onToggle, children }: { open: boolean; cols: number; detail: ReactNode; onToggle?: () => void; children: ReactNode }) {
   return (
     <>
-      <tr className={onToggle ? `clickable${open ? " open" : ""}` : ""} onClick={onToggle}>{children}</tr>
+      <tr
+        className={onToggle ? `clickable expandable${open ? " open" : ""}` : ""}
+        onClick={onToggle}
+        tabIndex={onToggle ? 0 : undefined}
+        aria-expanded={onToggle ? open : undefined}
+        onKeyDown={onToggle ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } } : undefined}
+      >
+        {children}
+      </tr>
       {open && (
         <tr className="detail-row">
           <td colSpan={cols} onClick={(e) => e.stopPropagation()}>{detail}</td>

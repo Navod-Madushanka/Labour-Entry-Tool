@@ -1016,7 +1016,7 @@ section.desc-card { border-top-color: var(--accent); }
 
 /* As-built programme (roadmap #2) */
 .chart .legend i.line { width: 18px; height: 0; border-top: 2.5px dashed; border-radius: 0; background: none; vertical-align: 3px; }
-.gantt-row:hover rect:first-of-type { stroke: var(--accent); }
+.gantt-row:hover rect.gantt-bar, .gantt-row:focus-visible rect.gantt-bar { stroke: var(--primary); }
 .seg { display: inline-flex; border: 1px solid var(--field-line); border-radius: 6px; overflow: hidden; }
 .seg button { border: none; border-radius: 0; background: transparent; padding: 4px 10px; font-size: 12.5px; color: var(--muted); }
 .seg button + button { border-left: 1px solid var(--field-line); }
@@ -1165,3 +1165,104 @@ tr.detail-row > td { background: var(--row); padding: 6px 10px 10px; }
 .bp-fix { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; font-size: 13px; }
 .bp-fix label { display: flex; align-items: center; gap: 6px; }
 .bp-fix input { width: 6ch; padding: 3px 6px; }
+
+/* ---------------------------------------------------------------- Analysis visual system
+   Semantic colours: primary (selected, actions) deep teal; positive green; caution amber
+   (overtime, fatigue); critical coral (data problems). The orange stays the brand mark.
+   Chart series c1..c6 are the top six trades / activities, picked to stay apart in both
+   themes; c7 is the single grey for "Other". Defined on :root so saved chart images match. */
+:root {
+  --primary: #0f6e6a; --primary-hover: #0b5854; --primary-bg: #e2f0ee; --primary-text: #ffffff;
+  --positive: #2f7d4f; --positive-bg: #e3f2e8;
+  --caution: #a35f00; --caution-bg: #fdf1dc;
+  --critical: #c2453b; --critical-bg: #fbe7e4;
+  --c1: #0f7b74; --c2: #e0620f; --c3: #4f55c9; --c4: #c2477a; --c5: #b8901a; --c6: #5f8f2f; --c7: #9aa1ac;
+  --gap: 20px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #3fbcae; --primary-hover: #5fd0c3; --primary-bg: #12302d; --primary-text: #062421;
+    --positive: #6fcf8f; --positive-bg: #163222;
+    --caution: #f0b44c; --caution-bg: #3a2c14;
+    --critical: #ff8d80; --critical-bg: #3c1f1c;
+    --c1: #3fbcae; --c2: #fb8c3c; --c3: #9196f5; --c4: #e47aa3; --c5: #dcbc4a; --c6: #9cc46a; --c7: #7d8593;
+  }
+}
+
+/* rhythm: one gap between the major blocks, tighter in Compact */
+.analysis { --gap: 20px; }
+.analysis.compact { --gap: 10px; }
+.analysis .card { border-top: 1px solid var(--line); margin-bottom: var(--gap); padding: 18px 20px; }
+.analysis.compact .card { padding: 10px 14px; }
+.analysis .two-col { gap: var(--gap); }
+.analysis .kpis { gap: 12px; margin-bottom: var(--gap); grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.analysis .card h3 { margin-top: 0; }
+.analysis .card-head { margin-bottom: 8px; }
+.analysis > p.muted.small { margin: 4px 0 12px; max-width: 90ch; }
+
+/* selected and primary actions in teal */
+.analysis .seg button.active { background: var(--primary); color: var(--primary-text); }
+.analysis button.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
+.analysis button.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+.analysis button.link, .analysis a { color: var(--primary); }
+.analysis .subtabs button.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+.analysis .subtabs button:hover:not(.active) { color: var(--text); }
+.analysis :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.analysis tr:focus-visible { outline-offset: -2px; }
+
+/* tiles: the number first, large and even; label, note and definition stepping down */
+.analysis .kpi { padding: 16px 18px; border-radius: 10px; box-shadow: var(--shadow); }
+.analysis .kpi-value { font-size: 30px; font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: tabular-nums lining-nums; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.analysis .kpi-label { font-size: 13px; color: var(--text); font-weight: 500; margin-top: 6px; }
+.analysis .kpi-note { font-size: 12px; color: var(--muted); }
+.analysis .kpi-def { font-size: 11px; color: var(--muted); opacity: 0.85; margin-top: 6px; }
+.analysis.compact .kpi { padding: 9px 11px; }
+.analysis.compact .kpi-value { font-size: 22px; }
+.analysis.compact .kpi-def { display: none; }
+.analysis .kpis.money .kpi { border-top: 3px solid var(--c3); }
+.analysis .kpi.kpi-warn { border-top: 3px solid var(--caution); }
+.analysis .kpi.kpi-warn .kpi-value { color: var(--caution); }
+.kpi-badge { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; cursor: help; }
+
+/* the filters and view tabs stay in sight while scrolling (top set from the status bar) */
+.analysis-sticky { position: sticky; z-index: 4; background: var(--panel); padding-top: 8px; margin-bottom: var(--gap); box-shadow: 0 6px 8px -8px #0003; }
+.analysis-sticky .filters.card { margin-bottom: 8px; padding: 10px 16px; }
+.analysis-sticky .subtabs { margin: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+.analysis-sticky .subtabs button { white-space: nowrap; flex: none; }
+@media (max-width: 760px), (max-height: 620px) { .analysis-sticky { position: static; box-shadow: none; } }
+
+/* active filters as chips, each removable */
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-bg); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); border-radius: 999px; padding: 1px 2px 1px 10px; font-size: 12.5px; }
+.chip-label { opacity: 0.75; font-weight: 500; }
+.chip-x { background: none; border: none; color: inherit; padding: 1px 6px; border-radius: 999px; font-size: 11px; line-height: 1.4; cursor: pointer; }
+.chip-x:hover { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+
+/* tables: sticky header inside scrolling boxes, even numbers, room to breathe */
+.analysis table.data th, .analysis table.data td { padding: 6px 10px; }
+.analysis.compact table.data th, .analysis.compact table.data td { padding: 3px 8px; }
+.analysis table.data .num { font-variant-numeric: tabular-nums lining-nums; }
+.analysis .table-wrap table.data thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+.analysis table.data tbody tr:hover { background: var(--row); }
+/* expandable rows: a caret drawn as a background (keeps the cell text as it was) */
+table.data tr.expandable > td:first-child { padding-left: 24px; background: no-repeat 9px 50% / 8px 8px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M2 0l4 4-4 4z' fill='%238a919c'/%3E%3C/svg%3E"); }
+table.data tr.expandable.open > td:first-child { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%230f6e6a'/%3E%3C/svg%3E"); }
+.table-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.table-foot:empty { display: none; }
+
+/* "filter by this" where a click sets the Activity filter */
+.gantt-row { outline: none; }
+.gantt-row:hover .gantt-hover, .gantt-row:focus-visible .gantt-hover { opacity: 0.7; }
+.gantt-row:hover .gantt-pick, .gantt-row:focus-visible .gantt-pick { opacity: 1; }
+.pick-hint { display: none; margin-left: 6px; font-size: 10.5px; color: var(--primary); border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; vertical-align: 1px; }
+tr:hover > th .pick-hint, tr:focus-within > th .pick-hint { display: inline-block; }
+
+/* empty states and one-time hints */
+.view-empty { border: 1px dashed var(--field-line) !important; background: transparent; box-shadow: none; padding: 20px 24px; max-width: 760px; }
+.view-empty > b { font-size: 15px; display: block; margin-bottom: 4px; }
+.view-empty p { margin: 0; }
+.view-empty ol { margin: 10px 0 0; padding-left: 20px; color: var(--muted); }
+.view-empty ol li { margin-bottom: 4px; }
+.coach { border-left: 4px solid var(--primary) !important; background: var(--primary-bg); }
+.coach > b { color: var(--primary); }
+.day-hit { cursor: default; }
