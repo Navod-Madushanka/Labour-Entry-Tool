@@ -188,6 +188,8 @@ export function TimeCards({ master, month, user }: Props) {
       )}
 
       {sheets && sheets.length > 0 && (
+        <fieldset className="tc-config" disabled={running}>
+        <legend>Printer configuration</legend>
         <div className="tc-grid">
           <div className="field">
             <label htmlFor="tc-sheet">Time card sheet</label>
@@ -216,12 +218,16 @@ export function TimeCards({ master, month, user }: Props) {
               onChange={(e) => setCell(e.target.value.toUpperCase().trim())}
               placeholder="e.g. E8"
             />
-            <small className="hint">
-              {chosen?.note ??
-                (chosen?.cell
-                  ? `Found next to "Calling Name"${chosen.current ? ` (now ${String(chosen.current)})` : ""}`
-                  : "Type the cell where the calling name goes")}
-            </small>
+            {chosen?.note ? (
+              <span className="tc-found warn">⚠ {chosen.note}</span>
+            ) : chosen?.cell && cell === chosen.cell ? (
+              <span className="tc-found ok" title="The tool found this cell next to the Calling Name label">
+                ✓ Found next to "Calling Name"
+                {chosen.current ? <> · now <b>{String(chosen.current)}</b></> : null}
+              </span>
+            ) : (
+              <span className="tc-found">ⓘ {cell ? "Your cell: the calling name goes here" : "Type the cell where the calling name goes"}</span>
+            )}
           </div>
           <div className="field">
             <label htmlFor="tc-copies">Copies of each</label>
@@ -238,6 +244,10 @@ export function TimeCards({ master, month, user }: Props) {
             />
           </div>
         </div>
+        <p className="muted small tc-config-note">
+          Print area, page setup and printer come from Excel. Check them there before a big run.
+        </p>
+        </fieldset>
       )}
 
       <div className="field">
@@ -433,14 +443,31 @@ export function TimeCards({ master, month, user }: Props) {
                 ▶ Continue from {left[0]} ({left.length} left)
               </button>
             )}
+            {!left && names.length > 0 && (
+              <div className={`tc-scope${names.length >= 50 ? " large" : ""}`} aria-live="polite">
+                <span className="tc-scope-n">{names.length}</span>
+                <span>
+                  time card{names.length === 1 ? "" : "s"}
+                  {copies > 1 ? <> × {copies} copies = <b>{names.length * copies} pages</b></> : null}
+                  <br />
+                  <span className="muted small">
+                    from "{sheet}", name into {cell || "?"}
+                    {chosen?.practice ? " · practice, nothing prints" : ""}
+                  </span>
+                </span>
+              </div>
+            )}
             <button
-              className={left ? "big" : "primary big"}
+              className={left ? "big" : "primary big tc-print"}
               disabled={!names.length || !cell || !sheet}
               onClick={print}
             >
+              {!left && <span aria-hidden="true">🖨 </span>}
               {left
                 ? "Print the whole list again"
-                : `Print ${names.length || ""} time card${names.length === 1 ? "" : "s"}`}
+                : names.length
+                  ? `Print ${names.length} time card${names.length === 1 ? "" : "s"}${copies > 1 ? ` (${names.length * copies} pages)` : ""}`
+                  : "Print time cards"}
             </button>
           </>
         )}

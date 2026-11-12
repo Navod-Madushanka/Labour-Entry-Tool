@@ -984,3 +984,17 @@ section.reg-check { border-top-color: var(--info); }
 .tree-tag { font: 700 9px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.06em; padding: 3px 4px; border-radius: 3px; color: #58a6ff; background: #58a6ff1f; border: 1px solid #58a6ff55; }
 .tree-row + .tree-cols { border-left: 1px solid var(--line); margin-left: 12px; padding-left: 6px; }
 .trade-table td:first-child input { width: 12ch; }
+
+/* Time cards: settings grouped in one card; the print button shows the exact size of the job */
+fieldset.tc-config { border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px 8px; margin: 12px 0 16px; background: color-mix(in srgb, var(--bg) 45%, var(--panel)); }
+fieldset.tc-config legend { padding: 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+fieldset.tc-config .tc-grid { margin: 4px 0 6px; align-items: flex-start; }
+.tc-config-note { margin: 2px 0 0; }
+.tc-found { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 2px 8px; border-radius: 999px; font-size: 12px; color: var(--muted); background: var(--row); border: 1px solid var(--line); }
+.tc-found.ok { color: var(--ok); background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.tc-found.warn { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.tc-scope { display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--row); line-height: 1.25; }
+.tc-scope-n { font-size: 26px; font-weight: 800; min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.tc-scope.large { border-color: var(--warn); background: color-mix(in srgb, var(--warn-bg) 55%, var(--panel)); }
+.tc-scope.large .tc-scope-n { color: var(--warn); }
+button.primary.tc-print { font-size: 17px; padding: 12px 26px; letter-spacing: 0.01em; box-shadow: 0 2px 0 var(--accent-hover), 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent); }

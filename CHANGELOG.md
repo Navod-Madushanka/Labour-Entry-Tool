@@ -1,5 +1,19 @@
 # Changelog
 
+## Time cards: grouped printer settings, job size before printing (12 Nov 2026)
+
+Asked for (design review of the Time cards page).
+
+- Time card sheet, Calling name cell and Copies of each sit in one card, "Printer
+  configuration", apart from the worker list. A line under them reminds you that the print area,
+  page setup and printer come from Excel.
+- The cell hint is a small badge: green "✓ Found next to "Calling Name" · now INB-01" when the
+  tool found the cell, amber when there is a problem, grey when you typed your own cell.
+- Next to the print button a summary shows the size of the job: "231 time cards × 2 copies =
+  462 pages, from "Time Card", name into E8". It turns amber from 50 cards up.
+- The button says the exact job: "🖨 Print 231 time cards", with "(462 pages)" when there is more
+  than one copy. It is larger, and the confirm question before printing is unchanged.
+
 ## Codes & registration: three sub-tabs, a dark SQL editor, clearer edit boxes (12 Nov 2026)
 
 Asked for (design review of the Codes & registration tab).
