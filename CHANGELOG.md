@@ -1,5 +1,28 @@
 # Changelog
 
+## Roadmap #7, fatigue and OT risk (12 Nov 2026)
+
+Asked for: roadmap #7, long weeks shown as a risk to output, not only to compliance.
+
+- New Analysis view **Fatigue & OT risk**:
+  - Limits are **settings** (*Change limits…*): worked hours in any 7 days (default 60), overtime
+    in any 7 days (20), days in a row without a day off (13), rest between shifts (8 h, as W02).
+    Defaults until HR confirms them (the building trade's Wages Board decision or company
+    policy). `POST /api/setup/limits`; `/api/master` carries `limits`.
+  - Counts of people over each limit and Sunday/holiday worker-days.
+  - **People over the 7-day hours limit, by day**: the site's fatigue trend.
+  - **Why it matters for output**: the CII scheduled-overtime finding (50–60 hour weeks lost about
+    12–14% efficiency over several weeks) and, once quantities exist (roadmap #6), this site's own
+    productivity index in its high-overtime weeks against the others.
+  - **By person** (over a limit, or everyone; searchable): most hours and most OT in any 7 days,
+    days in a row, short rests between consecutive days (with the shortest rest), Sundays and
+    holidays worked, and which limits are crossed; riskiest first.
+- Rolling windows are 7 calendar days up to each day; a person's base and role calling names
+  count together; a day with nobody on site breaks no one's run (as on Attendance).
+- Tests: `tests/analysis.test.cjs` (7-day hours and OT, runs, rests, the trend), `backend/tests/
+  test_rates.py` (limits saved and checked), `e2e/fatigue.cjs` (stricter limits flag more
+  people); made-up data.
+
 ## Roadmap #6, productivity and unit cost: hours and Rs per unit against a norm (12 Nov 2026)
 
 Asked for: roadmap #6, the QS's own language: Rs per m³ against the BOQ.

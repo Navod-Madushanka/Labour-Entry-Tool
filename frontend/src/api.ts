@@ -62,6 +62,7 @@ export interface Master {
   quantities?: Record<string, Record<string, number>>; // code -> week (Monday) -> quantity done
   units?: Record<string, string>; // code -> unit
   norms?: Record<string, { hours: number; source: string }>; // code -> norm hours per unit
+  limits?: { week_hours: number; week_ot: number; days_in_row: number; rest_hours: number }; // fatigue limits
 }
 
 export interface Place {
@@ -574,6 +575,7 @@ export const api = {
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   rates: () => call<RatesView>("GET", "/api/setup/rates"),
   lostTime: () => call<LostView>("GET", "/api/lost-time"),
+  saveLimits: (body: { week_hours: number; week_ot: number; days_in_row: number; rest_hours: number }) => call<unknown>("POST", "/api/setup/limits", body),
   saveQuantities: (body: { quantities: Record<string, Record<string, number>>; units: Record<string, string>; norms: Record<string, { hours: number; source: string }> }) =>
     call<SetupState>("POST", "/api/setup/quantities", body),
   setLostTime: (body: { user: string; sheet: string; supervisor?: string | null; causes: string[]; note?: string | null }) =>

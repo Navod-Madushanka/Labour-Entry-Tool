@@ -236,6 +236,7 @@ class MasterView(BaseModel):
     quantities: dict[str, dict[str, float]] = {}  # code -> week (Monday) -> quantity done
     units: dict[str, str] = {}  # code -> unit of its quantity (m3, t, m2…)
     norms: dict[str, dict] = {}  # code -> {"hours": norm hours per unit, "source": "BOQ"}
+    limits: dict = {}  # fatigue and OT limits: week_hours, week_ot, days_in_row, rest_hours
 
 
 class EntryView(BaseModel):
@@ -380,6 +381,7 @@ class EntryService:
             quantities=self.config.quantities,
             units=self.config.units,
             norms=self.config.norms,
+            limits=self.config.limits,
         )  # fmt: skip
 
     def _rates(self, m: MasterData) -> dict:

@@ -70,3 +70,14 @@ def test_quantities_units_and_norms(small_snapshot, tmp_path):
         assert c.post("/api/setup/quantities", json=bad).status_code == 422
         neg = {"quantities": {}, "norms": {"X": {"hours": 0}}}
         assert c.post("/api/setup/quantities", json=neg).status_code == 422
+
+
+def test_fatigue_limits(small_snapshot, tmp_path):
+    with TestClient(practice(small_snapshot, tmp_path)) as c:
+        c.post("/api/setup/check")
+        limits = c.get("/api/master").json()["limits"]
+        assert limits == {"week_hours": 60, "week_ot": 20, "days_in_row": 13, "rest_hours": 8}
+        body = {"week_hours": 55, "week_ot": 12, "days_in_row": 6, "rest_hours": 10}
+        assert c.post("/api/setup/limits", json=body).status_code == 200
+        assert c.get("/api/master").json()["limits"] == body
+        assert c.post("/api/setup/limits", json={**body, "week_hours": 0}).status_code == 422

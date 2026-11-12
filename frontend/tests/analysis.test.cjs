@@ -253,4 +253,23 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
   near(unmeasured.allHours, 48, "all hours"); near(unmeasured.hours, 0, "none measured"); assert.equal(unmeasured.hpu, null);
 }
 
+// fatigue and OT risk: worst 7 days, days in a row, short rests, against the limits
+{
+  const lim = { week_hours: 30, week_ot: 15, days_in_row: 1, rest_hours: 8 };
+  const rows = A.fatigue(data, data.entries, lim);
+  const aa = rows.find((r) => r.person === "AA-01");
+  near(aa.maxWeek, 11 + 15 + 8, "days 1, 2 and 4 fall in one 7-day window");
+  near(aa.maxWeekOt, 3 + 7 + 8, "OT in the window");
+  assert.equal(aa.longestRun, 3, "days 1, 2 and 4: day 3 had nobody on site, so it breaks no run");
+  assert.equal(aa.shortRests, 0); near(aa.minRest, 12, "out 19:00, in 07:00 next day");
+  assert.deepEqual(aa.flags, ["7-day hours", "7-day OT", "days in a row"]);
+  assert.equal(rows[0].person, "AA-01", "riskiest first");
+  const strict = A.fatigue(data, data.entries, { ...lim, rest_hours: 13 }).find((r) => r.person === "AA-01");
+  assert.equal(strict.shortRests, 1); assert.ok(strict.flags.includes("short rest"));
+  const trend = A.overLimitByDay(data, data.entries, lim);
+  assert.equal(trend.get(4), 1, "AA-01 is over 30 h in the 7 days to day 4");
+  assert.equal(trend.get(1), 0);
+  assert.equal(A.otAndOutput(data, []), null, "no quantities: no output link");
+}
+
 console.log("analysis: all passed");

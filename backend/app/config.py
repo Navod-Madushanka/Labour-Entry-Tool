@@ -157,6 +157,7 @@ class Config(BaseModel):
     quantities: dict[str, dict[str, float]] = {}
     units: dict[str, str] = {}
     norms: dict[str, dict] = {}
+    limits: dict = {}  # fatigue and OT limits (roadmap #7), app/api/setup.py: DEFAULT_LIMITS
     # calling-name trade letter -> trade ("R": "Rigger"); a worker's trade comes from it, else
     # from Labour Detail's trade column. Defaults: app.domain.codes.TRADE_NAMES (set in __init__)
     trade_letters: dict[str, str] | None = None

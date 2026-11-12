@@ -1141,3 +1141,10 @@ tr.detail-row > td { background: var(--row); padding: 6px 10px 10px; }
 .qty-grid input { width: 8ch; padding: 3px 6px; text-align: right; }
 .qty-grid input.qty-unit { width: 6ch; text-align: left; }
 .qty-grid th { white-space: nowrap; vertical-align: middle; }
+
+/* Fatigue and OT risk (roadmap #7) */
+.kpi.kpi-warn { border-top: 3px solid var(--warn); }
+.kpi.kpi-warn .kpi-value { color: var(--warn); }
+.fatigue-evidence { border-top-color: var(--c6); }
+.fatigue-table .badge { margin-right: 3px; }
+.limits-card { border-top-color: var(--warn); }

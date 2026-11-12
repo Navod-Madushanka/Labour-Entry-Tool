@@ -998,3 +998,127 @@ export function productivity(
     }; // prettier-ignore
   }).sort((a, b) => b.allHours - a.allHours);
 }
+
+// ------------------------------------------------------------------------- fatigue and OT risk
+
+export interface Limits {
+  week_hours: number; // worked hours in any 7 days
+  week_ot: number; // overtime hours in any 7 days
+  days_in_row: number; // days in a row without a day off
+  rest_hours: number; // rest between one day's Out and the next day's In
+}
+
+export const DEFAULT_LIMITS: Limits = { week_hours: 60, week_ot: 20, days_in_row: 13, rest_hours: 8 };
+
+export interface FatigueRow {
+  person: string;
+  name: string; // the first calling name
+  trade: string;
+  days: number;
+  maxWeek: number; // most hours worked in any 7 days
+  maxWeekOt: number;
+  daysOverWeek: number; // days whose 7 days up to them were over the hours limit
+  daysOverOt: number;
+  longestRun: number;
+  shortRests: number; // nights with less rest than the limit
+  minRest: number | null;
+  sundays: number; // Sundays and holidays worked
+  flags: string[]; // "7-day hours", "7-day OT", "days in a row", "short rest"
+}
+
+/** Per person, against the limits: the worst 7 days (hours and OT), days in a row, short rests
+ * between consecutive days, Sundays and holidays worked. Riskiest first. */
+export function fatigue(data: Data, entries: EntryRow[], limits: Limits = DEFAULT_LIMITS): FatigueRow[] {
+  const base = new Map(people(data, entries).map((p) => [p.person, p]));
+  const lastDay = Math.max(0, ...data.days.map((d) => d.day));
+  const by = new Map<string, Map<number, { worked: number; ot: number; tin: number | null; tout: number | null }>>();
+  for (const e of entries) {
+    const m = by.get(e.person) ?? new Map();
+    const d = m.get(e.day) ?? { worked: 0, ot: 0, tin: null, tout: null };
+    d.worked += e.worked;
+    d.ot += e.ot;
+    if (e.tin !== null) d.tin = d.tin === null ? e.tin : Math.min(d.tin, e.tin);
+    if (e.tout !== null) d.tout = d.tout === null ? e.tout : Math.max(d.tout, e.tout);
+    m.set(e.day, d);
+    by.set(e.person, m);
+  }
+  const rows: FatigueRow[] = [];
+  for (const [person, days] of by) {
+    const p = base.get(person);
+    let maxWeek = 0, maxWeekOt = 0, daysOverWeek = 0, daysOverOt = 0;
+    for (let d = 1; d <= lastDay; d++) {
+      let wh = 0, wo = 0;
+      for (let k = d - 6; k <= d; k++) {
+        const x = days.get(k);
+        if (x) { wh += x.worked; wo += x.ot; }
+      }
+      maxWeek = Math.max(maxWeek, wh);
+      maxWeekOt = Math.max(maxWeekOt, wo);
+      if (days.has(d) && wh > limits.week_hours) daysOverWeek += 1;
+      if (days.has(d) && wo > limits.week_ot) daysOverOt += 1;
+    }
+    let shortRests = 0, minRest: number | null = null;
+    for (const [d, x] of days) {
+      const next = days.get(d + 1);
+      if (!next || x.tout === null || next.tin === null) continue;
+      const rest = 24 + next.tin - x.tout;
+      minRest = minRest === null ? rest : Math.min(minRest, rest);
+      if (rest < limits.rest_hours) shortRests += 1;
+    }
+    const longestRun = p?.longestRun ?? 0;
+    const flags = [
+      maxWeek > limits.week_hours && "7-day hours",
+      maxWeekOt > limits.week_ot && "7-day OT",
+      longestRun > limits.days_in_row && "days in a row",
+      shortRests > 0 && "short rest",
+    ].filter((f): f is string => Boolean(f));
+    rows.push({
+      person, name: p?.names[0] ?? person, trade: p?.trade ?? NO_TRADE, days: days.size, maxWeek, maxWeekOt, daysOverWeek, daysOverOt,
+      longestRun, shortRests, minRest, sundays: (p?.sundays ?? 0) + (p?.holidays ?? 0), flags,
+    }); // prettier-ignore
+  }
+  return rows.sort((a, b) => b.flags.length - a.flags.length || b.maxWeek - a.maxWeek || a.name.localeCompare(b.name));
+}
+
+/** People each day whose 7 days up to it were over the hours limit (the site's fatigue trend). */
+export function overLimitByDay(data: Data, entries: EntryRow[], limits: Limits = DEFAULT_LIMITS): Map<number, number> {
+  const per = new Map<string, Map<number, number>>();
+  for (const e of entries) {
+    const m = per.get(e.person) ?? new Map<number, number>();
+    m.set(e.day, (m.get(e.day) ?? 0) + e.worked);
+    per.set(e.person, m);
+  }
+  const out = new Map<number, number>();
+  for (const d of data.days) {
+    let n = 0;
+    for (const m of per.values()) {
+      if (!m.has(d.day)) continue;
+      let wh = 0;
+      for (let k = d.day - 6; k <= d.day; k++) wh += m.get(k) ?? 0;
+      if (wh > limits.week_hours) n += 1;
+    }
+    out.set(d.day, n);
+  }
+  return out;
+}
+
+/** Overtime against output: the productivity index of code-weeks with a high OT share (above
+ * the median) against those with a low one; null without at least two measured weeks. */
+export function otAndOutput(data: Data, rows: ProdRow[]): { highOt: number; lowOt: number; split: number; weeks: number } | null {
+  const pairs: { ot: number; index: number }[] = [];
+  for (const r of rows)
+    for (const w of r.weeks) {
+      if (w.index === null) continue;
+      const p = periods(data).find((x) => x.key === `w:${w.week}`);
+      if (!p) continue;
+      const xs = data.slices.filter((s) => s.code === r.code && s.day >= p.from && s.day <= p.to);
+      const hours = sumBy(xs, (s) => s.hours);
+      if (hours > 0) pairs.push({ ot: sumBy(xs, (s) => s.ot) / hours, index: w.index });
+    }
+  if (pairs.length < 2) return null;
+  const split = median(pairs.map((x) => x.ot))!;
+  const hi = pairs.filter((x) => x.ot > split), lo = pairs.filter((x) => x.ot <= split);
+  if (!hi.length || !lo.length) return null;
+  const avg = (xs: typeof pairs) => sumBy(xs, (x) => x.index) / xs.length;
+  return { highOt: avg(hi), lowOt: avg(lo), split, weeks: pairs.length };
+}

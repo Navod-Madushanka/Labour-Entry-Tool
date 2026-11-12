@@ -43,6 +43,7 @@ import { RatesEditor } from "./RatesEditor";
 import { SiteReport } from "./SiteReport";
 import { LostTime } from "./LostTime";
 import { Productivity } from "./Productivity";
+import { Fatigue } from "./Fatigue";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -52,7 +53,7 @@ const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "programme" | "productivity" | "lost" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["programme", "As-built programme"],
@@ -64,6 +65,7 @@ const VIEWS: [View, string][] = [
   ["timeline", "Task timeline"],
   ["overtime", "Overtime"],
   ["lost", "Lost time"],
+  ["fatigue", "Fatigue & OT risk"],
   ["attendance", "Attendance"],
   ["quality", "Data quality"],
   ["compare", "Compare months"],
@@ -272,6 +274,8 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         <Programme slices={slices} days={daily(data, slices, filter)} master={master} trade={filter.trade} desc={desc} onPick={(code) => set({ code })} onSaved={() => onMasterChanged?.()} />
       ) : view === "productivity" ? (
         <Productivity data={data} master={master} desc={desc} money={money} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
+      ) : view === "fatigue" ? (
+        <Fatigue data={data} entries={entries} days={daily(data, slices, filter)} master={master} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
       ) : view === "lost" ? (
         <LostTime data={data} slices={slices} items={lost.items} causes={lost.causes} user={user} onSaved={(items) => setLost((l) => ({ ...l, items }))} />
       ) : view === "activities" ? (

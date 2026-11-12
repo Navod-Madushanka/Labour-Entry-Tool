@@ -195,6 +195,7 @@ class Session:
             update["plan"] = self.settings.get_key(plan_key(book.name)).get("plan", {})
             update["rates"] = rates_for(self.settings.get_key(RATES_KEY), book.name)
             update["quantities"] = self.settings.get_key(qty_key(book.name)).get("quantities", {})
+            update["limits"] = {**DEFAULT_LIMITS, **self.settings.get_key(LIMITS_KEY)}
             if book.places_key:
                 saved = self.settings.get_key(book.places_key)
                 update["units"] = saved.get("units", {})
@@ -989,6 +990,34 @@ def set_quantities(body: QuantitiesRequest, request: Request) -> SetupState:
     session.settings.set_key(book.places_key, units=units, norms=norms)
     _apply(request, session)
     return session.sync()
+
+
+# --- fatigue and OT limits (roadmap #7) -----------------------------------------------------------
+
+LIMITS_KEY = "limits"  # in the settings file, for every workbook
+# Defaults until HR confirms them (the building trade's Wages Board decision or company policy).
+DEFAULT_LIMITS = {
+    "week_hours": 60.0,  # worked hours in any 7 days
+    "week_ot": 20.0,  # overtime hours in any 7 days
+    "days_in_row": 13,  # days in a row without a day off (more is flagged)
+    "rest_hours": 8.0,  # rest between one day's Out and the next day's In (W02)
+}
+
+
+class Limits(BaseModel):
+    week_hours: float = Field(60, gt=0, le=168)
+    week_ot: float = Field(20, ge=0, le=168)
+    days_in_row: int = Field(13, ge=1, le=60)
+    rest_hours: float = Field(8, ge=0, le=24)
+
+
+@router.post("/limits", response_model=Limits)
+def set_limits(body: Limits, request: Request) -> Limits:
+    """Save the fatigue and OT limits (settings, to be confirmed with HR)."""
+    session = _session(request)
+    session.settings.set_key(LIMITS_KEY, **body.model_dump())
+    _apply(request, session)
+    return body
 
 
 # --- trades by calling-name letter ("INR-01" is a Rigger) ----------------------------------------
