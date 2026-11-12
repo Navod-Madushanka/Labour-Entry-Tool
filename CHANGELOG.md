@@ -1,5 +1,25 @@
 # Changelog
 
+## Phase 0 cleanup: soak test, flaky test, README (12 Nov 2026)
+
+Asked for: the roadmap's Phase 0 cleanup before people depend on the tool.
+
+- **`e2e/soak.cjs` works again**: the command step uses the SQL panel (Ctrl+K, a query and a
+  command) instead of the old command box, a day also opens Analysis, and the entry keystrokes
+  take the first suggestion with ↓ when the activity box is not filled (since the box is filled
+  only when the crew agrees). Full run (11 days × 40 workers, made-up data): every worker
+  queued, push 0.3–0.7 s, server memory flat at 196–199 MB, page heap 8 → 11 MB, no errors. The
+  slow rise in event listeners is per row of lists that really grow (batches, days); window and
+  document listeners stay constant (checked).
+- **`e2e/next-and-crew.cjs` is no longer flaky**: the fourth worker's keystrokes now wait for
+  each step (the worker picked, then the activity box) and for the suggestion to settle before
+  reading it; it failed about 1 run in 6 before, 10 of 10 pass now.
+- **README** brought up to date: the SQL and commands window on Codes & registration → SQL &
+  data, the keyboard flow with the "probably next" list and the confident fill, the manpower sheet
+  and push (supervisor, lost time), medical leave days, a new section on Analysis, reports and
+  sharing for the PM and QS (every view, standard rates, the site report, the evening report, the
+  network viewer, code descriptions) and the files the tool keeps; the removed day builder is gone.
+
 ## Roadmap #10, sharing with the PM and QS: evening report to a folder, read-only viewer (12 Nov 2026)
 
 Asked for: roadmap #10, both ways; the report in a shared folder for now (until IT opens the

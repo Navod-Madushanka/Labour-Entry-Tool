@@ -1,5 +1,5 @@
 // A long working day, compressed (made-up data): 11 days x 40 workers entered at full speed with
-// the suggestions, a push per day, window switches, tab changes and commands. After each day:
+// the suggestions, a push per day, window switches, the SQL panel and Analysis. After each day:
 // server memory, page memory, DOM size, event listeners and timings, to see that nothing grows
 // or slows down.
 //
@@ -41,7 +41,11 @@ const rss = () => {
       await p.locator('#worker').fill(name); await p.keyboard.press('Enter');
       await p.waitForFunction(() => document.activeElement?.id === 'in');
       picks.push(Date.now() - t);
-      for (let e = 0; e < 4; e++) await p.keyboard.press('Enter');
+      await p.keyboard.press('Enter'); await p.keyboard.press('Enter'); // In, Out (suggested)
+      // the activity box is filled only when the crew agrees; else ↓ takes the first suggestion
+      const hint = await p.locator('input[aria-label="Activity 1"]').getAttribute("placeholder");
+      if (!hint?.includes("Enter to use")) await p.keyboard.press('ArrowDown');
+      await p.keyboard.press('Enter'); await p.keyboard.press('Enter');
       const ok = await p.waitForFunction((n) => document.querySelector('.queue tbody')?.innerText.includes(n), name, { timeout: 5000 }).then(() => true, () => false);
       if (!ok) { missed++; await p.keyboard.press('Escape'); }
       if (k % 10 === 9) await p.evaluate(() => { window.dispatchEvent(new Event("focus")); }); // back from Excel
@@ -56,10 +60,18 @@ const rss = () => {
       await p.waitForFunction(() => !document.querySelector('.queue tbody tr'), null, { timeout: 60000 });
     } else { errs.push(`day ${sheet}: push stayed disabled`); await p.getByRole('button', { name: 'Remove all' }).click(); }
     const pushMs = Date.now() - t0;
-    // Codes tab, a command, back.
-    await p.goto(BASE + "app/#codes"); await p.locator('input[aria-label="Command"]').waitFor().catch(() => {});
+    // The SQL panel (Ctrl+K from any tab): a query and a command, then Analysis, then back.
     await p.keyboard.press("Control+k");
-    await p.keyboard.type(`show AAA-001 on 1-31`); await p.keyboard.press("Enter");
+    await p.waitForFunction(() => location.hash === "#codes/sql" && document.activeElement?.getAttribute("aria-label") === "SQL query");
+    await p.keyboard.press("Control+a");
+    await p.keyboard.type(`SELECT calling_name, SUM(hours) FROM entries WHERE calling_name = 'AAA-001' GROUP BY calling_name`);
+    await p.keyboard.press("Control+Enter");
+    const sqlOk = await p.waitForSelector(".sqlws-grid tbody tr", { timeout: 10000 }).then(() => true, () => false);
+    if (!sqlOk) errs.push(`day ${sheet}: SQL query gave no rows`);
+    await p.keyboard.press("Control+a");
+    await p.keyboard.type(`show AAA-001 on 1-31`); await p.keyboard.press("Control+Enter");
+    await p.goto(BASE + "app/#analysis");
+    await p.locator(".analysis .kpis").first().waitFor({ timeout: 60000 }).catch(() => errs.push(`day ${sheet}: Analysis did not show`));
     await p.goto(BASE + "app/#"); await p.locator("#worker").waitFor(); // locators: no element handles kept alive (they would look like a leak)
     const m = await metrics();
     const sorted = picks.sort((a, b) => a - b);

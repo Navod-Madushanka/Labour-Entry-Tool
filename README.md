@@ -62,10 +62,10 @@ check of a project the start page asks once what each one means; the entry scree
 "Parking area" next to `03-11-00-00-P`. The empty Activity box shows the suggested code (from the
 worker's usual partners today, their last day and their trade): press Enter to take it.
 
-## Commands: many changes at once
+## SQL and commands: many changes at once
 
-On the **Codes & registration** tab, **Commands** (Ctrl+K from any tab) takes a typed command and
-puts the result in the queue: nothing is written until you check it on the manpower sheet and push (one undoable batch).
+On **Codes & registration → SQL & data** (Ctrl+K from any tab) the query window takes SQL or a
+typed command and puts the result in the queue: nothing is written until you check it on the manpower sheet and push (one undoable batch).
 Suggestions complete each word, a card explains the word you are on (synonyms name the command:
 `insert` is ADD), and a preview says what Enter will do.
 
@@ -174,27 +174,28 @@ python -m app.main --demo "C:/Labour/Labour Entry Sheet October 2026 - INDIAN (2
 `--demo` loads a copy of the workbook (`.xlsb` or a snapshot `.json`) into memory: the whole
 screen works, but Excel is not used and nothing is saved. Good for trying it out or training.
 
-Keyboard flow: **worker** (calling name, name or employee code; Enter picks) → **In** → **Out**
-(Enter moves on; ↑/↓ change by 15 minutes; Out earlier than In means overnight) → **activity** →
-**hours** (prefilled with the remaining effective hours) → **Enter** adds it to the queue. The times
-and activity stay for the next worker. **Esc** clears the form, **Alt+←/→** changes the day.
+Keyboard flow: **worker** (calling name, name or employee code; Enter picks; the empty box lists
+who is probably next, ↓ + Enter picks one) → **In** → **Out** (suggested; Enter takes them; ↑/↓
+change by 15 minutes; Out earlier than In means overnight; Out at 22:00 fills −1 "dinner") →
+**activity** (filled only when the worker's usual crew agrees, "3/3 crew today"; otherwise ↓ steps
+through the suggestions, shown with their descriptions) → **hours** (one activity takes all the
+effective hours) → **Enter** adds it to the waiting list. **Esc** clears the form, **Alt+←/→**
+changes the day.
 
 - The preview shows what Excel will compute (total, effective, OT, ZIDLE, day count) and every
   check. Red (BLOCK) cannot be written; amber warnings need a tick in the queue.
-- **Write to Excel** writes the whole queue as one batch, then shows Excel's read-back.
-- Suggestions: the worker's usual times, a copy of yesterday, the crew's activity today, recent
-  activity codes. **Same entry also for** adds more workers with the same entry (suggested by
-  trade, or searched).
+- The waiting list is laid out as the paper **manpower sheet** (editable; a sheet can be discarded
+  or moved to another day; "⚠ crew" marks a code that differs from the worker's usual crew).
+  **Push** asks whose manpower sheet it is (the supervisor) and, optionally, why the sheet has
+  unallocated hours and whether the day was disrupted (rain, waiting for concrete, …); then it
+  writes the whole list as one batch and shows Excel's read-back.
+- Suggestions come from counting the month's own patterns (no AI): the worker's usual partners
+  today, their own recent times, the trade. **Same entry also for** offers the usual crew, in rows
+  by trade, with *Add all*.
 - The day list shows what is already on the sheet (Edit = overwrite, Clear). Recent batches can be
   undone. A wrong sheet header shows a red banner with **Fix** (writes F3/H3/F4 after you confirm)
   or **Header is right, write anyway**.
 - **Save workbook** saves in Excel; nothing is saved automatically.
-
-## Start a day from previous days (automation)
-
-October's data is very repetitive: 84% of a day's workers also worked the day before, 82% of
-entries are identical to at least 5 others that day (crews), crews change together (Out and/or
-activity; In is 07:00 in 99% of entries), and 100% of entries book all effective hours.
 
 In the queue, **Confirm a warning for every entry that has it** (e.g. `W01 × 8`) replaces ticking
 the same warning over and over.
@@ -203,7 +204,8 @@ the same warning over and over.
 
 **Medical leave…** (above the worker box) gives a worker a medical line `<calling name> M`, e.g.
 `INC-08 M`, with one entry per working day: In 07:00, Out 16:00, activity `00-00-10-00`, hours =
-the effective hours (8). Defaults: 10 days from the chosen first day, **Sundays skipped**
+the effective hours (8). Defaults: 10 days (any number up to 90; 2, 3, 5, 7, 10, 14, 20, 30 one
+click away) from the chosen first day, **Sundays skipped**
 (holidays only when *Skip holidays too* is ticked); all fields can be changed.
 
 - If `INC-08 M` is not in Labour Detail yet, it is added in the first empty worker row, copying
@@ -215,9 +217,47 @@ the effective hours (8). Defaults: 10 days from the chosen first day, **Sundays 
 - Two batches (the new Labour Detail row, then the days), each with a backup and undo. The row
   can only be undone after its days are.
 
+## Analysis, reports and sharing (for the PM and QS)
+
+Everything below is worked out from the day sheets the tool has read; Excel is not asked and not
+changed. **Analysis** has these views (filters for trade, supervisor, place, activity and days apply
+to all of them):
+
+| View | What it shows |
+|---|---|
+| Overview | Hours, OT, worker-days, headcount, peak, unallocated (ZIDLE), each with a one-line definition; with **Hours / Rs** on Rs: labour cost, OT premium, unallocated cost, cost per worker-day |
+| As-built programme | A bar per activity (first to last day, shaded by crew), the manpower histogram by trade with the PM's planned line (pasted from the look-ahead), S-curves, a flowline once the places are ordered; each chart saves as a PNG |
+| Productivity | Weekly quantities per code (unit, norm from the BOQ/BSR or the site's median): hours and Rs per unit, the productivity index, the measured mile (clean against disrupted weeks) |
+| Activities, Places & trades, Supervisors, Daily manpower, Task timeline, Overtime, Attendance, Data quality | Hours (and cost) by each, with descriptions beside every code |
+| Lost time | Unallocated hours by the cause given at push and by who is responsible; disrupted days against clean ones |
+| Fatigue & OT risk | Per person against limits that are settings (60 h / 20 h OT in 7 days, 13 days in a row, 8 h rest; to confirm with HR); runs carried over the month end |
+| BP bill check | Billable worker-days per business partner (a day at 6+ h, the BP Bill rule) and what to check before certifying |
+| Month history | Months kept in `history.db` (read from the saved .xlsb), trends month by month, the site's own norms |
+| Compare months, Suggestions | Workbooks side by side; how the suggestions do on this PC |
+| Share with PM & QS | The evening report (below) |
+
+- **Standard rates** (Analysis → *Standard rates…*): a daily rate per trade for each labour source,
+  OT 1.5×, Sundays 1.5×, public holidays 2× (defaults to confirm with HR). Costing rates, not pay:
+  every rupee figure says "at standard rates" and none is shown per person.
+- **Site report**: one A4 page for a week or the month (headline figures, rule-written "what
+  changed" lines, manpower, top activities, as-built bars) and the **monthly labour return**;
+  *Print / Save as PDF*.
+- **Evening report to a shared folder**: Analysis → *Share with PM & QS*: folder, time (18:30),
+  on/off, rupees on/off. While the tool runs it writes `Labour report <kind> <date>.html` and
+  `… latest.html` each evening. No worker names, no figures per person.
+- **Read-only viewer on the office network** (off by default): with it on, the next start of the
+  tool lets other PCs open `http://<this PC>:8000/viewer`, the same report, live; other PCs get
+  that page only. IT may need to allow port 8000 in Windows Firewall.
+- **What each activity code is**: Codes & registration → *Trades, places & activity codes*: each
+  code starts with its MasterFormat title (03-11 Concrete Forming); the office can type its own.
+
+Files the tool keeps in `Labour Entry Tool` in the user folder: `audit.db` (batches, changed cells,
+supervisors, lost-time reasons), `history.db` (month history), `workbooks.json` (settings: places,
+descriptions, rates, limits, quantities, plans, report), `backups/`, `logs/`.
+
 ## Employee codes and registration (Phase 4)
 
-The **Codes & registration** tab (or `#codes`) lists every Labour Detail row whose employee code is
+The **Codes & registration** tab (*Validation & fixes*, or `#codes/checks`) lists every Labour Detail row whose employee code is
 blank, `#N/A` or `0`, with a proposed code:
 
 - from a registration file row with the same calling name (`INH22` = `INH-22`), or

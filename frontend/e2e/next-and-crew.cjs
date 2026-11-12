@@ -47,7 +47,11 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await add("AAA-002"); await add("AAA-003"); await add("AAA-005"); await add("AAA-006");
   // the next one: the crew agrees -> the box is filled ("n/n crew today")
   await p.locator("#worker").fill("AAA-004"); await p.keyboard.press("Enter");
+  // wait for each step like a person does (Enter before the worker is picked went to the box)
+  await p.waitForFunction(() => document.activeElement?.id === "in");
   await p.keyboard.press("Enter"); await p.keyboard.press("Enter");
+  await p.waitForFunction((s) => document.activeElement === document.querySelector(s), a1);
+  await p.waitForFunction((s) => document.querySelector(s).placeholder.includes("Enter to use"), a1, { timeout: 5000 }).catch(() => {});
   const ph = await p.locator(a1).getAttribute("placeholder");
   const why = await p.locator(a1).getAttribute("title");
   console.log("4th worker, code box:", ph, "|", why);
