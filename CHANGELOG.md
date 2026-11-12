@@ -1,5 +1,32 @@
 # Changelog
 
+## Roadmap #10, sharing with the PM and QS: evening report to a folder, read-only viewer (12 Nov 2026)
+
+Asked for: roadmap #10, both ways; the report in a shared folder for now (until IT opens the
+network).
+
+- **Site labour report** (`app/report.py`): one self-contained HTML page (opens in any browser,
+  prints to PDF): the latest week against the week before (per day with work) and the month to
+  date (hours, overtime, headcount, worker-days, unallocated hours, and labour cost when
+  allowed), people on site by day and trade, how many worked over the 7-day hours limit, the top
+  activities with descriptions, hours by trade, business partners' billable days, disrupted days.
+  **No worker names or calling names, no figures per person**; rupees only when switched on
+  ("at standard rates"). Built from the saved workbook file with pyxlsb (Excel is not used) or
+  the practice copy.
+- **Evening report to a folder** (Analysis → **Share with PM & QS**): the folder (a shared folder
+  the PM and QS can open), the time (default 18:30), on/off, rupees on/off. While the tool runs, it
+  writes `Labour report <kind> <date>.html` and `… latest.html` once a day after that time;
+  **Write it now** and **Preview** buttons; the last file written and any problem are shown.
+- **Read-only viewer on the office network** (off by default): with *Let colleagues open the
+  read-only report from their PCs* on, the next start of the tool listens on the network and
+  other PCs can open `http://<this PC>:8000/viewer`, the same report, live. **Other PCs get that
+  page only** (every other address answers 403: no entry screen, no Excel, no writing). IT may
+  need to allow port 8000 in Windows Firewall.
+- API: `GET/POST /api/report/settings`, `POST /api/report/write`, `GET /viewer`.
+- Tests: `backend/tests/test_report.py` (write now, no names in the file, rupees off by default,
+  the viewer, other PCs only get /viewer, the evening scheduler writes once), `e2e/share-report.cjs`
+  (settings, write now, files in the folder, /viewer); made-up data.
+
 ## Roadmap #9, month history: trends, the site's own norms, runs across the month end (12 Nov 2026)
 
 Asked for: roadmap #9, keep every month so trends and the site's own norms become possible.

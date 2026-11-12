@@ -17,6 +17,7 @@ from app.api import (
     entries,
     health,
     registration,
+    report,
     setup,
     suggestlog,
     supervisors,
@@ -68,7 +69,11 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        import asyncio
+
+        evening = asyncio.create_task(report.scheduler(app))  # the PM and QS report (#10)
         yield
+        evening.cancel()
         if app.state.worker is not None:
             app.state.worker.stop()
         app.state.session.cleanup()
@@ -92,6 +97,18 @@ def create_app(
             slow_log.info("%s %s took %.1f s (%s)", request.method, request.url.path, took,
                           response.status_code)  # fmt: skip
         return response
+
+    @app.middleware("http")
+    async def lan_viewers_read_only(request: Request, call_next):
+        """Other PCs on the network (LAN viewing on) get the read-only report and nothing else."""
+        host = request.client.host if request.client else ""
+        if host not in report.LOCAL and request.url.path != "/viewer":
+            from fastapi.responses import PlainTextResponse
+
+            return PlainTextResponse(
+                "This PC shares only the read-only labour report: open /viewer.", status_code=403
+            )
+        return await call_next(request)
 
     app.state.config = config
     app.state.snapshots = health.SnapshotCache()
@@ -154,6 +171,7 @@ def create_app(
     app.include_router(suggestlog.router)
     app.include_router(supervisors.router)
     app.include_router(history_api.router)
+    app.include_router(report.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")
@@ -209,6 +227,16 @@ def main(argv: list[str] | None = None) -> None:
         app.state.session.book.ready = True  # straight to entry; "Change workbook" runs the checks
         print(f"PRACTICE MODE on {args.demo.name}: changes stay in memory, Excel is not touched.")
     host = bind_host(config)
+    if app.state.session.settings.get_key("report").get("lan") and host == LOCALHOST:
+        # LAN viewing switched on in the tool (roadmap #10): other PCs only get /viewer
+        import socket
+
+        host = "0.0.0.0"
+        app.state.lan_active = True
+        app.state.lan_name = socket.gethostname()
+        print(
+            f"Read-only report for colleagues: http://{app.state.lan_name}:{config.server.port}/viewer"
+        )
     url = f"http://{'localhost' if host == LOCALHOST else host}:{config.server.port}/"
     print(f"Pattern-Based Labour Entry Assistant: {url}  (close this window to stop it)")
     if args.open:

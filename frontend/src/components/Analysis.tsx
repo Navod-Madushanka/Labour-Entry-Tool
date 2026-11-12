@@ -46,6 +46,7 @@ import { Productivity } from "./Productivity";
 import { Fatigue } from "./Fatigue";
 import { BpCheck } from "./BpCheck";
 import { History } from "./History";
+import { Sharing } from "./Sharing";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
@@ -55,7 +56,7 @@ const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
 
-type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "bp" | "history" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
+type View = "overview" | "programme" | "productivity" | "lost" | "fatigue" | "bp" | "history" | "share" | "activities" | "places" | "supervisors" | "manpower" | "timeline" | "overtime" | "attendance" | "quality" | "compare" | "suggestions";
 const VIEWS: [View, string][] = [
   ["overview", "Overview"],
   ["programme", "As-built programme"],
@@ -74,6 +75,7 @@ const VIEWS: [View, string][] = [
   ["history", "Month history"],
   ["compare", "Compare months"],
   ["suggestions", "Suggestions"],
+  ["share", "Share with PM & QS"],
 ];
 const SUMMARY_PREFIX = "labour.summary.";
 const RUN_FLAG = 14; // days in a row without a day off that are flagged
@@ -284,6 +286,8 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
 
       {view === "suggestions" ? (
         <SuggestionLog />
+      ) : view === "share" ? (
+        <Sharing />
       ) : view === "history" ? (
         <History master={master} desc={desc} onSaved={() => onMasterChanged?.()} />
       ) : !slices.length && view !== "compare" ? (

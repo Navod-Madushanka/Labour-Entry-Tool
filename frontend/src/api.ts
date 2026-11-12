@@ -576,6 +576,9 @@ export const api = {
   savePlan: (plan: Record<string, Record<string, number>>) => call<SetupState>("POST", "/api/setup/plan", { plan }),
   rates: () => call<RatesView>("GET", "/api/setup/rates"),
   lostTime: () => call<LostView>("GET", "/api/lost-time"),
+  reportSettings: () => call<ReportState>("GET", "/api/report/settings"),
+  saveReportSettings: (body: ReportSettings) => call<ReportState>("POST", "/api/report/settings", body),
+  writeReport: () => call<ReportState>("POST", "/api/report/write"),
   historyMonths: () => call<MonthInfo[]>("GET", "/api/history"),
   saveHistory: () => call<{ month: MonthInfo; note: string | null }>("POST", "/api/history/save"),
   importHistory: async (file: File) => {
@@ -699,4 +702,21 @@ export interface HistoryQuantity {
   week: string;
   qty: number;
   unit: string | null;
+}
+
+/** Sharing with the PM and QS (roadmap #10). */
+export interface ReportSettings {
+  folder: string;
+  time: string; // HH:MM
+  enabled: boolean;
+  rupees: boolean;
+  lan: boolean;
+}
+
+export interface ReportState extends ReportSettings {
+  last_at: string | null;
+  last_file: string | null;
+  last_error: string | null;
+  lan_active: boolean;
+  viewer_url: string | null;
 }
