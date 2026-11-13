@@ -210,7 +210,15 @@ export function EntryForm(props: Props) {
     picked.current = null;
     setHighlight(-1);
     onQueue(inputsFor(form, input, sheet, headerAcks));
+    const names = [form.worker, ...form.also].filter((w): w is NonNullable<typeof w> => Boolean(w)).map((w) => w.calling_name);
+    setAdded(names.length > 2 ? `${names.length} workers` : names.join(" and "));
+    clearTimeout(addedTimer.current);
+    addedTimer.current = window.setTimeout(() => setAdded(null), 2600);
   };
+  // "✓ INB-01 added": a short confirmation by the button after each Add
+  const [added, setAdded] = useState<string | null>(null);
+  const addedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => clearTimeout(addedTimer.current), []);
 
   // Suggestion log (stays on this PC): which rule offered the times and the code, whether the
   // entry kept them, and the keys it took. Counted from the first key after the last Add.
@@ -405,7 +413,8 @@ export function EntryForm(props: Props) {
         </div>
 
         {worker && (
-          <div className="worker-card">
+          <div className="worker-card" role="status">
+            <span className="wc-ok" aria-hidden="true">✓</span>
             <b className="wc-id">{worker.calling_name}</b> <b className="wc-name">{String(worker.name ?? "")}</b> ·{" "}
             <b className="wc-trade">{String(worker.trade_group ?? "")}</b> ·{" "}
             {worker.code_status === "valid" ? (
@@ -676,7 +685,10 @@ export function EntryForm(props: Props) {
           ))}
         </datalist>
 
-        <div className="times">
+        <div className="optional-head" aria-hidden="true">
+          <span>Optional</span>
+        </div>
+        <div className="times optional-row">
           <div className="field">
             <label htmlFor="additional">Additional hours (optional)</label>
             <input
@@ -721,6 +733,11 @@ export function EntryForm(props: Props) {
           >
             Clear <kbd>Esc</kbd>
           </button>
+          {added && (
+            <span key={added + Date.now()} className="added-flash" role="status">
+              ✓ {added} added to the manpower sheet
+            </span>
+          )}
         </div>
         <p className="keys">
           <kbd>Enter</kbd> next box · <kbd>Enter</kbd> on {withActs ? "an empty activity" : "Time Out"} adds the worker ·{" "}
@@ -1079,11 +1096,22 @@ function DaySummary({ day, sheet, waiting, withActs }: { day: DayView | undefine
       <div className="big-number">
         {done.length} <span>worker{done.length === 1 ? "" : "s"} entered on sheet {sheet}</span>
       </div>
-      <dl>
-        <dt>Hours</dt>
-        <dd>{fmtHours(hours)} h</dd>
-        <dt>Overtime</dt>
-        <dd>{ot ? `${fmtHours(ot)} h` : "none"}</dd>
+      <div className="day-pair">
+        <div>
+          <b>{fmtHours(hours)} h</b>
+          <span>hours worked</span>
+        </div>
+        <div>
+          <b>{ot ? `${fmtHours(ot)} h` : "none"}</b>
+          <span>overtime{hours && ot ? ` · ${Math.round((ot / hours) * 100)}%` : ""}</span>
+        </div>
+      </div>
+      {hours > 0 && (
+        <div className="ot-bar" title={`Overtime is ${Math.round((ot / hours) * 100)}% of the hours`} aria-hidden="true">
+          <i style={{ width: `${Math.min(100, (ot / hours) * 100)}%` }} />
+        </div>
+      )}
+      <dl className="day-minor">
         {noCode > 0 && (
           <>
             <dt>No activity</dt>

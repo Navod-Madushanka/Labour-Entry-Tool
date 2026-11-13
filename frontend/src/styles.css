@@ -1345,3 +1345,63 @@ section.batches.quiet button { padding: 2px 10px; font-size: 12px; background: t
 .codes-cards .seg button.active .seg-n:not(.warn) { background: var(--panel); }
 .places-card table.places { width: 100%; }
 .places-card table.places td:nth-child(2) input { width: 100%; max-width: 32ch; }
+
+/* ---------------------------------------------------------------- Entry: one focused stage
+   The entry card is lifted; the main path (worker → times → codes) reads as one block; the
+   optional row and the key hints step back; the worker box has presence; the day panel reads
+   count → hours and overtime → waiting. Same fields, same order, same keys. */
+section.entry { box-shadow: var(--shadow); }
+@media (prefers-color-scheme: dark) {
+  section.entry { background: #1f2430; box-shadow: 0 1px 0 #ffffff0a inset, 0 10px 28px #0006; }
+  .entry input, .entry select { background: #262c39; border-color: #3a4252; }
+  .entry input::placeholder { color: #8b93a3; }
+}
+.entry input { transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s; }
+.entry input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent); }
+/* tighter rhythm on the main path */
+.entry .field { margin-bottom: 0; }
+.entry .times { margin-top: 12px; gap: 14px; }
+/* the worker box: where every entry starts */
+.entry .worker-field input#worker { font-size: 17px; padding: 12px 14px; border-width: 2px; border-radius: 10px; }
+.entry .worker-field label { font-size: 14px; }
+.worker-card { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; border-left: 4px solid var(--ok) !important; animation: wc-in 0.18s ease-out; }
+.worker-card .wc-ok { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ok); color: var(--panel); font-size: 11px; font-weight: 800; margin-right: 2px; }
+@keyframes wc-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+/* optional fields: present (the dinner rule fills them) but quieter */
+.optional-head { display: flex; align-items: center; gap: 10px; margin: 18px 0 2px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.optional-head::after { content: ""; flex: 1; border-top: 1px dashed var(--line); }
+.entry .optional-row { margin-top: 6px; }
+.entry .optional-row .field label { font-size: 12px; font-weight: 500; color: var(--muted); }
+.entry .optional-row input { font-size: 14px; padding: 6px 9px; }
+.entry .optional-row input:placeholder-shown:not(:focus) { opacity: 0.75; }
+/* actions: Add stays the one strong button; Clear quiet; the success moment beside them */
+.entry .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.entry .actions > button:not(.primary) { background: transparent; color: var(--muted); }
+.entry .actions > button:not(.primary):hover { color: var(--text); }
+.added-flash { color: var(--ok); font-weight: 600; font-size: 13.5px; animation: added 2.6s ease-out forwards; }
+@keyframes added { 0% { opacity: 0; transform: translateX(-4px); } 10% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.queue tbody tr { animation: row-in 1.4s ease-out; }
+@keyframes row-in { from { background: color-mix(in srgb, var(--ok) 22%, transparent); } to { background: transparent; } }
+/* key hints: one quiet line */
+.entry .keys { font-size: 11.5px; opacity: 0.75; margin-top: 8px; }
+.entry .keys kbd { font-size: 10.5px; padding: 0 4px; }
+.entry .keys:hover { opacity: 1; }
+/* the day panel: a live dashboard */
+.entry-side .preview { border-width: 1px; border-left-width: 4px; border-left-color: var(--accent); border-radius: 10px; padding: 14px 16px; background: var(--panel); box-shadow: var(--shadow); }
+.entry-side .preview.good { border-left-color: var(--ok); }
+.entry-side .preview.warn { border-left-color: var(--warn); }
+.entry-side .preview.bad { border-left-color: var(--block); }
+.entry-side .preview h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.entry-side .big-number { font-size: 40px; font-weight: 700; }
+.day-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 0 8px; }
+.day-pair > div { background: var(--row); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.day-pair b { display: block; font-size: 19px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.day-pair span { font-size: 11.5px; color: var(--muted); }
+.ot-bar { height: 5px; border-radius: 3px; background: var(--row); overflow: hidden; margin: 0 0 10px; }
+.ot-bar i { display: block; height: 100%; background: var(--warn); opacity: 0.8; border-radius: 3px; }
+.preview dl.day-minor { font-size: 12.5px; margin-bottom: 6px; }
+/* day header: shorter, Reload quiet */
+.dayinfo .day-date { font-size: 16px; }
+.dayinfo button.link { color: var(--muted); }
+.dayinfo button.link:hover:not(:disabled) { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .worker-card, .added-flash, .queue tbody tr { animation: none; } .entry input { transition: none; } }

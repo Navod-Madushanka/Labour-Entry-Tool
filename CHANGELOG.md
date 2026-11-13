@@ -1,5 +1,34 @@
 # Changelog
 
+## Entry screen: one focused stage (13 Nov 2026)
+
+Asked for: a tighter form with quieter optional fields, a Worker box with more presence and a
+clear confirmation, a stronger "This day so far" panel, a lifted entry card with better input
+contrast, and a success moment after Add. Same fields, order, keys and suggestions.
+
+- **Entry card lifted** off the page (dark: a lighter card, inputs a step lighter with clearer
+  edges); every box gets an orange focus ring that eases in.
+- **Worker box**: taller, larger text, a thicker border. A picked worker shows as a confirmation
+  chip with a green ✓ (calling name, name, trade, employee code, this month's days and hours).
+- **Optional fields**: under a dashed "Optional" divider, with smaller muted labels and smaller
+  boxes. They stay visible because the dinner rule fills them (-1 and "dinner").
+- **Add worker** stays the one strong button; Clear is a quiet outline. After each Add:
+  "✓ INB-01 added to the manpower sheet" beside the buttons for about 2.5 seconds, and the new
+  row on the manpower sheet flashes green once.
+- **This day so far**: the count large; hours worked and overtime as a pair of tiles (overtime
+  with its share of the hours) and a thin overtime bar; Waiting below in small print. The panel
+  has a left accent (orange; green, amber or red while a worker is being checked).
+- **Day header**: "Saturday, October 31, 2026 · Sheet 31 · 12 entered"; the day-type badge shows
+  only when it says more than the date (a holiday, a Normal Day on a Saturday, none). Reload from
+  Excel is quiet until hovered.
+- **Key hints**: one smaller, quieter line (full strength on hover).
+- Motion is off for people who ask their system for reduced motion.
+- Tests: `reload` reads the new "12 entered". On made-up data these pass: dinner, suggest-fill,
+  reload, queue-restore, month, discard-sheet, manpower-edit, daylist-order, move-sheet,
+  sheet-codes, supervisors, lost-time, medical-days, suggest-log, and soak (11 days × 40 workers,
+  about 40 ms a pick, no errors). `next-and-crew` and `mates-by-trade` fail the same way on the
+  previous code (their made-up "previous month" depends on today's date).
+
 ## Codes & registration: trades, places & activity codes, a design pass (13 Nov 2026)
 
 Asked for: clearer hierarchy, places that look intentional rather than unfinished, softer colours

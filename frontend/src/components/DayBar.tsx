@@ -59,9 +59,12 @@ export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, ackn
         {h ? (
           <>
             <strong className="day-date">{longDate(h.date) || `Sheet ${sheet} (no date)`}</strong>
-            <span className="badge">{String(h.day_type ?? "no day type")}</span>
+            {/* the day type only when it says more than the date (a holiday, a Normal Day on a Saturday, none) */}
+            {!(h.date && String(h.day_type ?? "").trim().toLowerCase() === new Date(`${h.date}T00:00:00`).toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()) && (
+              <span className="badge">{String(h.day_type ?? "no day type")}</span>
+            )}
             <span className="muted">
-              Sheet {sheet} · {day?.entries.length ?? 0} worker{day?.entries.length === 1 ? "" : "s"} entered
+              Sheet {sheet} · {day?.entries.length ?? 0} entered
             </span>
           </>
         ) : (
