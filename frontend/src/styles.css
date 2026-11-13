@@ -1405,3 +1405,38 @@ section.entry { box-shadow: var(--shadow); }
 .dayinfo button.link { color: var(--muted); }
 .dayinfo button.link:hover:not(:disabled) { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .worker-card, .added-flash, .queue tbody tr { animation: none; } .entry input { transition: none; } }
+
+/* ---------------------------------------------------------------- Analysis overview: hierarchy
+   The number first (bright, heavy), then its label, then a quiet note. Hours worked and headcount
+   carry the accent; overtime is warm; unallocated warns only when it matters (5%+). */
+.analysis .kpis { gap: 14px; }
+.analysis .kpi { padding: 18px 20px 16px; border-left: 3px solid transparent; }
+.analysis .kpi-value { color: var(--text); font-weight: 700; }
+.analysis .kpi-label { font-size: 13px; font-weight: 600; }
+.analysis .kpi-note { font-size: 11.5px; color: var(--muted); margin-top: 2px; opacity: 0.9; }
+.analysis .kpi-key { border-left-color: var(--primary); }
+.analysis .kpi-key .kpi-value { font-size: 34px; }
+.analysis .kpi-ot { border-left-color: var(--caution); background: color-mix(in srgb, var(--caution-bg) 45%, var(--panel)); }
+.analysis .kpi-ot .kpi-value { color: var(--caution); }
+.analysis .kpi.kpi-warn { border-top: 1px solid var(--line); border-left-color: var(--critical); background: color-mix(in srgb, var(--critical-bg) 40%, var(--panel)); }
+.analysis .kpi.kpi-warn .kpi-value { color: var(--critical); }
+.analysis .kpi-quiet .kpi-value { color: var(--muted); }
+.analysis.compact .kpis { gap: 10px; }
+.analysis.compact .kpi { padding: 10px 12px; }
+.analysis.compact .kpi-value, .analysis.compact .kpi-key .kpi-value { font-size: 24px; }
+.analysis.compact .kpi-label { font-size: 12px; }
+/* card heads: stronger titles, links that show they are links */
+.analysis .card-head h3 { color: var(--text); font-size: 13px; letter-spacing: 0.05em; }
+.analysis .card-head button.link { font-weight: 600; border-radius: 4px; padding: 2px 6px; }
+.analysis .card-head button.link:hover { text-decoration: underline; background: var(--primary-bg); }
+/* the two lists: numbers aligned, a share beside them, bars on one scale and a bit thicker */
+.analysis .share-list li { padding: 7px 0; gap: 4px 12px; }
+.analysis .share-value { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
+.share-pct { display: inline-block; min-width: 3.2em; margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); text-align: right; }
+.analysis .share-list .bar { height: 7px; }
+/* header: a one-line note; tabs tighter in Compact */
+.analysis-note { margin: 2px 0 10px !important; }
+.analysis.compact .analysis-note { display: none; }
+.analysis.compact .subtabs button { padding: 5px 9px; font-size: 13px; }
+.analysis.compact .card-head h3 { font-size: 12px; }
+.analysis.compact table.data { font-size: 12.5px; }

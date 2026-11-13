@@ -218,10 +218,9 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         </button>
         </span>
       </div>
-      <p className="muted small">
-        Worked out from the day sheets as loaded ({loaded} of {total}
-        {complete ? "" : ", still loading"}), including entries pushed today. Waiting entries are not counted until pushed.
-        Excel is not changed.
+      <p className="muted small analysis-note" title="Entries pushed today are included; entries still waiting are counted once pushed. Excel is not changed.">
+        From the day sheets as loaded ({loaded} of {total}
+        {complete ? "" : ", still loading"}) · waiting entries count once pushed · Excel is not changed
       </p>
       {error && <p className="error-text">{error}</p>}
       {reportOpen && (
@@ -322,7 +321,12 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
       </nav>
       </div>
 
-      {view === "suggestions" ? (
+      {filtered && !slices.length && !["suggestions", "share", "history", "compare", "productivity", "bp"].includes(view) ? (
+        <EmptyState title="Nothing matches these filters">
+          No hours on the day sheets for {chips.map((c) => `${c.label.toLowerCase()} ${c.value}`).join(", ")}.{" "}
+          <button className="link" onClick={() => setFilter({})}>Clear all filters</button> or remove one of them above.
+        </EmptyState>
+      ) : view === "suggestions" ? (
         <SuggestionLog />
       ) : view === "share" ? (
         <Sharing />
@@ -374,9 +378,9 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
 
 // ------------------------------------------------------------------------------ the views
 
-function Kpi({ label, value, note, def, badge }: { label: string; value: string; note?: string; def?: string; badge?: { text: string; title: string } }) {
+function Kpi({ label, value, note, def, badge, tone }: { label: string; value: string; note?: string; def?: string; badge?: { text: string; title: string }; tone?: "key" | "ot" | "warn" | "quiet" }) {
   return (
-    <div className="kpi">
+    <div className={`kpi${tone ? ` kpi-${tone}` : ""}`}>
       <div className="kpi-value">
         {value}
         {badge && <span className="badge warn kpi-badge" title={badge.title}>{badge.text}</span>}
@@ -406,12 +410,12 @@ function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>;
         </div>
       )}
       <div className="kpis">
-        <Kpi label="hours worked" value={h(k.hours)} note={`${h(k.normal)} normal`} def="Effective hours, as Excel works them out (after lunch and dinner)." />
-        <Kpi label="overtime hours" value={h(k.ot)} note={`${pct(k.otPct)} of all hours`} def="After 8 h on a normal day, 5.5 h on Saturday, every hour on Sundays and holidays." />
+        <Kpi tone="key" label="hours worked" value={h(k.hours)} note={`${h(k.normal)} normal`} def="Effective hours, as Excel works them out (after lunch and dinner)." />
+        <Kpi tone="ot" label="overtime hours" value={h(k.ot)} note={`${pct(k.otPct)} of all hours`} def="After 8 h on a normal day, 5.5 h on Saturday, every hour on Sundays and holidays." />
         <Kpi label="worker-days" value={h(k.workerDays)} note={`${k.workDays} days with work`} def="One per worker per day sheet; a person on two calling names that day counts twice." />
-        <Kpi label="headcount" value={String(k.people)} note={`${h(k.avgHeadcount)} a day on average`} def="Different people this period; the average counts days with work only." />
+        <Kpi tone="key" label="headcount" value={String(k.people)} note={`${h(k.avgHeadcount)} a day on average`} def="Different people this period; the average counts days with work only." />
         <Kpi label="peak headcount" value={String(k.peak?.count ?? 0)} note={k.peak ? `day ${k.peak.day}` : undefined} def="Most people on site on one day." />
-        <Kpi label="unallocated hours (ZIDLE)" value={h(k.idle)} note={k.hours ? `${pct(k.idle / k.hours)} of all hours` : undefined} def="Worked hours not booked to an activity code: forgotten codes as well as real waiting." />
+        <Kpi tone={k.hours && k.idle / k.hours >= 0.05 ? "warn" : "quiet"} label="unallocated hours (ZIDLE)" value={h(k.idle)} note={k.hours ? `${k.idle > 0 && k.idle / k.hours < 0.0005 ? "<0.1%" : pct(k.idle / k.hours)} of all hours` : undefined} def="Worked hours not booked to an activity code: forgotten codes as well as real waiting." />
       </div>
       <div className="card">
         <div className="card-head">
@@ -441,6 +445,7 @@ function Overview({ k, data, days, onView, desc }: { k: ReturnType<typeof kpis>;
 }
 
 function ShareList({ items, total, money }: { items: { key: string; value: number; note?: string }[]; total: number; money?: boolean }) {
+  const top = Math.max(0, ...items.map((i) => i.value)); // the bars share one scale: the largest fills it
   return (
     <ul className="share-list">
       {items.map((i) => (
@@ -449,8 +454,11 @@ function ShareList({ items, total, money }: { items: { key: string; value: numbe
             {i.key}
             {i.note && <span className="muted small"> · {i.note}</span>}
           </span>
-          <span className="share-value">{money ? rs(i.value) : `${h(i.value)} h`}</span>
-          <Bar frac={total ? i.value / total : 0} />
+          <span className="share-value">
+            {money ? rs(i.value) : `${h(i.value)} h`}
+            {total > 0 && <span className="share-pct">{Math.round((i.value / total) * 100)}%</span>}
+          </span>
+          <Bar frac={top ? i.value / top : 0} />
         </li>
       ))}
     </ul>

@@ -1,5 +1,25 @@
 # Changelog
 
+## Analysis overview: hierarchy and colour with meaning (13 Nov 2026)
+
+Asked for: stronger tiles, colour that says something, a softer chart, the two lists as equal
+partners, and a quieter header.
+
+- **Tiles**: the number bright and heavy, the label next, the note small and muted; more padding
+  and gap. Hours worked and headcount carry a teal edge and a larger number; overtime is warm
+  amber; unallocated hours (ZIDLE) turn coral at 5% or more of the hours and stay quiet grey below.
+  A tiny share reads "<0.1%" instead of "0%".
+- **Headcount chart**: the Saturday, Sunday and holiday columns are fainter (also in saved images).
+- **Top activities / Hours by trade**: stronger titles; "all →" and "by trade →" underline on
+  hover; values right-aligned with even figures and each item's share beside them; the bars are
+  thicker and share one scale within each list (the largest item fills its bar).
+- **Header**: the note is one short line (the full sentence on hover) and hidden in Compact.
+  Compact also tightens the tabs, the tiles, the card titles and the tables.
+- **Filters that match nothing**: "Nothing matches these filters" with what was filtered and
+  "Clear all filters", instead of a page of zeros.
+- Tests: analysis, rupees, programme, productivity, fatigue, lost-time, bp-check and supervisors
+  pass on made-up data.
+
 ## Entry screen: one focused stage (13 Nov 2026)
 
 Asked for: a tighter form with quieter optional fields, a Worker box with more presence and a

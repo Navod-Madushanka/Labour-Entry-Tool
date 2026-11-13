@@ -54,7 +54,7 @@ export function DayBars({ days, series, value, unit, line, disrupted }: {
             const x = left + i * (bw + gap) + gap / 2;
             const off = d.kind === "Sunday" || d.kind === "Holiday";
             const tint = off ? "var(--sun-bg)" : d.kind === "Saturday" ? "var(--sat-bg)" : null;
-            return tint ? <rect key={`t${d.sheet}`} className="day-tint" x={x - gap / 2} y={8} width={bw + gap} height={height - bottom - 8} fill={tint} opacity="0.55" /> : null;
+            return tint ? <rect key={`t${d.sheet}`} className="day-tint" x={x - gap / 2} y={8} width={bw + gap} height={height - bottom - 8} fill={tint} opacity="0.3" /> : null;
           })}
           {days.map((d, i) => {
             const x = left + i * (bw + gap) + gap / 2;
