@@ -82,7 +82,7 @@ export function DayBars({ days, series, value, unit, line, disrupted }: {
                   );
                 })}
                 {totals[i] > 0 && series.length > 1 && (
-                  <text x={x + bw / 2} y={y(totals[i]) - 3} textAnchor="middle" fontSize="9.5" fill="var(--muted)">{Math.round(totals[i])}</text>
+                  <text x={x + bw / 2} y={y(totals[i]) - 3} textAnchor="middle" fontSize="9" fill="var(--muted)" opacity="0.75">{Math.round(totals[i])}</text>
                 )}
                 <text x={x + bw / 2} y={height - bottom + 14} textAnchor="middle" fontSize="11" fill={off ? "var(--sun)" : d.kind === "Saturday" ? "var(--sat)" : "var(--text)"} fontWeight={off ? 600 : 400}>
                   {d.day}

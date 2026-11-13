@@ -41,6 +41,10 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   const plan = await p.evaluate(async () => (await (await fetch("/api/master")).json()).plan);
   console.log("plan:", JSON.stringify(plan));
 
+  // the S-curves and the flowline open on demand (Deeper analysis)
+  if (await p.locator(".card", { hasText: "S-curves" }).count()) throw new Error("S-curves should start closed");
+  await p.getByRole("button", { name: "+ S-curves" }).click();
+  await p.getByRole("button", { name: "+ Flowline" }).click();
   // S-curves: hours and % modes
   await p.getByRole("button", { name: "% of its total" }).click();
   await p.locator("text=100%").first().waitFor();

@@ -1,5 +1,32 @@
 # Changelog
 
+## As-built programme: calmer default, one colour language, a readable flowline (13 Nov 2026)
+
+Asked for: less density, an easier Gantt, the same colours across the four charts, a cleaner
+flowline, and stronger headers with the help tucked away.
+
+- **The Gantt and the manpower histogram lead.** The S-curves and the flowline sit under
+  **Deeper analysis**, each opened with its own switch (+ S-curves, + Flowline), closed at first and
+  remembered on this PC. More space between the sections.
+- **Gantt**: rows a little taller with the code on one line and its description (up to 44
+  characters) under it in a wider label column; alternate rows faintly shaded; Sunday and holiday
+  columns much fainter; hours right-aligned in bold with "peak" quieter beside them. The tooltip
+  gives the description, the place, the dates (3 Oct – 20 Oct), the days with work, the hours and
+  the peak. Compact: 18-px rows with the code only (the description in the tooltip).
+- **One colour per activity**: an activity (the code without its place) has the same colour in the
+  S-curves and the flowline: the six with most hours get their own, the rest the grey of "Other".
+  In the S-curves the same activity at a second place is dashed; "All work" is the thick light
+  line. The Gantt stays one colour (crew size as shade); the histogram keeps the trade colours.
+- **Flowline**: the 5 activities with most hours by default (3, 5 or 7); heavier lines for the
+  biggest; a shaded band for every other place and bold place names; hover a line or its legend
+  entry to pick that activity out (the others fade), click the legend entry to keep it picked out.
+  The place order is a clear panel ("bottom to top, as the work moves").
+- **Headers**: the explanations fold under "How this works" on each chart (open on the first
+  visit); Save image stays at the right of every chart header. The histogram's daily totals are
+  smaller and lighter.
+- Tests: `programme` opens the two deeper charts and checks they start closed; programme, analysis,
+  rupees and lost-time pass on made-up data. `site-report` fails as before (date-dependent).
+
 ## Analysis overview: hierarchy and colour with meaning (13 Nov 2026)
 
 Asked for: stronger tiles, colour that says something, a softer chart, the two lists as equal

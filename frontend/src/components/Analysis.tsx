@@ -337,7 +337,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
       ) : view === "overview" ? (
         <Overview k={k} data={{ slices, entries }} days={daily(data, slices, filter)} onView={setView} desc={desc} />
       ) : view === "programme" ? (
-        <Programme slices={slices} days={daily(data, slices, filter)} master={master} trade={filter.trade} desc={desc} onPick={(code) => set({ code })} onSaved={() => onMasterChanged?.()} />
+        <Programme slices={slices} days={daily(data, slices, filter)} master={master} trade={filter.trade} desc={desc} compact={compact} onPick={(code) => set({ code })} onSaved={() => onMasterChanged?.()} />
       ) : view === "productivity" ? (
         <Productivity data={data} master={master} desc={desc} money={money} disrupted={disruptedSet} onSaved={() => onMasterChanged?.()} />
       ) : view === "fatigue" ? (

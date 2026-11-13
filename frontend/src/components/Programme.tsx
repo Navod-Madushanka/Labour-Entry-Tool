@@ -4,7 +4,9 @@
 // once the PM puts the places in order.
 import { useContext, useMemo, useState, type ClipboardEvent } from "react";
 import { api, type Master } from "../api";
-import { ALL, flowline, planned, programme, sCurves, weekOf, type DayRow, type Slice } from "../analysis";
+import { ALL, flowline, NO_CODE, planned, programme, sCurves, weekOf, workPart, type DayRow, type Slice } from "../analysis";
+import { CardHelp } from "./CardHelp";
+import { store } from "../store";
 import { COLORS, DayBars, DisruptedCtx, SaveImage, h } from "./charts";
 
 type Desc = (code: string) => string | null;
@@ -19,31 +21,56 @@ interface Props {
   onSaved: () => void; // place order or plan saved: read the master again
 }
 
-export function Programme({ slices, days, master, trade, desc, onPick, onSaved }: Props) {
+/** One colour per activity (the work part of a code, e.g. 03-11-00-00), shared by the S-curves and
+ * the flowline: the six with most hours get their own, the rest the grey of "Other". */
+function activityColors(slices: Slice[]): (code: string) => string {
+  const hours = new Map<string, number>();
+  for (const s of slices) if (s.code !== NO_CODE) hours.set(workPart(s.code), (hours.get(workPart(s.code)) ?? 0) + s.hours);
+  const rank = new Map([...hours].sort((a, b) => b[1] - a[1]).map(([k], i) => [k, i]));
+  return (code: string) => { const i = rank.get(workPart(code)); return i !== undefined && i < 6 ? COLORS[i] : COLORS[6]; };
+}
+
+export function Programme({ slices, days, master, trade, desc, onPick, onSaved, compact = false }: Props & { compact?: boolean }) {
+  // the Gantt and the manpower histogram lead; the S-curves and the flowline open on demand
+  const [more, setMore] = useState(() => ({ s: store.get("labour.prog.scurves") === "1", f: store.get("labour.prog.flowline") === "1" }));
+  const toggle = (k: "s" | "f") => setMore((m) => { const next = { ...m, [k]: !m[k] }; store.set(k === "s" ? "labour.prog.scurves" : "labour.prog.flowline", next[k] ? "1" : "0"); return next; });
+  const colorOf = useMemo(() => activityColors(slices), [slices]);
   return (
     <>
-      <p className="muted small">
-        Drawn straight from the daily sheets: nobody entered a programme. Each chart can be saved as a picture for the progress
-        meeting.
-      </p>
-      <Gantt slices={slices} days={days} desc={desc} onPick={onPick} />
+      <p className="muted small prog-intro">Drawn straight from the daily sheets: nobody entered a programme. Every chart saves as a picture for the progress meeting.</p>
+      <Gantt slices={slices} days={days} desc={desc} onPick={onPick} compact={compact} />
       <Histogram days={days} master={master} trade={trade} onSaved={onSaved} />
-      <SCurves slices={slices} days={days} desc={desc} />
-      <Flowline slices={slices} days={days} master={master} desc={desc} onSaved={onSaved} />
+      <section className="prog-more">
+        <div className="prog-more-head">
+          <div>
+            <h3>Deeper analysis</h3>
+            <span className="muted small">Progress curves, and how the work moves through the places</span>
+          </div>
+          <span className="prog-toggles" role="group" aria-label="Deeper analysis charts">
+            <button className={`toggle-btn${more.s ? " on" : ""}`} aria-pressed={more.s} onClick={() => toggle("s")}>{more.s ? "✓ " : "+ "}S-curves</button>
+            <button className={`toggle-btn${more.f ? " on" : ""}`} aria-pressed={more.f} onClick={() => toggle("f")}>{more.f ? "✓ " : "+ "}Flowline</button>
+          </span>
+        </div>
+        {more.s && <SCurves slices={slices} days={days} desc={desc} colorOf={colorOf} />}
+        {more.f && <Flowline slices={slices} days={days} master={master} desc={desc} onSaved={onSaved} colorOf={colorOf} />}
+      </section>
     </>
   );
 }
 
 // ------------------------------------------------------------------------------- Gantt
 
-function Gantt({ slices, days, desc, onPick }: { slices: Slice[]; days: DayRow[]; desc: Desc; onPick: (code: string) => void }) {
+const shortDate = (iso: string | null | undefined) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "");
+
+function Gantt({ slices, days, desc, onPick, compact }: { slices: Slice[]; days: DayRow[]; desc: Desc; onPick: (code: string) => void; compact: boolean }) {
   const [top, setTop] = useState(20);
   const all = useMemo(() => programme(slices), [slices]);
   const keep = new Set([...all].sort((a, b) => b.hours - a.hours).slice(0, top).map((b) => b.key));
   const bars = all.filter((b) => keep.has(b.key));
   if (!bars.length) return <div className="card"><h3>As-built programme</h3><p className="muted">No activity codes in these entries.</p></div>;
   const peak = Math.max(1, ...bars.map((b) => b.peak));
-  const cw = 22, rh = 24, left = 250, right = 120, head = 34;
+  const cw = 22, rh = compact ? 18 : 28, left = compact ? 170 : 300, right = 120, head = 34;
+  const dateOf = new Map(days.map((d) => [d.day, d.date]));
   const width = left + days.length * cw + right;
   const height = head + bars.length * rh + 8;
   const col = new Map(days.map((d, i) => [d.day, i]));
@@ -63,17 +90,17 @@ function Gantt({ slices, days, desc, onPick }: { slices: Slice[]; days: DayRow[]
           <SaveImage name="As-built programme" />
         </span>
       </div>
-      <p className="muted small">
+      <CardHelp id="gantt">
         Each bar runs from the first to the last day the activity had hours; darker days had a bigger crew (up to {peak} people). Gaps are
-        days without work on it. Click a code to filter by it.
-      </p>
+        days without work on it. Hover a row for its dates and hours; click it to filter every view by that activity.
+      </CardHelp>
       <div className="table-wrap">
         <svg className="chart-svg gantt" viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label="As-built programme">
           {days.map((d, i) => {
             const off = d.kind === "Sunday" || d.kind === "Holiday";
             return (
               <g key={d.sheet}>
-                {off && <rect x={left + i * cw} y={head - 4} width={cw} height={height - head} fill="var(--sun-bg)" opacity="0.5" />}
+                {off && <rect x={left + i * cw} y={head - 4} width={cw} height={height - head} fill="var(--sun-bg)" opacity="0.22" />}
                 <text x={left + i * cw + cw / 2} y={head - 12} textAnchor="middle" fontSize="11" fill={off ? "var(--sun)" : d.kind === "Saturday" ? "var(--sat)" : "var(--muted)"}>
                   {d.day}
                 </text>
@@ -86,20 +113,21 @@ function Gantt({ slices, days, desc, onPick }: { slices: Slice[]; days: DayRow[]
             return (
               <g key={b.key} className="gantt-row" onClick={() => onPick(b.key)} style={{ cursor: "pointer" }} tabIndex={0} role="button"
                 aria-label={`Filter by ${b.key}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(b.key); } }}>
-                <title>{`${b.key}${d ? ` — ${d}` : ""}\nDays ${b.first}–${b.last}, ${b.activeDays} with work, ${h(b.hours)} h, peak ${b.peak} people\nClick to filter every view by this activity`}</title>
+                <title>{`${b.key}${d ? ` — ${d}` : ""}${b.place && b.place !== "No place" ? ` · ${b.place}` : ""}\n${shortDate(dateOf.get(b.first)) || `day ${b.first}`} – ${shortDate(dateOf.get(b.last)) || `day ${b.last}`} (days ${b.first}–${b.last}), ${b.activeDays} with work\n${h(b.hours)} h · peak ${b.peak} people\nClick to filter every view by this activity`}</title>
+                {r % 2 === 1 && <rect x={0} y={y} width={width} height={rh} fill="var(--row)" opacity="0.45" />}
                 <rect className="gantt-hover" x={0} y={y} width={width} height={rh} fill="var(--primary-bg)" opacity="0" />
                 <line x1={0} x2={width} y1={y + rh} y2={y + rh} stroke="var(--line)" />
-                <text x={6} y={y + 11} fontSize="11.5" fontWeight="600" fill="var(--text)" fontFamily="ui-monospace, Consolas, monospace">{b.key}</text>
-                <text x={6} y={y + 21} fontSize="10" fill="var(--muted)">{(d ?? b.place).slice(0, 36)}</text>
-                <rect className="gantt-bar" x={x(b.first) + 1} y={y + 5} width={x(b.last) - x(b.first) + cw - 2} height={rh - 10} rx="3" fill="var(--row)" stroke="var(--line)" />
+                <text x={6} y={compact ? y + 13 : y + 12} fontSize={compact ? 11 : 12} fontWeight="600" fill="var(--text)" fontFamily="ui-monospace, Consolas, monospace">{b.key}</text>
+                {!compact && <text x={6} y={y + 24} fontSize="10.5" fill="var(--muted)">{(d ?? b.place).slice(0, 44)}{(d ?? b.place).length > 44 ? "…" : ""}</text>}
+                <rect className="gantt-bar" x={x(b.first) + 1} y={y + 4} width={x(b.last) - x(b.first) + cw - 2} height={rh - 8} rx="3" fill="var(--row)" stroke="var(--line)" />
                 {[...b.people].map(([day, n]) => (
-                  <rect key={day} x={x(day) + 2} y={y + 6} width={cw - 4} height={rh - 12} rx="2" fill="var(--c1)" opacity={0.25 + 0.75 * (n / peak)}>
+                  <rect key={day} x={x(day) + 2} y={y + 5} width={cw - 4} height={rh - 10} rx="2" fill="var(--c1)" opacity={0.25 + 0.75 * (n / peak)}>
                     <title>{`${b.key}, day ${day}: ${n} people`}</title>
                   </rect>
                 ))}
-                <text x={left + days.length * cw + 8} y={y + 15} fontSize="11" fill="var(--text)">{h(b.hours)} h</text>
-                <text x={left + days.length * cw + 58} y={y + 15} fontSize="10" fill="var(--muted)">peak {b.peak}</text>
-                <text className="gantt-pick" x={left - 8} y={y + 12} fontSize="10" textAnchor="end" fill="var(--primary)" opacity="0">filter ⏵</text>
+                <text x={left + days.length * cw + 52} y={y + rh / 2 + 4} fontSize="11.5" fontWeight="600" textAnchor="end" fill="var(--text)" style={{ fontVariantNumeric: "tabular-nums" }}>{h(b.hours)} h</text>
+                <text x={left + days.length * cw + 60} y={y + rh / 2 + 4} fontSize="10" fill="var(--muted)" opacity="0.8">peak {b.peak}</text>
+                <text className="gantt-pick" x={left - 8} y={compact ? y + 13 : y + 12} fontSize="10" textAnchor="end" fill="var(--primary)" opacity="0">filter ⏵</text>
               </g>
             );
           })}
@@ -131,7 +159,7 @@ function Histogram({ days, master, trade, onSaved }: { days: DayRow[]; master: M
         <h3>Manpower histogram by trade</h3>
         <SaveImage name="Manpower histogram" />
       </div>
-      <p className="muted small">
+      <p className="muted small chart-sub">
         People on site each day, stacked by trade.
         {hasPlan ? ` The dashed line is the planned headcount${trade ? ` for ${trade}` : ""} from the look-ahead.` : " Add the planned headcount below to draw the plan line."}
       </p>
@@ -248,7 +276,7 @@ function PlanEditor({ days, trades, plan, onSaved }: { days: DayRow[]; trades: s
 
 // ------------------------------------------------------------------------------ S-curves
 
-function SCurves({ slices, days, desc }: { slices: Slice[]; days: DayRow[]; desc: Desc }) {
+function SCurves({ slices, days, desc, colorOf }: { slices: Slice[]; days: DayRow[]; desc: Desc; colorOf: (code: string) => string }) {
   const [by, setBy] = useState<"code" | "place">("code");
   const [pctMode, setPct] = useState(false);
   const curves = useMemo(() => sCurves(slices, by === "code" ? (s) => s.code : (s) => s.place, days.map((d) => d.day)), [slices, days, by]);
@@ -260,6 +288,15 @@ function SCurves({ slices, days, desc }: { slices: Slice[]; days: DayRow[]; desc
   const xs = (i: number) => left + i * cw + cw / 2;
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * max);
   const label = (k: string) => (k === ALL ? ALL : by === "code" && desc(k) ? `${k} · ${desc(k)}` : k);
+  // by activity: the activity's own colour (as on the flowline); a second code of the same activity
+  // (another place) is dashed. By place: the places in order of hours.
+  const style = curves.map((c, i) => {
+    if (i === 0) return { color: "var(--text)", dash: undefined as string | undefined };
+    if (by === "place") return { color: COLORS[(i - 1) % COLORS.length], dash: undefined };
+    const color = colorOf(c.key);
+    const before = curves.slice(1, i).some((o) => colorOf(o.key) === color);
+    return { color, dash: before ? "6 4" : undefined };
+  });
   return (
     <div className="card">
       <div className="card-head">
@@ -276,14 +313,18 @@ function SCurves({ slices, days, desc }: { slices: Slice[]; days: DayRow[]; desc
           <SaveImage name={`S-curves by ${by === "code" ? "activity" : "place"}`} />
         </span>
       </div>
-      <p className="muted small">
-        Hours worked so far, day by day: all work (thick) and the {curves.length - 1} {by === "code" ? "activities" : "places"} with most hours. A
-        steep stretch is fast progress of labour; a flat one is a pause.
-      </p>
+      <CardHelp id="scurves">
+        Hours worked so far, day by day: all work (the thick light line) and the {curves.length - 1} {by === "code" ? "activities" : "places"} with most
+        hours. A steep stretch is fast progress of labour; a flat one is a pause. By activity, each activity keeps its colour from the flowline;
+        the same activity at a second place is dashed.
+      </CardHelp>
       <div className="chart">
         <div className="legend">
           {curves.map((c, i) => (
-            <span key={c.key}><i style={{ background: i === 0 ? "var(--text)" : COLORS[(i - 1) % COLORS.length] }} />{label(c.key)} · {h(c.total)} h</span>
+            <span key={c.key} className={i === 0 ? "legend-all" : undefined}>
+              {style[i].dash ? <i className="line" style={{ borderColor: style[i].color }} /> : <i style={{ background: style[i].color }} />}
+              {label(c.key)} · {h(c.total)} h
+            </span>
           ))}
         </div>
         <div className="table-wrap">
@@ -299,10 +340,10 @@ function SCurves({ slices, days, desc }: { slices: Slice[]; days: DayRow[]; desc
             ))}
             {[...curves].reverse().map((c) => {
               const i = curves.indexOf(c);
-              const color = i === 0 ? "var(--text)" : COLORS[(i - 1) % COLORS.length];
+              const { color, dash } = style[i];
               const pts = c.points.map((p, j) => `${xs(j)},${y(pctMode ? (c.total ? p.cum / c.total : 0) : p.cum)}`).join(" ");
               return (
-                <polyline key={c.key} points={pts} fill="none" stroke={color} strokeWidth={i === 0 ? 3 : 2} strokeLinejoin="round">
+                <polyline key={c.key} points={pts} fill="none" stroke={color} strokeWidth={i === 0 ? 3.5 : 2} strokeDasharray={dash} strokeLinejoin="round" opacity={i === 0 ? 0.9 : 1}>
                   <title>{`${label(c.key)}: ${h(c.total)} h`}</title>
                 </polyline>
               );
@@ -316,7 +357,11 @@ function SCurves({ slices, days, desc }: { slices: Slice[]; days: DayRow[]; desc
 
 // ------------------------------------------------------------------------------ flowline
 
-function Flowline({ slices, days, master, desc, onSaved }: { slices: Slice[]; days: DayRow[]; master: Master; desc: Desc; onSaved: () => void }) {
+function Flowline({ slices, days, master, desc, onSaved, colorOf }: { slices: Slice[]; days: DayRow[]; master: Master; desc: Desc; onSaved: () => void; colorOf: (code: string) => string }) {
+  const [shown, setShown] = useState(5); // activities drawn: the ones with most hours
+  const [hot, setHot] = useState<string | null>(null); // one activity picked out (hover or click on the legend)
+  const [pinned, setPinned] = useState<string | null>(null);
+  const focus = pinned ?? hot;
   const saved = master.place_order ?? [];
   const flow = useMemo(() => flowline(slices, saved), [slices, saved]);
   const [order, setOrder] = useState<string[] | null>(null);
@@ -340,7 +385,7 @@ function Flowline({ slices, days, master, desc, onSaved }: { slices: Slice[]; da
       setMsg(e instanceof Error ? e.message : String(e));
     }
   };
-  const acts = flow.activities.slice(0, 7);
+  const acts = flow.activities.slice(0, shown);
   // the work part's description: from any of its codes (the place does not change what it is)
   const actDesc = (a: string) => desc(a) ?? flow.segments.filter((x) => x.activity === a).map((x) => desc(`${a}-${x.suffix}`)).find(Boolean) ?? null;
   const cw = 22, left = 150, bottom = 30, top = 10, lh = Math.max(34, Math.min(60, 240 / Math.max(levels.length, 1)));
@@ -353,18 +398,29 @@ function Flowline({ slices, days, master, desc, onSaved }: { slices: Slice[]; da
     <div className="card">
       <div className="card-head">
         <h3>Flowline (activities through the places)</h3>
-        {levels.length > 1 && <SaveImage name="Flowline" />}
+        <span className="row" style={{ marginTop: 0 }}>
+          <label className="small">
+            Show{" "}
+            <select value={shown} onChange={(e) => setShown(Number(e.target.value))}>
+              {[3, 5, 7].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>{" "}
+            activities
+          </label>
+          {levels.length > 1 && <SaveImage name="Flowline" />}
+        </span>
       </div>
-      <p className="muted small">
+      <CardHelp id="flowline">
         Time across, places up the side in the order the work moves through them. Each activity is a line climbing from place to place;
-        its slope is the speed of work, and lines that cross or touch mean two activities in one place at once.
-      </p>
+        its slope is the speed of work, and lines that cross or touch mean two activities in one place at once. Hover an activity (here or
+        in the legend) to pick it out; click it in the legend to keep it picked out. Thicker lines are the activities with most hours.
+      </CardHelp>
       {levels.length < 2 ? (
         <p className="muted">The codes in these entries use fewer than two places, so there is no flowline to draw.</p>
       ) : (
         <div className="flow-wrap">
           <div className="flow-order">
-            <b className="small">Place order (bottom to top)</b>
+            <b className="small">Place order</b>
+            <span className="muted small">bottom to top, as the work moves</span>
             <ol>
               {[...levels].map((s, i) => (
                 <li key={s}>
@@ -379,16 +435,29 @@ function Flowline({ slices, days, master, desc, onSaved }: { slices: Slice[]; da
           </div>
           <div className="chart" style={{ minWidth: 0, flex: 1 }}>
             <div className="legend">
-              {acts.map((a, i) => (
-                <span key={a}><i style={{ background: COLORS[i % COLORS.length] }} />{a}{actDesc(a) ? ` · ${actDesc(a)}` : ""}</span>
+              {acts.map((a) => (
+                <button
+                  key={a}
+                  className={`legend-btn${focus === a ? " on" : ""}${focus && focus !== a ? " dim" : ""}`}
+                  aria-pressed={pinned === a}
+                  onMouseEnter={() => setHot(a)}
+                  onMouseLeave={() => setHot(null)}
+                  onClick={() => setPinned((p) => (p === a ? null : a))}
+                >
+                  <i style={{ background: colorOf(a) }} />
+                  {a}
+                  {actDesc(a) ? ` · ${actDesc(a)}` : ""}
+                </button>
               ))}
             </div>
             <div className="table-wrap">
               <svg className="chart-svg" viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label="Flowline">
                 {levels.map((s, i) => (
                   <g key={s}>
+                    {/* a band per place, so the eye reads which floor or zone a line is on */}
+                    {i % 2 === 0 && <rect x={0} y={yAt(i, true)} width={width} height={lh} fill="var(--row)" opacity="0.6" />}
                     <line x1={left} x2={width - 4} y1={yAt(i)} y2={yAt(i)} stroke="var(--line)" />
-                    <text x={left - 8} y={yAt(i) - lh / 2 + 4} textAnchor="end" fontSize="11" fill="var(--text)">{name(s).slice(0, 22)}</text>
+                    <text x={left - 10} y={yAt(i) - lh / 2 + 4} textAnchor="end" fontSize="12" fontWeight="600" fill="var(--text)">{name(s).slice(0, 22)}</text>
                   </g>
                 ))}
                 <line x1={left} x2={width - 4} y1={yAt(levels.length - 1, true)} y2={yAt(levels.length - 1, true)} stroke="var(--line)" />
@@ -397,18 +466,20 @@ function Flowline({ slices, days, master, desc, onSaved }: { slices: Slice[]; da
                 ))}
                 {acts.map((a, k) => {
                   const segs = flow.segments.filter((s) => s.activity === a && levels.includes(s.suffix)).sort((p, q) => levels.indexOf(p.suffix) - levels.indexOf(q.suffix));
-                  const color = COLORS[k % COLORS.length];
+                  const color = colorOf(a);
+                  const weight = k < 2 ? 5 : k < 4 ? 4 : 3; // the activities with most hours drawn heavier
+                  const fade = focus && focus !== a ? 0.12 : 1;
                   const pts = segs.flatMap((s) => {
                     const l = levels.indexOf(s.suffix);
                     return [`${xAt(s.first)},${yAt(l) - 3}`, `${xAt(s.last, true)},${yAt(l, true) + 3}`];
                   });
                   return (
-                    <g key={a}>
-                      {segs.length > 1 && <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />}
+                    <g key={a} opacity={fade} onMouseEnter={() => setHot(a)} onMouseLeave={() => setHot(null)} style={{ cursor: "pointer" }}>
+                      {segs.length > 1 && <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={focus === a ? 2 : 1.2} strokeDasharray="3 3" opacity="0.7" />}
                       {segs.map((s) => {
                         const l = levels.indexOf(s.suffix);
                         return (
-                          <line key={s.suffix} x1={xAt(s.first)} y1={yAt(l) - 3} x2={xAt(s.last, true)} y2={yAt(l, true) + 3} stroke={color} strokeWidth="3.5" strokeLinecap="round">
+                          <line key={s.suffix} x1={xAt(s.first)} y1={yAt(l) - 3} x2={xAt(s.last, true)} y2={yAt(l, true) + 3} stroke={color} strokeWidth={focus === a ? weight + 1.5 : weight} strokeLinecap="round">
                             <title>{`${a} at ${name(s.suffix)}: days ${s.first}–${s.last}, ${h(s.hours)} h`}</title>
                           </line>
                         );
