@@ -1,16 +1,17 @@
 import type { Batch } from "../api";
 
 interface Props {
+  quiet?: boolean; // under configuration cards: lighter, so it does not compete with them
   batches: Batch[];
   busy: boolean;
   onUndo: (b: Batch) => void;
 }
 
 /** Recent writes from the audit log, each undoable while its cells are unchanged. */
-export function Batches({ batches, busy, onUndo }: Props) {
+export function Batches({ batches, busy, onUndo, quiet = false }: Props) {
   if (!batches.length) return null;
   return (
-    <section className="batches">
+    <section className={`batches${quiet ? " quiet" : ""}`}>
       <h2>
         Recent batches <span className="muted">({batches.length})</span>
       </h2>

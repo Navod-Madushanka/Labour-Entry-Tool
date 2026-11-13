@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type DescriptionsView } from "../api";
+import { CardHelp } from "./CardHelp";
 
 /** Codes & registration: what each activity code is, in words. Every code starts with its
  * MasterFormat title (03-11 Concrete Forming); the office types its own where that is not right.
@@ -54,8 +55,10 @@ export function DescriptionsEditor({ onChanged }: { onChanged: () => void }) {
 
   return (
     <section className="card desc-card">
-      <h2>What each activity code is</h2>
-      <p className="muted small">
+      <h2>
+        What each activity code is {view && <span className="h-count">{view.codes.filter((r) => r.custom).length} described by you</span>}
+      </h2>
+      <CardHelp id="descriptions">
         Shown beside the codes in the entry screen, on the manpower sheet's Description column, in Analysis and in the Excel
         export. Each code starts with its standard MasterFormat title (03-11 Concrete Forming, 03-20 Concrete Reinforcing, …).
         Type your own where it should read differently; empty a box to go back to the standard title.
@@ -66,18 +69,24 @@ export function DescriptionsEditor({ onChanged }: { onChanged: () => void }) {
           </>
         ) : null}{" "}
         Excel is not changed.
-      </p>
+      </CardHelp>
       {error && <p className="error-text">{error}</p>}
       {!view ? (
         <p className="muted small">Loading…</p>
       ) : (
         <>
           <div className="row desc-tools">
-            <input aria-label="Search codes" placeholder="Search a code or a word…" value={query} onChange={(e) => setQuery(e.target.value)} />
-            <label className="check small">
-              <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Also codes not used this month (
-              {view.codes.filter((r) => !r.lines).length})
+            <span className="search-box">
+              <span aria-hidden="true">⌕</span>
+              <input type="search" aria-label="Search codes" placeholder="Search a code or a word…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            </span>
+            <label className={`chip-toggle${all ? " on" : ""}`}>
+              <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> Also codes not used this month
+              <span className="seg-n">{view.codes.filter((r) => !r.lines).length}</span>
             </label>
+            <span className="muted small desc-count">
+              Showing <b>{rows.length}</b> of {view.codes.length}
+            </span>
           </div>
           <div className="table-wrap desc-wrap">
             <table className="places desc-table">
@@ -86,7 +95,7 @@ export function DescriptionsEditor({ onChanged }: { onChanged: () => void }) {
                   <th>Code</th>
                   <th>Description</th>
                   <th>Standard title</th>
-                  <th>Used this month</th>
+                  <th className="num">Used this month</th>
                 </tr>
               </thead>
               <tbody>
@@ -108,7 +117,7 @@ export function DescriptionsEditor({ onChanged }: { onChanged: () => void }) {
                       />
                     </td>
                     <td className="std">{r.standard ?? "—"}</td>
-                    <td className="muted small">{r.lines ? `${r.lines} lines` : "not yet"}</td>
+                    <td className="small usage">{r.lines ? <><b className="num">{r.lines.toLocaleString()}</b> lines</> : <span className="muted">not yet</span>}</td>
                   </tr>
                 ))}
               </tbody>

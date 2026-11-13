@@ -709,16 +709,18 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               <div className="codes-cards">
                 <TradeLettersEditor master={master} onChanged={() => api.master(true).then(setMaster).catch(fail)} />
                 {master.check_activities && <PlacesEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
-                {master.check_activities && <DescriptionsEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
-                <ActivityAdder
-              master={master}
-              user={user}
-              onChanged={() => {
-                api.master(true).then(setMaster).catch(fail);
-                refreshBatches();
-                refreshStatus();
-              }}
-            />
+                <div className="codes-group">
+                  {master.check_activities && <DescriptionsEditor onChanged={() => api.master(true).then(setMaster).catch(fail)} />}
+                  <ActivityAdder
+                    master={master}
+                    user={user}
+                    onChanged={() => {
+                      api.master(true).then(setMaster).catch(fail);
+                      refreshBatches();
+                      refreshStatus();
+                    }}
+                  />
+                </div>
               </div>
             )}
             {codesTab === "checks" && (
@@ -731,7 +733,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               }}
             />
             )}
-            {codesTab !== "sql" && <Batches batches={batches} busy={busy} onUndo={undo} />}
+            {codesTab !== "sql" && <Batches batches={batches} busy={busy} onUndo={undo} quiet={codesTab === "places"} />}
           </>
         ) : (
           <>

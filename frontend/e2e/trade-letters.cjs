@@ -41,6 +41,7 @@ const out = process.argv[2] || ".";
   // back to the tool's list: A is unknown again, the column decides
   await p.getByRole("link", { name: "Codes & registration" }).click();
   await p.getByRole("tab", { name: "Trades, places & activity codes" }).click();
+  p.once("dialog", (d) => d.accept()); // "Replace your letters with the tool's own list?"
   await p.locator(".trade-letters").getByRole("button", { name: "Back to the tool's list" }).click();
   await p.locator(".trade-letters >> text=Saved.").waitFor();
   const back = (await master()).find((w) => w.calling_name === "AAA-01");

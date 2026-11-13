@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { api, type Master } from "../api";
+import { CardHelp } from "./CardHelp";
 import { placeName, placeSuffix } from "../codes";
 
 const CHARS = /^[A-Z0-9][A-Z0-9-]*$/;
@@ -75,13 +76,13 @@ export function ActivityAdder({ master, user, onChanged }: { master: Master; use
     <section className="activity-adder">
       <div className="section-head">
         <h2>
-          Activity codes <span className="muted">({master.activities.length} in the list)</span>
+          Add activity codes <span className="h-count">{master.activities.length} in the list</span>
         </h2>
       </div>
-      <p className="muted small">
+      <CardHelp id="add-codes">
         Add new codes to the activity list in Labour Detail without opening Excel. Each goes into the next empty cell of
         column L and can be used in entries straight away.
-      </p>
+      </CardHelp>
       <div className="field">
         <label htmlFor="new-codes">New codes (one per line, or separated by commas)</label>
         <textarea id="new-codes" rows={3} value={text} disabled={busy} placeholder="e.g. 03-31-05-35-P" onChange={(e) => { setText(e.target.value); setResult(null); }} />

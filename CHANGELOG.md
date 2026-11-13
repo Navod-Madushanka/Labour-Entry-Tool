@@ -1,5 +1,32 @@
 # Changelog
 
+## Codes & registration: trades, places & activity codes, a design pass (13 Nov 2026)
+
+Asked for: clearer hierarchy, places that look intentional rather than unfinished, softer colours
+with orange only for the main actions, easier tables, tighter trades, and the code adder joined to
+the code table.
+
+- **Hierarchy**: card titles larger with a thin orange bar, and a count beside each (6 letters,
+  0 named, 3 described by you, 207 in the list). The long explanations fold under **How this
+  works**: open on the first visit, then remembered per card on this PC once folded.
+- **Places**: endings that need a name come first under "Need a name (n)", then "Named". An
+  All / Need a name switch with counts. Empty boxes read "Name this place…" with a dashed amber
+  border, so they look like a to-do, not missing data. The default list is the endings used this
+  month or named ("Show n more" for the rest, and back). Usage right-aligned with even figures.
+- **Colours**: the dark theme's page is a soft blue-grey (#14171d) and cards sit lighter
+  (#1d212a) with a shadow, across the app. On this tab orange is only the Save buttons: "Back to
+  the tool's list", "Show more" and the ✕ buttons are quiet text; the switch is neutral.
+- **Tables**: header rows set apart (shaded, with a rule); the code table's header stays at the top
+  while its list scrolls; a soft hover on rows; "Used this month" right-aligned.
+- **Activity codes**: a larger search box with "Showing n of N", the "Also codes not used this
+  month" switch as a chip with its count, and **Add activity codes** joined under the table as one
+  group.
+- **Trades**: the letters as round chips; "Back to the tool's list" asks before replacing the
+  letters.
+- **Recent batches**: lighter and smaller under the configuration cards on this tab.
+- Tests: `trade-letters` accepts the new question; `places-edit`, `trade-letters`,
+  `descriptions`, `sql-panel`, `supervisors` and `analysis` pass on made-up data.
+
 ## SQL panel: the functions of the common databases (12 Nov 2026)
 
 Asked for: every SQL function usable in any relational database.

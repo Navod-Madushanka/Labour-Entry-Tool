@@ -40,12 +40,12 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121417; /* the page */
-    --panel: #1a1d24; /* cards, lifted off the page */
+    --bg: #14171d; /* the page: a soft blue-grey, not black */
+    --panel: #1d212a; /* cards, lifted off the page */
     --text: #e8eaee;
     --muted: #9ca3af;
     --line: #2a2e39;
-    --field: #121417; /* input boxes: sunk into the card, crisp edge */
+    --field: #161a21; /* input boxes: sunk into the card, crisp edge */
     --field-line: #3a404d;
     --accent: #ff7a00;
     --accent-hover: #ff9533;
@@ -1279,3 +1279,69 @@ tr:hover > th .pick-hint, tr:focus-within > th .pick-hint { display: inline-bloc
 .tree-fn-search { width: 100%; margin: 4px 0 6px; font-size: 12.5px; padding: 3px 6px; }
 .tree-fn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .type.t-fn { color: var(--c4); font-style: italic; font-weight: 700; }
+
+/* ---------------------------------------------------------------- Codes: trades, places & codes
+   One calm system: cards lift off the page; each title gets a thin orange bar (the only other
+   orange is the Save buttons); help folds away; tables have a clear header and even numbers. */
+.codes-cards > section, .codes-group > section { border: 1px solid var(--line); border-top: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 18px 20px; }
+@media (prefers-color-scheme: dark) { .codes-cards > section, .codes-group > section { box-shadow: 0 1px 0 #ffffff08 inset, 0 6px 18px #0005; } }
+.codes-cards h2 { font-size: 18px; font-weight: 650; margin: 0 0 6px; padding-left: 10px; border-left: 3px solid var(--accent); line-height: 1.25; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.h-count { font-size: 12.5px; font-weight: 600; color: var(--text); background: var(--row); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+.codes-cards .section-head { margin-bottom: 0; }
+.card-help { margin: 2px 0 12px; }
+.card-help > summary { cursor: pointer; font-size: 12.5px; color: var(--muted); list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+.card-help > summary::-webkit-details-marker { display: none; }
+.card-help > summary::before { content: "?"; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--field-line); font-size: 10.5px; font-weight: 700; }
+.card-help[open] > summary { margin-bottom: 6px; }
+.card-help > div { max-width: 75ch; line-height: 1.5; border-left: 2px solid var(--line); padding-left: 10px; }
+/* secondary actions quiet: only Save is orange */
+.codes-cards button.link.quiet, .codes-group button.link.quiet { color: var(--muted); }
+.codes-cards button.link.quiet:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+.codes-cards button.link.danger { color: var(--muted); }
+.codes-cards button.link.danger:hover { color: var(--block); }
+/* table headers set apart; numbers right-aligned and even */
+.codes-cards table.places thead th, .codes-group table.places thead th, .codes-cards .trade-table thead th { background: var(--row); border-bottom: 1px solid var(--line); padding: 6px 10px; }
+.codes-cards table.places th.num, .codes-group table.places th.num { text-align: right; }
+.codes-cards td.usage, .codes-group td.usage { text-align: right; white-space: nowrap; padding-right: 4px; font-variant-numeric: tabular-nums; }
+.codes-cards td.usage b.num, .codes-group td.usage b.num { font-weight: 600; color: var(--text); }
+.codes-cards table.places tbody tr:hover td, .codes-group table.places tbody tr:hover td { background: color-mix(in srgb, var(--row) 70%, transparent); }
+/* trades: the letters as chips */
+.trade-table input.letter-chip { width: 6ch !important; text-align: center; font-weight: 700; font-family: ui-monospace, Consolas, monospace; background: var(--row); border-radius: 999px; }
+/* places: what needs a name looks deliberate, not broken */
+.places-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 8px; }
+.seg-n { display: inline-block; min-width: 1.6em; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--row); color: var(--text); font-size: 11.5px; font-weight: 600; text-align: center; }
+.seg-n.warn { background: var(--warn-bg); color: var(--warn); }
+.seg button.active .seg-n { background: color-mix(in srgb, var(--accent-text) 25%, transparent); color: inherit; }
+.places-card tr.group-head th { text-align: left; text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; color: var(--text); padding: 12px 0 4px; background: none !important; border-bottom: none !important; }
+.places-card tr.group-head.todo th { color: var(--warn); }
+.places-card table.places input.needs-name { border-style: dashed; border-color: color-mix(in srgb, var(--warn) 55%, var(--field-line)); background: color-mix(in srgb, var(--warn-bg) 35%, var(--field)); }
+.places-card table.places input.needs-name::placeholder { color: color-mix(in srgb, var(--warn) 70%, var(--muted)); font-style: italic; opacity: 0.9; }
+.places-card tr.filled code { border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+/* activity codes: a real search, a chip toggle, a sticky header; the adder joined to the table */
+.codes-group { display: flex; flex-direction: column; gap: 0; grid-column: 1 / -1; }
+.codes-group > section.desc-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin: 0; }
+.codes-group > section.activity-adder { border-top: 1px dashed var(--line) !important; border-top-left-radius: 0; border-top-right-radius: 0; margin: 0; background: color-mix(in srgb, var(--row) 35%, var(--panel)); }
+.codes-group > section.activity-adder h2 { font-size: 15.5px; }
+.desc-tools { align-items: center; }
+.search-box { position: relative; display: inline-flex; align-items: center; flex: 1 1 320px; max-width: 460px; }
+.search-box > span { position: absolute; left: 10px; color: var(--muted); font-size: 15px; pointer-events: none; }
+.search-box input { width: 100%; padding: 7px 10px 7px 30px; font-size: 14px; border-radius: 8px; }
+.chip-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border: 1px solid var(--field-line); border-radius: 999px; font-size: 12.5px; cursor: pointer; color: var(--muted); user-select: none; }
+.chip-toggle input { margin: 0; }
+.chip-toggle.on { border-color: var(--info); color: var(--text); background: var(--info-bg); }
+.desc-count { margin-left: auto; }
+.desc-wrap { border: 1px solid var(--line); border-radius: 8px; }
+.desc-wrap table.places thead th { position: sticky; top: 0; z-index: 1; }
+.desc-card table.places.desc-table { border-spacing: 0; }
+.desc-card table.places.desc-table td { padding: 4px 10px 4px 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+/* recent batches: lighter, below the configuration */
+section.batches.quiet { background: transparent; box-shadow: none; border: 1px solid var(--line); border-radius: 10px; margin-top: 18px; padding: 10px 14px; }
+section.batches.quiet h2 { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+section.batches.quiet li { font-size: 13px; }
+section.batches.quiet .batch-id, section.batches.quiet .batch-what { font-weight: 600; }
+section.batches.quiet button { padding: 2px 10px; font-size: 12px; background: transparent; }
+.codes-cards details.card-help, .codes-group details.card-help { border: none; background: none; padding: 0; box-shadow: none; }
+.codes-cards .seg button.active { background: var(--row); color: var(--text); box-shadow: inset 0 -2px 0 var(--text); }
+.codes-cards .seg button.active .seg-n:not(.warn) { background: var(--panel); }
+.places-card table.places { width: 100%; }
+.places-card table.places td:nth-child(2) input { width: 100%; max-width: 32ch; }

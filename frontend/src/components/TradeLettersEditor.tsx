@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Master, type TradeLetters } from "../api";
+import { CardHelp } from "./CardHelp";
 
 type Row = { letter: string; trade: string };
 const rowsOf = (letters: Record<string, string>): Row[] =>
@@ -48,12 +49,14 @@ export function TradeLettersEditor({ master, onChanged }: { master: Master; onCh
 
   return (
     <section className="card trade-letters">
-      <h2>Trades by calling-name letter</h2>
-      <p className="muted small">
+      <h2>
+        Trades by calling-name letter {view && <span className="h-count">{Object.keys(view.letters).length}</span>}
+      </h2>
+      <CardHelp id="trades">
         A worker's trade comes from the last letter before the "-" in the calling name: INR-01 is a Rigger, ADB-100 a
         Barbender. A letter not in this list, or a name that does not follow the pattern, takes the trade column of
         Labour Detail. Kept for every workbook. Excel is not changed.
-      </p>
+      </CardHelp>
       {error && <p className="error-text">{error}</p>}
       {!view ? (
         <p className="muted small">Loading…</p>
@@ -72,10 +75,12 @@ export function TradeLettersEditor({ master, onChanged }: { master: Master; onCh
                 <tr key={n}>
                   <td>
                     <input
+                      className="letter-chip"
                       aria-label={`Letter ${n + 1}`}
                       value={r.letter}
                       maxLength={2}
-                      placeholder={n === rows.length - 1 ? "+ letter" : ""}
+                      placeholder={n === rows.length - 1 ? "+" : ""}
+                      title={n === rows.length - 1 ? "A new letter" : undefined}
                       onChange={(e) => set(n, { letter: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })}
                     />
                   </td>
@@ -120,7 +125,12 @@ export function TradeLettersEditor({ master, onChanged }: { master: Master; onCh
             >
               Save trades
             </button>
-            <button className="link small" disabled={busy} onClick={() => save(view.known)} title={Object.entries(view.known).map(([l, t]) => `${l}: ${t}`).join(", ")}>
+            <button
+              className="link small quiet"
+              disabled={busy}
+              title={Object.entries(view.known).map(([l, t]) => `${l}: ${t}`).join(", ")}
+              onClick={() => window.confirm("Replace your letters with the tool's own list?\n\n" + Object.entries(view.known).map(([l, t]) => `${l}: ${t}`).join("\n")) && save(view.known)}
+            >
               Back to the tool's list
             </button>
             {saved && <span className="ok-text small">{saved}</span>}
