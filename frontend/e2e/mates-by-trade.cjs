@@ -5,6 +5,7 @@ const { chromium } = require("playwright");
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
 const out = process.argv[2] || ".";
 (async () => {
+  await require("./big-demo.cjs").requireBigDemo(BASE);
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
@@ -12,6 +13,7 @@ const out = process.argv[2] || ".";
   await p.evaluate(() => { localStorage.setItem("labour.user", "Tester"); for (const k of Object.keys(localStorage)) if (k.startsWith("labour.queue")) localStorage.removeItem(k); });
   await p.reload();
   await p.waitForSelector("#worker", { timeout: 20000 });
+  await require("./big-demo.cjs").waitForAllDays(p); // usual crews come from the last 10 days
   await p.getByRole("tab", { name: "21", exact: true }).click();
   await p.locator("#worker").fill("AAA-005"); await p.keyboard.press("Enter");
   await p.keyboard.type("7"); await p.keyboard.press("Enter");

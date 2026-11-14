@@ -6,6 +6,7 @@
 const { chromium } = require("playwright");
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
 (async () => {
+  await require("./big-demo.cjs").requireBigDemo(BASE);
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
   const prev = await (await p.request.get(BASE + "api/previous-month")).json();
@@ -15,6 +16,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.evaluate(() => { localStorage.setItem("labour.user", "Tester"); for (const k of Object.keys(localStorage)) if (k.startsWith("labour.queue")) localStorage.removeItem(k); });
   await p.reload();
   await p.waitForSelector("#worker");
+  await require("./big-demo.cjs").waitForAllDays(p); // usual crews come from the last 10 days
   await p.getByRole("tab", { name: "21", exact: true }).click(); // an empty day after 20 filled ones
   const a1 = 'input[aria-label="Activity 1"]';
   const add = async (name, code) => {
@@ -22,6 +24,9 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
     await p.waitForFunction(() => document.activeElement?.id === "in");
     await p.keyboard.press("Enter"); await p.keyboard.press("Enter");
     await p.waitForFunction((s) => document.activeElement === document.querySelector(s), a1);
+    // the box offers a code once the suggestions are worked out: in it (Enter) or below it (↓);
+    // a ↓ pressed before that does nothing and the wait below would time out
+    if (!code) await p.waitForFunction((s) => /Enter to use|↓ for the suggestions/.test(document.querySelector(s).placeholder), a1);
     if (code) await p.keyboard.type(code);
     else if (!(await p.locator(a1).getAttribute("placeholder")).includes("Enter to use")) await p.keyboard.press("ArrowDown");
     await p.waitForFunction((s) => document.querySelector(s).value !== "" || document.querySelector(s).placeholder.includes("Enter to use"), a1);

@@ -10,6 +10,7 @@ const dirs = fs.readdirSync(os.tmpdir()).filter((d) => d.startsWith("labour_two_
   .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
 const sept = dirs.map((d) => path.join(d, "Labour Entry Sheet September 2026 - DEMO A.json")).find((f) => fs.existsSync(f));
 (async () => {
+  await require("./big-demo.cjs").requireBigDemo(BASE);
   if (!sept) throw new Error("start the demo with 'big' (it writes a September book)");
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });

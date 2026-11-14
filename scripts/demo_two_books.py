@@ -9,6 +9,7 @@ through the start page.
 
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 import sys
 import tempfile
@@ -74,9 +75,11 @@ def book(folder: Path, name: str, prefix: str, codes: bool) -> Path:
     return save_snapshot(WorkbookSnapshot(meta=meta, master=master, days=days), folder / name)
 
 
-def big_book(folder: Path, name: str, prefix: str, size: int = 250, filled: int = 20) -> Path:
+def big_book(folder: Path, name: str, prefix: str, size: int = 250, filled: int = 20,
+             month: dt.date = dt.date(2026, 10, 1)) -> Path:
     """A month the size of a real one (made up): ``size`` workers in crews of 10 with their own
-    code and times, entries on days 1..``filled``, for long-day tests (frontend/e2e/soak.cjs)."""
+    code and times, entries on days 1..``filled`` of ``month``, for long-day tests
+    (frontend/e2e/soak.cjs)."""
     workers = [Worker(row=3 + i, calling_name=f"{prefix}-{i + 1:03d}", name=f"Person {i + 1}",
                       trade_group=["Carpenter", "Barbender", "Helper", "Masan"][i // 10 % 4],
                       id_no=f"P{i:07d}", employee_code=f"X{i:05d}")
@@ -85,8 +88,8 @@ def big_book(folder: Path, name: str, prefix: str, size: int = 250, filled: int 
             for s in ("", "-P", "-C-8")]  # fmt: skip
     shifts = [(7.0, 19.0), (7.0, 16.0), (8.0, 20.0), (7.0, 21.0), (19.0, 27.0)]
     days = []
-    for d in range(1, 32):
-        date = dt.date(2026, 10, d)
+    for d in range(1, calendar.monthrange(month.year, month.month)[1] + 1):
+        date = month.replace(day=d)
         entries = []
         if d <= filled:
             for b, w in enumerate(workers):
@@ -118,7 +121,8 @@ def main() -> None:
     a_name = "Labour Entry Sheet October 2026 - DEMO A.json"
     a = big_book(folder, a_name, "AAA") if big else book(folder, a_name, "AAA", codes=True)
     if big:  # the month before, next to it (its last days carry over into the 1st)
-        big_book(folder, "Labour Entry Sheet September 2026 - DEMO A.json", "AAA", filled=30)
+        big_book(folder, "Labour Entry Sheet September 2026 - DEMO A.json", "AAA", filled=30,
+                 month=dt.date(2026, 9, 1))  # fmt: skip
     b = book(folder, "Labour Entry Sheet October 2026 - DEMO B.json", "BBB", codes=False)
     c = book(folder, "Labour Entry Sheet October 2026 - DEMO C.json", "CCC", codes=True)
     app = create_app(Config(month="2026-10", backups={"dir": folder / "backups"},
