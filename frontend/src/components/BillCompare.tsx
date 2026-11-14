@@ -2,8 +2,9 @@
 // layout is found by the tool (shown, and correctable); the claim's columns by their headings.
 import { useRef, useState } from "react";
 import { api, type BillCheck, type ClaimCheck } from "../api";
+import { num as fmtNum } from "../fmt";
 
-const h = (n: number | null) => (n === null || n === undefined ? "—" : n.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+const h = (n: number | null) => (n === null || n === undefined ? "—" : fmtNum(n, { maximumFractionDigits: 2 }));
 const letters = (c: number | null) => {
   if (!c) return "";
   let s = "";

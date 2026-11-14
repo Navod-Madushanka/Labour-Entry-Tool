@@ -422,6 +422,25 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   );
 }
 
+// Labour Detail and the day sheets as last received, with their ETag. A re-read that finds Excel
+// unchanged answers "304" and the very same object comes back: the screen keeps it (no new state,
+// nothing drawn again, no JSON parsed). One copy per path, shared with the screen's own state.
+const held = new Map<string, { tag: string; data: unknown }>();
+
+async function getHeld<T>(path: string, fresh: boolean): Promise<T> {
+  const was = held.get(path);
+  const res = await fetch(fresh ? `${path}?fresh=true` : path, {
+    cache: "no-store", // the browser's own cache would hand back a copy, not this object
+    headers: was ? { "If-None-Match": was.tag } : undefined,
+  });
+  if (res.status === 304 && was) return was.data as T;
+  const data = await parse<T>(res);
+  const tag = res.headers.get("ETag");
+  if (tag) held.set(path, { tag, data });
+  else held.delete(path);
+  return data;
+}
+
 /** A file sent as the raw request body (no multipart). */
 async function send<T>(path: string, file: File): Promise<T> {
   const sep = path.includes("?") ? "&" : "?";
@@ -514,9 +533,8 @@ export const api = {
     return res.blob();
   },
   status: () => call<Status>("GET", "/api/status"),
-  master: (fresh = false) => call<Master>("GET", `/api/master${fresh ? "?fresh=true" : ""}`),
-  day: (sheet: string, fresh = false) =>
-    call<DayView>("GET", `/api/days/${encodeURIComponent(sheet)}${fresh ? "?fresh=true" : ""}`),
+  master: (fresh = false) => getHeld<Master>("/api/master", fresh),
+  day: (sheet: string, fresh = false) => getHeld<DayView>(`/api/days/${encodeURIComponent(sheet)}`, fresh),
   preview: (entries: EntryInput[]) =>
     call<{ plans: EntryPlan[] }>("POST", "/api/preview", { entries }).then((r) => r.plans),
   // owners: "sheet|calling name" -> supervisor for entries that keep theirs (corrections)

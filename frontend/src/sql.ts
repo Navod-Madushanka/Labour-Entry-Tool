@@ -9,6 +9,7 @@ import { describe, placeName } from "./codes";
 import { clearInput, withTimes } from "./form";
 import { effectiveHours, formatClock, parseClock } from "./time";
 import { aggregate, AGGREGATES, callScalar, dateArith, fnName, FUNCTIONS, functionInfo, intervalText, isFunction, isUnitWord, NO_PARENS, SqlFnError, WINDOW_ONLY } from "./sqlfuncs";
+import { date as fmtDate } from "./fmt";
 
 // --- tables and columns --------------------------------------------------------------------------
 
@@ -168,7 +169,7 @@ function tableRows(t: TableDef, ctx: CommandContext): Row[] {
   for (const r of entryRows(ctx)) counts.set(Number(r.row.day), (counts.get(Number(r.row.day)) ?? 0) + 1);
   return ctx.sheets.map((s) => {
     const d = dateOf(ctx, s);
-    return { day: Number(s), date: iso(d), weekday: d ? d.toLocaleDateString("en-GB", { weekday: "long" }) : null, day_type: ctx.month[s]?.header.day_type == null ? null : String(ctx.month[s].header.day_type), workers: counts.get(Number(s)) ?? 0 };
+    return { day: Number(s), date: iso(d), weekday: d ? fmtDate(d, { weekday: "long" }, "en-GB") : null, day_type: ctx.month[s]?.header.day_type == null ? null : String(ctx.month[s].header.day_type), workers: counts.get(Number(s)) ?? 0 };
   });
 }
 

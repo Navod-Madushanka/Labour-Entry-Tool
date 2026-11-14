@@ -524,3 +524,27 @@ def test_print_waits_until_excel_is_ready_and_explains_a_stuck_printer(monkeypat
     wb.busy_timeout = 0.0
     with pytest.raises(WorkbookBusyError, match="INB-05's card was not printed"):
         wb.print_card("Card", "E8", "INB-05")
+
+
+def test_status_name_asks_excel_at_most_every_30_s(monkeypatch):
+    from app.config import TemplateConfig
+    from app.excel import xlwings_adapter as xa
+
+    class Book:
+        calls = 0
+
+        @property
+        def name(self):
+            Book.calls += 1
+            return "DEMO.xlsb"
+
+    now = [100.0]
+    monkeypatch.setattr(xa.time, "monotonic", lambda: now[0])
+    wb = xa.XlwingsWorkbook(Book(), TemplateConfig())
+    assert wb.status_name() == "DEMO.xlsb" and Book.calls == 1
+    now[0] += 10
+    assert wb.status_name() == "DEMO.xlsb" and Book.calls == 1  # the poll every 10 s: no call
+    assert wb.name == "DEMO.xlsb" and Book.calls == 2  # real uses always ask
+    now[0] += 31
+    wb.status_name()
+    assert Book.calls == 3

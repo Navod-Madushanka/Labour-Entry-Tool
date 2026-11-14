@@ -196,3 +196,19 @@ def test_a_read_attaches_again_once_after_a_lost_connection(small_snapshot, tmp_
             c.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]}).json()["status"]
             == "written"
         )
+
+
+def test_unchanged_reads_answer_304(client):
+    """Back from Excel the screen reads Labour Detail and the day again: when nothing changed only
+    "304" comes back (no JSON to parse, nothing drawn again); after a write the day is new."""
+    for path in ("/api/master", "/api/days/1"):
+        first = client.get(path)
+        tag = first.headers["ETag"]
+        again = client.get(f"{path}?fresh=true", headers={"If-None-Match": tag})
+        assert again.status_code == 304 and again.content == b"" and again.headers["ETag"] == tag
+        assert client.get(path, headers={"If-None-Match": '"other"'}).json() == first.json()
+    tag = client.get("/api/days/1").headers["ETag"]
+    client.post("/api/entries", json={"user": "Clerk", "entries": [ENTRY]})
+    changed = client.get("/api/days/1", headers={"If-None-Match": tag})
+    assert changed.status_code == 200 and changed.headers["ETag"] != tag
+    assert "cached" not in changed.json()["entries"][0]["entry"]  # still left out

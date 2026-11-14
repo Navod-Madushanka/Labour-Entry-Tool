@@ -7,10 +7,11 @@ import { byCode, periods, productivity, NO_CODE, type Data, type Norm, type Prod
 import { h } from "./charts";
 import { EmptyState } from "./EmptyState";
 import { store } from "../store";
+import { num as fmtNum } from "../fmt";
 
 type Desc = (code: string) => string | null;
-const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
-const fix = (n: number | null, d = 2) => (n === null ? "—" : n.toLocaleString(undefined, { maximumFractionDigits: d }));
+const rs = (n: number) => `Rs ${fmtNum(Math.round(n))}`;
+const fix = (n: number | null, d = 2) => (n === null ? "—" : fmtNum(n, { maximumFractionDigits: d }));
 const tone = (i: number | null) => (i === null ? "" : i >= 1 ? "ok-text" : i >= 0.9 ? "" : i >= 0.75 ? "warn-text" : "error-text");
 
 export function Productivity({ data, master, desc, disrupted, money, onSaved }: {

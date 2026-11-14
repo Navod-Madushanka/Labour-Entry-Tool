@@ -22,9 +22,10 @@ import {
   type DayRow,
 } from "../analysis";
 import { COLORS, DayBars, dayLabel, h } from "./charts";
+import { num as fmtNum } from "../fmt";
 
 type Desc = (code: string) => string | null;
-const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+const rs = (n: number) => `Rs ${fmtNum(Math.round(n))}`;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 export function SiteReport({ data, master, desc, lost, onClose, onView }: {

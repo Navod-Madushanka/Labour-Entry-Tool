@@ -8,11 +8,12 @@ passes its checks and every warning is acknowledged.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from collections.abc import Callable
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -107,10 +108,23 @@ async def get_status(request: Request) -> Status:
     return await run_service(request, lambda s: s.status())
 
 
+def unchanged_or_json(request: Request, view: BaseModel, exclude: Any = None) -> Response:
+    """``view`` as JSON with an ETag (a hash of the JSON). When the browser already holds the same
+    (If-None-Match), only "304 Not Modified" goes back: a re-read of Excel that found nothing new
+    (back from Excel, every few minutes all day) costs the screen nothing, instead of the whole of
+    Labour Detail or a day sheet parsed and every view built again."""
+    body = view.model_dump_json(exclude=exclude).encode()
+    tag = f'"{hashlib.blake2b(body, digest_size=12).hexdigest()}"'
+    headers = {"ETag": tag, "Cache-Control": "no-cache"}
+    if tag in request.headers.get("if-none-match", ""):
+        return Response(status_code=304, headers=headers)
+    return Response(body, media_type="application/json", headers=headers)
+
+
 @router.get("/master", response_model=MasterView)
-async def master(request: Request, fresh: bool = False) -> MasterView:
+async def master(request: Request, fresh: bool = False) -> Response:
     """Workers (Labour Detail order = block order), activity codes, day types, sheets."""
-    return await run_service(request, lambda s: s.master_view(fresh))
+    return unchanged_or_json(request, await run_service(request, lambda s: s.master_view(fresh)))
 
 
 # Excel's cached formula results stay on the server (they are for verification): about two
@@ -119,9 +133,10 @@ WITHOUT_CACHED = {"entries": {"__all__": {"entry": {"cached"}}}}
 
 
 @router.get("/days/{sheet}", response_model=DayView, response_model_exclude=WITHOUT_CACHED)
-async def day(sheet: str, request: Request, fresh: bool = False) -> DayView:
+async def day(sheet: str, request: Request, fresh: bool = False) -> Response:
     """One day sheet: header with its checks, and every entry with computed values and issues."""
-    return await run_service(request, lambda s: s.day_view(sheet, fresh))
+    view = await run_service(request, lambda s: s.day_view(sheet, fresh))
+    return unchanged_or_json(request, view, WITHOUT_CACHED)
 
 
 @router.get("/previous-month", response_model=PreviousMonth)

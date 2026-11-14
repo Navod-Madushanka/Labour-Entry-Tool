@@ -6,8 +6,9 @@ import { api, type Master } from "../api";
 import { bpBill, DEFAULT_LIMITS, NO_BP, type Data, type EntryRow } from "../analysis";
 import { h } from "./charts";
 import { BillCompare } from "./BillCompare";
+import { num as fmtNum } from "../fmt";
 
-const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+const rs = (n: number) => `Rs ${fmtNum(Math.round(n))}`;
 
 export function BpCheck({ data, entries, master, money, changedAfterReview }: {
   data: Data;

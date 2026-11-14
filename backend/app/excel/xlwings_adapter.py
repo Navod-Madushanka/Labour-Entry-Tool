@@ -238,6 +238,7 @@ class XlwingsWorkbook:
         # read_master, so a day read stops after them instead of reading all 500 blocks through
         # Excel. None until Labour Detail has been read: then the whole sheet is read.
         self._blocks: int | None = None
+        self._name: tuple[float, str] | None = None  # (when read, name): see status_name
 
     def _com(self, fn: Callable[[], T], timeout: float | None = None, transient: bool = True) -> T:
         try:
@@ -251,7 +252,19 @@ class XlwingsWorkbook:
 
     @property
     def name(self) -> str:
-        return self._com(lambda: self.book.name)
+        name = self._com(lambda: self.book.name)
+        self._name = (time.monotonic(), name)
+        return name
+
+    NAME_FRESH = 30.0  # seconds
+
+    def status_name(self) -> str:
+        """The name for the status line, polled all day: asked of Excel at most every 30 s (each
+        call waits its turn on the Excel thread and can catch Excel mid-edit). Every other use
+        (audit log, backups) reads ``name`` fresh. A closed workbook still shows within 30 s."""
+        if self._name is None or time.monotonic() - self._name[0] > self.NAME_FRESH:
+            return self.name
+        return self._name[1]
 
     @property
     def full_path(self) -> Path | None:

@@ -7,6 +7,7 @@
 import type { Cause, HistoryQuantity, HistoryRow, Issue, Lost, Master, MonthInfo, Rates, Worker } from "./api";
 import type { Month } from "./history";
 import { placeSuffix } from "./codes";
+import { num as fmtNum, date as fmtDate } from "./fmt";
 
 export type DayKind = "Normal" | "Saturday" | "Sunday" | "Holiday";
 export const NO_CODE = "Unallocated (ZIDLE)"; // worked hours not booked to any activity code
@@ -88,10 +89,32 @@ export function multiplier(rates: Rates, kind: DayKind): number {
 export const hasRates = (rates: Rates | undefined) => Boolean(rates && (Object.keys(rates.trades ?? {}).length || Object.keys(rates.workers ?? {}).length));
 
 /** Cut the month into slices and entry rows. Blank blocks and junk values are skipped. */
-export function buildData(
+type DataMaster = Pick<Master, "workers" | "places" | "holidays" | "activities" | "check_activities"> & { rates?: Rates };
+
+// The last month worked out: opening Analysis again (or the supervisors list arriving again with
+// the same names) with the same month and Labour Detail objects gives it back at once. The days
+// and Labour Detail are the very same objects while Excel is unchanged (api.ts, ETag), so leaving
+// Analysis and coming back costs nothing; a pushed day is a new object and is worked out again.
+let lastData: { month: Month; master: DataMaster; owners: Map<string, string>; data: Data } | null = null;
+
+const sameMap = (a: Map<string, string>, b: Map<string, string>) => {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) if (b.get(k) !== v) return false;
+  return true;
+};
+
+export function buildData(month: Month, master: DataMaster, owners: Map<string, string> = new Map()): Data {
+  if (lastData && lastData.month === month && lastData.master === master && sameMap(lastData.owners, owners)) return lastData.data;
+  const data = buildDataNow(month, master, owners);
+  lastData = { month, master, owners, data };
+  return data;
+}
+
+function buildDataNow(
   month: Month,
-  master: Pick<Master, "workers" | "places" | "holidays" | "activities" | "check_activities"> & { rates?: Rates },
-  owners: Map<string, string> = new Map(), // "sheet|calling name" -> supervisor
+  master: DataMaster,
+  owners: Map<string, string>, // "sheet|calling name" -> supervisor
 ): Data {
   const workers = new Map(master.workers.map((w) => [w.calling_name, w]));
   const valid = new Set(master.activities.map((a) => a.trim()));
@@ -742,7 +765,7 @@ export function periods(data: Data): Period[] {
     const w = weekOf(d.date);
     by.set(w, [...(by.get(w) ?? []), d.day]);
   }
-  const fmt = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
+  const fmt = (iso: string) => fmtDate(new Date(`${iso}T12:00:00Z`), { day: "numeric", month: "short", timeZone: "UTC" });
   const weeks = [...by].sort((a, b) => a[0].localeCompare(b[0])).map(([w, ds]) => {
     const from = Math.min(...ds), to = Math.max(...ds);
     return { key: `w:${w}`, label: `Week commencing ${fmt(w)} (days ${from}–${to})`, from, to };
@@ -762,7 +785,7 @@ export interface Change {
 }
 
 const pctTxt = (x: number) => `${Math.round(x * 100)}%`;
-const hTxt = (x: number) => Math.round(x).toLocaleString();
+const hTxt = (x: number) => fmtNum(Math.round(x));
 
 /** The rule-written lines for a period against the one before it (`prev` empty: the first week,
  * so only what stands out in this one). `label` names a code, e.g. with its description. */
@@ -772,7 +795,7 @@ export function whatChanged(data: Data, cur: Period, prev: Period | null, label:
   const was = prev ? within(data.slices, prev.from, prev.to) : [];
   if (!now.length) return [{ text: "No hours were booked in this period.", view: "overview", tone: "info" }];
   const kn = kpis(now), kw = was.length ? kpis(was) : null;
-  const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+  const rs = (n: number) => `Rs ${fmtNum(Math.round(n))}`;
 
   // Periods with a different number of days with work (a week still being entered, a short first
   // week) are compared per day with work, so a part-week does not read as a fall.

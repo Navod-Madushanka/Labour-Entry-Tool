@@ -8,6 +8,7 @@ import { ALL, flowline, NO_CODE, planned, programme, sCurves, weekOf, workPart, 
 import { CardHelp } from "./CardHelp";
 import { store } from "../store";
 import { COLORS, DayBars, DisruptedCtx, SaveImage, h } from "./charts";
+import { date as fmtDate } from "../fmt";
 
 type Desc = (code: string) => string | null;
 
@@ -60,7 +61,7 @@ export function Programme({ slices, days, master, trade, desc, onPick, onSaved, 
 
 // ------------------------------------------------------------------------------- Gantt
 
-const shortDate = (iso: string | null | undefined) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "");
+const shortDate = (iso: string | null | undefined) => (iso ? fmtDate(new Date(`${iso}T00:00:00`), { day: "numeric", month: "short" }) : "");
 
 function Gantt({ slices, days, desc, onPick, compact }: { slices: Slice[]; days: DayRow[]; desc: Desc; onPick: (code: string) => void; compact: boolean }) {
   const [top, setTop] = useState(20);
@@ -230,7 +231,7 @@ function PlanEditor({ days, trades, plan, onSaved }: { days: DayRow[]; trades: s
       setBusy(false);
     }
   };
-  const label = (w: string) => `w/c ${new Date(`${w}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" })}`;
+  const label = (w: string) => `w/c ${fmtDate(new Date(`${w}T12:00:00Z`), { day: "numeric", month: "short", timeZone: "UTC" })}`;
   return (
     <details className="howto plan-editor">
       <summary>Planned headcount (from the PM's look-ahead)</summary>

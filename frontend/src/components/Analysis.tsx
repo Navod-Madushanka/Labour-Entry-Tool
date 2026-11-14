@@ -48,11 +48,13 @@ import { Fatigue } from "./Fatigue";
 import { BpCheck } from "./BpCheck";
 import { History } from "./History";
 import { Sharing } from "./Sharing";
+import { num as fmtNum, date as fmtDate } from "../fmt";
 
 /** Rupees (at standard rates) instead of hours, where rates are known: the QS's view. */
 const MoneyCtx = createContext(false);
-const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
-const rsShort = (n: number) => (Math.abs(n) >= 1e6 ? `Rs ${(n / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })} M` : rs(n));
+const kept: { owned: Owned[]; reviews: Review[] } = { owned: [], reviews: [] };
+const rs = (n: number) => `Rs ${fmtNum(Math.round(n))}`;
+const rsShort = (n: number) => (Math.abs(n) >= 1e6 ? `Rs ${fmtNum(n / 1e6, { maximumFractionDigits: 2 })} M` : rs(n));
 const byCost = (gs: Group[]) => [...gs].sort((a, b) => b.cost - a.cost);
 
 type Desc = (code: string) => string | null; // what a code is, in words
@@ -81,7 +83,7 @@ const VIEWS: [View, string][] = [
 const SUMMARY_PREFIX = "labour.summary.";
 const RUN_FLAG = 14; // days in a row without a day off that are flagged
 
-const pct = (n: number) => `${(n * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
+const pct = (n: number) => `${fmtNum(n * 100, { maximumFractionDigits: 1 })}%`;
 
 interface Props {
   master: Master;
@@ -132,11 +134,13 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
   const money = moneyOn && rated;
 
   // whose manpower sheet each pushed entry came from (Supervisors page), and their reviews
-  const [owned, setOwned] = useState<Owned[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  // (kept from the last visit: Analysis opens with them, instead of working everything out without
+  // the supervisors first and then again when they arrive)
+  const [owned, setOwnedState] = useState<Owned[]>(kept.owned);
+  const [reviews, setReviewsState] = useState<Review[]>(kept.reviews);
   useEffect(() => {
-    api.supervisorSheets().then(setOwned).catch(() => undefined);
-    api.supervisorReviews().then(setReviews).catch(() => undefined);
+    api.supervisorSheets().then((o) => setOwnedState((kept.owned = o))).catch(() => undefined);
+    api.supervisorReviews().then((r) => setReviewsState((kept.reviews = r))).catch(() => undefined);
   }, [month]);
   const owners = useMemo(() => new Map(owned.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor])), [owned]);
   // entries ("sheet|calling name") on supervisor sheets changed after they were reviewed
@@ -719,7 +723,7 @@ function SupervisorsView({ data, entries, slices, days, owned, reviews, month, o
 }
 
 const longDay = (date: string | null, day: number) =>
-  date ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : `Day ${day}`;
+  date ? fmtDate(new Date(`${date}T12:00:00Z`), { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : `Day ${day}`;
 
 function topTrades(days: DayRow[], n = 6) {
   const sums = new Map<string, number>();

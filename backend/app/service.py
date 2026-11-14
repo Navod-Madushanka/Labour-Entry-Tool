@@ -420,8 +420,9 @@ class EntryService:
             wb = self.workbook
         except WorkbookError as exc:
             return Status(connected=False, mode=self.mode, error=str(exc))
-        backup = self.backups.session_backup(wb.name)
-        return Status(connected=True, mode=self.mode, workbook=wb.name,
+        name = wb.status_name() if hasattr(wb, "status_name") else wb.name
+        backup = self.backups.session_backup(name)
+        return Status(connected=True, mode=self.mode, workbook=name,
                       unsaved_changes=self.unsaved,
                       backup=str(backup) if backup else None)  # fmt: skip
 

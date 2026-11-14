@@ -17,6 +17,7 @@ const rss = () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1366, height: 768 } });
   const cdp = await p.context().newCDPSession(p);
   await cdp.send("Performance.enable");
+  if (process.env.CPU_SLOW) await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU_SLOW) });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
   p.on('response', r => r.status() >= 500 && errs.push(`HTTP ${r.status()} ${r.url()}`));
   await p.goto(BASE);
@@ -70,9 +71,10 @@ const rss = () => {
     if (!sqlOk) errs.push(`day ${sheet}: SQL query gave no rows`);
     await p.keyboard.press("Control+a");
     await p.keyboard.type(`show AAA-001 on 1-31`); await p.keyboard.press("Control+Enter");
-    await p.goto(BASE + "app/#analysis");
+    if (process.env.NO_RELOAD) await p.evaluate(() => (location.hash = "#analysis")); else await p.goto(BASE + "app/#analysis");
     await p.locator(".analysis .kpis").first().waitFor({ timeout: 60000 }).catch(() => errs.push(`day ${sheet}: Analysis did not show`));
-    await p.goto(BASE + "app/#"); await p.locator("#worker").waitFor(); // locators: no element handles kept alive (they would look like a leak)
+    if (process.env.NO_RELOAD) await p.evaluate(() => (location.hash = "#")); else await p.goto(BASE + "app/#");
+    await p.locator("#worker").waitFor(); // locators: no element handles kept alive (they would look like a leak)
     const m = await metrics();
     const sorted = picks.sort((a, b) => a - b);
     rows.push({ day: sheet, queuedOK: PER_DAY - missed, pickMedianMs: sorted[Math.floor(sorted.length / 2)], pickMaxMs: sorted[sorted.length - 1], pushMs, serverMB: rss(), ...m });

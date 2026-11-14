@@ -11,9 +11,6 @@ import re
 
 from fastapi import APIRouter
 from fastapi.responses import Response
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
-from openpyxl.utils import get_column_letter
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/analysis")
@@ -48,6 +45,11 @@ def sheet_title(name: str, taken: set[str]) -> str:
 
 
 def build_xlsx(req: ExportRequest) -> bytes:
+    # here, not at the top: openpyxl brings numpy and Pillow (~25 MB, kept for the whole day)
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
     wb = Workbook()
     wb.remove(wb.active)
     taken: set[str] = set()

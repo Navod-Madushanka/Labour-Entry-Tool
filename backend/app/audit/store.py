@@ -82,7 +82,42 @@ CREATE TABLE IF NOT EXISTS lost_time (
     note        TEXT
 );
 CREATE INDEX IF NOT EXISTS lost_time_book ON lost_time(workbook);
+-- The log is kept for every month and workbook, so it only grows: each lookup the tool makes
+-- (this workbook's batches, the supervisors list, owners by batch, an undo's batch) has an index.
+CREATE INDEX IF NOT EXISTS batches_book ON batches(workbook, id);
+CREATE INDEX IF NOT EXISTS batches_undo_of ON batches(undo_of);
+CREATE INDEX IF NOT EXISTS sheet_owners_supervisor ON sheet_owners(supervisor, id, created_at);
+CREATE INDEX IF NOT EXISTS sheet_owners_batch ON sheet_owners(batch_id);
 """
+
+# WAL: a push writes the log without rewriting a journal file and waiting on the disk twice (slow
+# office hard disks); NORMAL sync is safe with WAL (a power cut loses at most the last push's log
+# lines, never corrupts the file). A small page cache and temp tables in memory.
+PRAGMAS = (
+    "PRAGMA journal_mode=WAL",
+    "PRAGMA synchronous=NORMAL",
+    "PRAGMA temp_store=MEMORY",
+    "PRAGMA cache_size=-8000",  # 8 MB
+    "PRAGMA busy_timeout=5000",
+)
+
+
+def tune(db: sqlite3.Connection) -> None:
+    """The PRAGMAS above, each skipped where the file system refuses it (WAL on a network drive:
+    the default journal works)."""
+    for pragma in PRAGMAS:
+        try:
+            db.execute(pragma)
+        except sqlite3.DatabaseError:
+            pass
+
+
+def optimize(db: sqlite3.Connection, first: bool = False) -> None:
+    """Fresh query-planner statistics (cheap: only tables that need them)."""
+    try:
+        db.execute("PRAGMA optimize=0x10002" if first else "PRAGMA optimize")
+    except sqlite3.DatabaseError:
+        pass
 
 
 class Change(BaseModel):
@@ -155,10 +190,13 @@ class AuditStore:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        tune(self._db)
         with self._db:
             self._db.executescript(SCHEMA)
+        optimize(self._db, first=True)
 
     def close(self) -> None:
+        optimize(self._db)
         self._db.close()
 
     def start(

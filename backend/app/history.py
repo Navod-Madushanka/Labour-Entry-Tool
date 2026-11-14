@@ -16,6 +16,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from app.audit.store import optimize, tune
+
 from app.domain.codes import cell_text, person_key, trade_from_name
 from app.domain.models import WorkbookSnapshot, as_number
 from app.domain.rules import canonical_day_type, compute_entry
@@ -55,6 +57,8 @@ CREATE TABLE IF NOT EXISTS quantities (
     qty      REAL NOT NULL,
     unit     TEXT
 );
+-- re-saving a month deletes the old one: without this, every quantity of every month is scanned
+CREATE INDEX IF NOT EXISTS quantities_month ON quantities(month_id);
 """
 
 
@@ -146,8 +150,10 @@ class History:
             path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(path) if path else ":memory:", check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        tune(self._db)
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.executescript(SCHEMA)
+        optimize(self._db, first=True)
         self._lock = threading.Lock()
 
     def save(self, kind: str, month: str, source: str, rows: list[dict],

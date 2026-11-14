@@ -1,16 +1,18 @@
 // Charts shared by Analysis and the as-built programme: hand-drawn SVG, theme colours from CSS.
 import { createContext } from "react";
 import type { DayRow } from "../analysis";
+import { date as fmtDate, numberFormat } from "../fmt";
 
 /** Days tagged as disrupted in Lost time, for every day chart under the Analysis tab. */
 export const DisruptedCtx = createContext<Set<number>>(new Set());
 
 export const COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)"];
-export const h = (n: number) => (Math.abs(n) < 0.005 ? "0" : n.toLocaleString(undefined, { maximumFractionDigits: 1 }));
+const ONE_PLACE = numberFormat({ maximumFractionDigits: 1 }); // the most used: every chart label
+export const h = (n: number) => (Math.abs(n) < 0.005 ? "0" : ONE_PLACE.format(n));
 
 export const dayLabel = (d: { day: number; date: string | null }) => {
   if (!d.date) return `Day ${d.day}`;
-  const wd = new Date(`${d.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
+  const wd = fmtDate(new Date(`${d.date}T12:00:00Z`), { weekday: "short", timeZone: "UTC" });
   return `${wd} ${d.day}`;
 };
 

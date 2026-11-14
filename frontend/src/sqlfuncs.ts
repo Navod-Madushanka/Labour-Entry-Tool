@@ -4,6 +4,7 @@
 // Values are text, numbers or NULL; dates are text 'YYYY-MM-DD' (with ' HH:MM:SS' for a date and
 // time); the in / out columns are clock hours as numbers (7.5 = 07:30), which the time functions
 // understand. Aggregates and window functions are listed here and worked out by sql.ts.
+import { num as fmtNum } from "./fmt";
 
 export type Val = string | number | null;
 export type FnCategory = "Aggregate" | "Window" | "String" | "Number" | "Date and time" | "Conditional and NULL" | "Conversion" | "Other";
@@ -277,7 +278,7 @@ function formatDotNet(x: DT, f: string): string {
   return out;
 }
 /** A number with grouping and decimals: 1234.5 -> '1,234.50'. */
-const grouped = (n: number, dec: number, group = true) => n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: group });
+const grouped = (n: number, dec: number, group = true) => fmtNum(n, { minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: group }, "en-US");
 /** TO_CHAR(number, '999,999.99') / FORMAT(number, 'N2' | '#,##0.00' | 'P1' | 'C'). */
 function formatNumber(n: number, f: string): string {
   const std = f.match(/^([NnFfPpCcDdEe])(\d*)$/);

@@ -1,5 +1,31 @@
 # Changelog
 
+## Lighter on a busy office PC: fewer Excel reads, an indexed log, less redrawing (14 Nov 2026)
+
+Asked for: the tool is too heavy on an 8 GB, 10th-gen i5 PC that also runs two or three
+workbooks, and it slows down over a long day. Measured on made-up data with the CPU slowed 4×.
+
+- **Unchanged Excel reads cost the screen nothing.** Labour Detail and each day sheet now come with
+  a fingerprint (ETag). Back from Excel, the tool still checks the sheets, but when nothing changed
+  the server answers "not modified". The screen keeps what it has: nothing is parsed or drawn
+  again, and Analysis and the suggestions are not worked out again.
+- **Fewer calls into Excel.** The status check (every 10 s) pauses while the tool is minimised or
+  behind Excel, so it no longer waits on Excel while you type there, and it asks Excel for the
+  workbook name at most every 30 s. Switching back from Excel re-reads at most every 10 s (was 3 s).
+- **The audit log is indexed and in WAL mode.** The log keeps every month of every workbook, so it
+  only grows. It now has indexes for this workbook's batches, the supervisors list, owners by
+  push and undo lookups, and the history file has an index for its quantities. WAL journalling
+  with normal sync makes a push's log write about 5× faster on disk, with no risk to the file.
+  Query statistics are refreshed on start and close.
+- **Analysis opens faster.** Number and date formatters are made once instead of on every label
+  (thousands per chart). The month's data is kept between visits and is no longer worked out twice
+  (before and after the supervisors arrive). Opening Analysis: 3.7 s → 1.3 s of busy time at the
+  slowed speed; opening it again: 0.6 s.
+- **A smaller server.** The Excel-export library (with numpy and Pillow) loads only when you export:
+  about 25 MB less memory all day and a quicker start (198 → 174 MB on the big made-up month).
+- `e2e/soak.cjs` takes `CPU_SLOW=4` (an office PC) and `NO_RELOAD=1` (a whole day without
+  reloading the page). Eight days of 40 workers: memory and timings stay flat.
+
 ## As-built programme: calmer default, one colour language, a readable flowline (13 Nov 2026)
 
 Asked for: less density, an easier Gantt, the same colours across the four charts, a cleaner

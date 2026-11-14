@@ -108,12 +108,15 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const loading = useRef(new Set<string>());
 
   const fail = (e: unknown) => setMessage(e instanceof Error ? e.message : String(e));
+  // A day read again but unchanged comes back as the same object (api.ts): keep the month as it
+  // is then, so Analysis, the suggestions and the day list don't all work it out again.
+  const putDay = useCallback((s: string, d: DayView) => setMonth((m) => (m[s] === d ? m : { ...m, [s]: d })), []);
   const refreshStatus = useCallback(() => api.status().then(setStatus).catch(fail), []);
   // Enough history for the day list's "most recent first" (the list itself scrolls).
   const refreshBatches = useCallback(() => api.batches(200).then(setBatches).catch(() => undefined), []);
   const reloadDay = useCallback(
     (s: string) =>
-      api.day(s).then((d) => setMonth((m) => ({ ...m, [s]: d }))).catch(fail),
+      api.day(s).then((d) => putDay(s, d)).catch(fail),
     [],
   );
 
@@ -124,13 +127,15 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   useEffect(() => {
     const sync = () => {
       // Not while the last re-read is still on its way (on a slow PC reading through Excel can
-      // take longer than switching windows): they would only queue up behind each other.
-      if (document.visibilityState !== "visible" || !master || syncing.current || Date.now() - lastSync.current < 3000) return;
+      // take longer than switching windows): they would only queue up behind each other. And at
+      // most every 10 s: flicking between Excel and the tool all day would keep Excel reading.
+      // Unchanged sheets come back as the same objects (api.ts): nothing is drawn again.
+      if (document.visibilityState !== "visible" || !master || syncing.current || Date.now() - lastSync.current < 10000) return;
       lastSync.current = Date.now();
       syncing.current = true;
       Promise.allSettled([
         api.master(true).then(setMaster),
-        api.day(sheet, true).then((d) => setMonth((m) => ({ ...m, [sheet]: d }))),
+        api.day(sheet, true).then((d) => putDay(sheet, d)),
       ]).finally(() => (syncing.current = false));
     };
     window.addEventListener("focus", sync);
@@ -143,9 +148,16 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
 
   // Start: status, master, the chosen sheet, then the rest of the month in the background.
   useEffect(() => {
+    // Every 10 s while the tool is on screen; not while it is minimised or behind Excel (each check
+    // is a call into Excel, which would only wait on the person typing there). Back: at once.
     refreshStatus();
-    const timer = setInterval(refreshStatus, 10000);
-    return () => clearInterval(timer);
+    const timer = setInterval(() => document.visibilityState === "visible" && refreshStatus(), 10000);
+    const back = () => document.visibilityState === "visible" && refreshStatus();
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", back);
+    };
   }, [refreshStatus]);
 
   useEffect(() => {
@@ -180,7 +192,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         loading.current.add(s);
         try {
           const d = await api.day(s);
-          setMonth((m) => ({ ...m, [s]: d })); // keep it even if the loop was restarted
+          putDay(s, d); // keep it even if the loop was restarted
         } catch {
           loading.current.delete(s);
         }
@@ -239,7 +251,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     try {
       const [m, d] = await Promise.all([api.master(true), api.day(at, true)]);
       setMaster(m);
-      setMonth((mm) => ({ ...mm, [at]: d }));
+      putDay(at, d);
       setRecheck((x) => x + 1);
       const sig = (v: DayView | undefined) =>
         new Map((v?.entries ?? []).filter((e) => e.entry.calling_name).map((e) => [e.entry.calling_name!,
@@ -264,7 +276,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         setReloading(`Reading the other days ${i + 1}/${others.length}…`);
         try {
           const od = await api.day(others[i], true);
-          setMonth((mm) => ({ ...mm, [others[i]]: od }));
+          putDay(others[i], od);
         } catch {
           /* a day that can't be read now keeps what was there */
         }

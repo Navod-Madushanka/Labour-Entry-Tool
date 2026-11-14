@@ -130,3 +130,19 @@ def test_a_correction_keeps_each_entrys_supervisor(client):
             "owners": {"1|INB-01 CH": "Kamal"}}  # fmt: skip
     assert client.post("/api/entries", json=body).json()["status"] == "written"
     assert owners(client)[("1", "INB-01 CH")] == "Kamal"
+
+
+def test_audit_log_is_indexed_and_in_wal_mode(tmp_path):
+    """The log only grows (every month, every workbook): its lookups use indexes, and a push
+    writes without a rollback journal (WAL)."""
+    from app.audit.store import AuditStore
+
+    store = AuditStore(tmp_path / "audit.sqlite")
+    db = store._db
+    assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    plan = lambda sql: " ".join(r[-1] for r in db.execute(f"EXPLAIN QUERY PLAN {sql}"))  # noqa: E731
+    assert "batches_book" in plan("SELECT * FROM batches WHERE workbook = 'x' ORDER BY id DESC")
+    assert "sheet_owners_supervisor" in plan(
+        "SELECT supervisor, MAX(created_at), MAX(id) FROM sheet_owners GROUP BY supervisor"
+    )
+    store.close()
