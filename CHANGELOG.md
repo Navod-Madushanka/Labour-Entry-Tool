@@ -1,5 +1,20 @@
 # Changelog
 
+## The manpower sheet under the SQL panel (14 Nov 2026)
+
+Asked for: an SQL UPDATE or INSERT goes to the manpower sheet, but that is on another tab (Entry);
+put it in the SQL tab.
+
+- **The waiting entries show right under the SQL panel** (Codes & registration → SQL & data):
+  the manpower sheet, its checks (Waiting to go to Excel) and **Push**, the same as on the Entry
+  page. Adding changes to the waiting list scrolls down to them; "Go to the manpower sheet ↓"
+  does the same.
+- **Push from there**: the supervisor question, the push and its result all stay on the SQL tab.
+  Discard sheet, Move to another day, the confirmations and Remove work there too.
+- **Edit** on a waiting entry still opens it in the entry form (the tool goes to the Entry page).
+- The section shows only while something waits (or after a push, with its result).
+- `e2e/sql-supervisor.cjs`: an UPDATE is checked and pushed from the SQL tab, and is in Excel.
+
 ## Codes with no ending are a place too, named by the office (14 Nov 2026)
 
 Asked for: an activity code with no place ending (03-11-00-00, not -P, -C-1, -C-8) is not "no

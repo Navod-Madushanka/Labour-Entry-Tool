@@ -209,7 +209,8 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken, dock
     const n = pending.reduce((s, p) => s + p.changes.length, 0);
     for (const p of pending) onApply(p.result);
     setPending([]);
-    setApplied(`${n} change${n === 1 ? "" : "s"} added to the waiting list. Check them on the manpower sheet, then push.`);
+    setApplied(`${n} change${n === 1 ? "" : "s"} added to the waiting list. Check them on the manpower sheet below, then push.`);
+    setTimeout(onReview, 80); // the sheet appears under the panel: bring it into view
   };
 
   // Ctrl+Enter or F9 runs from anywhere in the panel
@@ -326,7 +327,7 @@ export function SqlWorkspace({ ctx, onApply, waiting, onReview, focusToken, dock
           {applied && (
             <p className="ok-text small">
               ✓ {applied}{" "}
-              <button className="link small" onClick={onReview}>To the manpower sheet ({waiting}) →</button>
+              <button className="link small" onClick={onReview}>Go to the manpower sheet ({waiting}) ↓</button>
             </p>
           )}
         </div>

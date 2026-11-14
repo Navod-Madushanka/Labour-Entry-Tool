@@ -510,6 +510,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     setSheet(it.input.sheet);
     setForm(fromInput(it.input, w));
     setQueue((items) => items.filter((q) => q.id !== id));
+    if (page !== "entry") window.location.hash = ""; // the form is on the entry page
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const removeQueued = (id: number) => setQueue((items) => items.filter((q) => q.id !== id));
@@ -628,6 +629,82 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   );
 
 
+  // The manpower sheet of waiting entries, their checks and Push: on the entry page, and under the
+  // SQL panel (an UPDATE or INSERT lands here, checked and pushed without leaving the panel).
+  const pushArea = master ? (
+    <>
+            <ManpowerSheet
+              items={queue}
+              mismatch={mismatches}
+              activities={master.check_activities}
+              places={master.places}
+              descriptions={master.descriptions}
+              month={month}
+              busy={busy}
+              ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
+              onWrite={() => setSupervisorOpen(true)}
+              onEdit={editQueued}
+              onRemove={removeQueued}
+              allSheets={master.sheets}
+              onMoveSheet={moveSheet}
+              onDiscardSheet={(s) => {
+                setQueue((items) => items.filter((it) => it.input.sheet !== s));
+                setResult(null);
+              }}
+              onChange={(id, input) => {
+                setQueue((items) => items.map((it) => (it.id === id ? { ...it, input, plan: null } : it)));
+                setResult(null);
+              }}
+            />
+            {result && <CommitResultView result={result} onClose={() => setResult(null)} />}
+            {supervisorOpen && (
+              <SupervisorDialog
+                count={queue.length}
+                days={pushDays(queue.map((q) => q.input.sheet), month)}
+                busy={busy}
+                idleHours={queue.reduce((s, q) => s + Math.max(Number(q.plan?.preview?.zidle) || 0, 0), 0)}
+                onCancel={() => setSupervisorOpen(false)}
+                kept={keptOwners}
+                onPush={(name, lost, keep) => {
+                  setSupervisorOpen(false);
+                  commit(false, name, lost, keep);
+                }}
+              />
+            )}
+            <Queue
+              items={queue}
+              busy={busy}
+              onAck={(id, rule) =>
+                setQueue((items) =>
+                  items.map((it) => {
+                    if (it.id !== id) return it;
+                    const acks = it.input.acknowledged.includes(rule)
+                      ? it.input.acknowledged.filter((r) => r !== rule)
+                      : [...it.input.acknowledged, rule];
+                    return { ...it, input: { ...it.input, acknowledged: acks } };
+                  }),
+                )
+              }
+              onAckAll={(rule) =>
+                setQueue((items) =>
+                  items.map((it) =>
+                    it.plan?.unconfirmed.some((i) => i.rule === rule) && !it.input.acknowledged.includes(rule)
+                      ? { ...it, input: { ...it.input, acknowledged: [...it.input.acknowledged, rule] } }
+                      : it,
+                  ),
+                )
+              }
+              onOverwrite={(id) =>
+                setQueue((items) => items.map((it) => (it.id === id ? { ...it, input: { ...it.input, overwrite: true } } : it)))
+              }
+              onEdit={editQueued}
+              onRemove={removeQueued}
+              onCommit={commit}
+              onClear={() => setQueue([])}
+            />
+    </>
+  ) : null;
+
   return (
     <>
       <StatusBar
@@ -727,13 +804,15 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 ctx={commandCtx}
                 onApply={applyCommand}
                 waiting={queue.length}
-                onReview={() => {
-                  window.location.hash = "";
-                  window.scrollTo({ top: 0 });
-                }}
+                onReview={() => document.getElementById("sql-manpower")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 focusToken={commandFocus}
                 docked
               />
+            )}
+            {codesTab === "sql" && commandCtx && (queue.length > 0 || result) && (
+              <section className="sql-manpower" id="sql-manpower" aria-label="Waiting to go to Excel">
+                {pushArea}
+              </section>
             )}
             {codesTab === "places" && (
               <div className="codes-cards">
@@ -797,75 +876,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               focusToken={focusToken}
               dialogOpen={askName || medicalOpen}
             />
-            <ManpowerSheet
-              items={queue}
-              mismatch={mismatches}
-              activities={master.check_activities}
-              places={master.places}
-              descriptions={master.descriptions}
-              month={month}
-              busy={busy}
-              ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
-              onWrite={() => setSupervisorOpen(true)}
-              onEdit={editQueued}
-              onRemove={removeQueued}
-              allSheets={master.sheets}
-              onMoveSheet={moveSheet}
-              onDiscardSheet={(s) => {
-                setQueue((items) => items.filter((it) => it.input.sheet !== s));
-                setResult(null);
-              }}
-              onChange={(id, input) => {
-                setQueue((items) => items.map((it) => (it.id === id ? { ...it, input, plan: null } : it)));
-                setResult(null);
-              }}
-            />
-            {result && <CommitResultView result={result} onClose={() => setResult(null)} />}
-            {supervisorOpen && (
-              <SupervisorDialog
-                count={queue.length}
-                days={pushDays(queue.map((q) => q.input.sheet), month)}
-                busy={busy}
-                idleHours={queue.reduce((s, q) => s + Math.max(Number(q.plan?.preview?.zidle) || 0, 0), 0)}
-                onCancel={() => setSupervisorOpen(false)}
-                kept={keptOwners}
-                onPush={(name, lost, keep) => {
-                  setSupervisorOpen(false);
-                  commit(false, name, lost, keep);
-                }}
-              />
-            )}
-            <Queue
-              items={queue}
-              busy={busy}
-              onAck={(id, rule) =>
-                setQueue((items) =>
-                  items.map((it) => {
-                    if (it.id !== id) return it;
-                    const acks = it.input.acknowledged.includes(rule)
-                      ? it.input.acknowledged.filter((r) => r !== rule)
-                      : [...it.input.acknowledged, rule];
-                    return { ...it, input: { ...it.input, acknowledged: acks } };
-                  }),
-                )
-              }
-              onAckAll={(rule) =>
-                setQueue((items) =>
-                  items.map((it) =>
-                    it.plan?.unconfirmed.some((i) => i.rule === rule) && !it.input.acknowledged.includes(rule)
-                      ? { ...it, input: { ...it.input, acknowledged: [...it.input.acknowledged, rule] } }
-                      : it,
-                  ),
-                )
-              }
-              onOverwrite={(id) =>
-                setQueue((items) => items.map((it) => (it.id === id ? { ...it, input: { ...it.input, overwrite: true } } : it)))
-              }
-              onEdit={editQueued}
-              onRemove={removeQueued}
-              onCommit={commit}
-              onClear={() => setQueue([])}
-            />
+            {pushArea}
             <DayList
               day={day}
               recent={recentOnSheet}
