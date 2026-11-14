@@ -325,12 +325,14 @@ def test_place_names_asked_once_per_project(tmp_path, small_snapshot):
         c.post("/api/setup/check")
         view = c.get("/api/setup/places").json()
         assert view["project"] == "kmtt"  # from the sheets, so every workbook of the site shares it
-        assert {p["suffix"] for p in view["places"]} == {"P", "C-8"} and set(view["new"]) == {
+        # "_": codes with no ending (03-11-00-00) are a place to name too, not "no place"
+        assert {p["suffix"] for p in view["places"]} == {"P", "C-8", "_"} and set(view["new"]) == {
             "P",
             "C-8",
+            "_",
         }
-        c.post("/api/setup/places", json={"names": {"P": "Parking area", "C-8": ""}})
-        assert c.get("/api/master").json()["places"] == {"P": "Parking area"}
+        c.post("/api/setup/places", json={"names": {"P": "Parking area", "C-8": "", "_": "Main"}})
+        assert c.get("/api/master").json()["places"] == {"P": "Parking area", "_": "Main"}
         assert c.get("/api/setup/places").json()["new"] == []  # C-8 left blank: not asked again
         # edited later from Codes & registration: renamed, one added ahead of its codes, one cleared
         c.post(
@@ -341,11 +343,12 @@ def test_place_names_asked_once_per_project(tmp_path, small_snapshot):
             "P": "Car park",
             "C-8": "Core 8",
             "S": "Skywalk",
+            "_": "Main",
         }
         assert next(p for p in view["places"] if p["suffix"] == "S")["codes"] == 0
-        c.post("/api/setup/places", json={"names": {"S": "", "C-8": ""}})
+        c.post("/api/setup/places", json={"names": {"S": "", "C-8": "", "_": ""}})
         assert c.get("/api/master").json()["places"] == {"P": "Car park"}
-        assert {p["suffix"] for p in c.get("/api/setup/places").json()["places"]} == {"P", "C-8"}
+        assert {p["suffix"] for p in c.get("/api/setup/places").json()["places"]} == {"P", "C-8", "_"}
         assert c.post("/api/setup/places", json={"names": {"P/1": "x"}}).status_code == 422
         c.post("/api/setup/places", json={"names": {"P": "Parking area"}})
 

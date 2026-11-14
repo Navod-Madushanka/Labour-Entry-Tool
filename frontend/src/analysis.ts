@@ -6,12 +6,13 @@
 // days) keep or drop slices, so every table and chart below adds up the same way.
 import type { Cause, HistoryQuantity, HistoryRow, Issue, Lost, Master, MonthInfo, Rates, Worker } from "./api";
 import type { Month } from "./history";
-import { placeSuffix } from "./codes";
+import { NO_ENDING, placeKey, placeSuffix } from "./codes";
 import { num as fmtNum, date as fmtDate } from "./fmt";
 
 export type DayKind = "Normal" | "Saturday" | "Sunday" | "Holiday";
 export const NO_CODE = "Unallocated (ZIDLE)"; // worked hours not booked to any activity code
 export const NO_PLACE = "No place";
+export const NO_ENDING_PLACE = "No ending (not named)"; // codes like 03-11-00-00 before the office names their place
 export const NO_TRADE = "No trade";
 export const NO_SUPERVISOR = "No supervisor";
 
@@ -156,10 +157,10 @@ function buildDataNow(
       const mult = multiplier(rates, kind);
       for (const l of lines) {
         const share = total > 0 ? l.hours / total : 0;
-        const suffix = l.code === NO_CODE ? null : placeSuffix(l.code);
+        const key = l.code === NO_CODE ? null : placeKey(l.code);
         slices.push({
           sheet, day, kind, name, person, trade, supervisor, code: l.code,
-          place: (suffix && master.places?.[suffix]) || (suffix ? `-${suffix}` : NO_PLACE),
+          place: (key && master.places?.[key]) || (key === NO_ENDING ? NO_ENDING_PLACE : key ? `-${key}` : NO_PLACE),
           hours: worked * share, ot: ot * share, share,
           cost: hourly * ((worked - ot) * share + ot * share * mult), otPremium: hourly * ot * share * (mult - 1), rated: daily > 0,
         }); // prettier-ignore
@@ -702,12 +703,13 @@ export interface FlowSegment {
   hours: number;
 }
 
-export function flowline(slices: Slice[], order: string[]): { levels: string[]; activities: string[]; segments: FlowSegment[] } {
+export function flowline(slices: Slice[], order: string[], places: Record<string, string> = {}): { levels: string[]; activities: string[]; segments: FlowSegment[] } {
+  const ending = Boolean(places[NO_ENDING]); // codes with no ending are a place once it has a name
   const by = new Map<string, FlowSegment>();
   const hoursOf = new Map<string, number>();
   for (const s of slices) {
     if (s.code === NO_CODE) continue;
-    const suffix = placeSuffix(s.code);
+    const suffix = placeSuffix(s.code) ?? (ending && placeKey(s.code) === NO_ENDING ? NO_ENDING : null);
     if (!suffix) continue;
     const activity = workPart(s.code);
     const key = `${activity}|${suffix}`;

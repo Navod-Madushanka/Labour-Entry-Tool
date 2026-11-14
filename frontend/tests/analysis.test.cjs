@@ -58,7 +58,16 @@ assert.equal(codes.find((g) => g.key === A.NO_CODE).hours, 2);
 
 // places and trades
 const places = A.byPlace(data.slices);
-assert.deepEqual(places.map((p) => p.key), ["Parking area", "No place", "Core 8"]); // 48, 8 + 2, 3 h
+// a code with no ending is its own place (not "No place", which is hours with no code): 48, 8, 3, 2 h
+assert.deepEqual(places.map((p) => p.key), ["Parking area", "No ending (not named)", "Core 8", "No place"]);
+{
+  // once the office names it, it is a place like any other: the analysis and the flowline use it
+  const named = { ...master, places: { ...master.places, _: "Main building" } };
+  const d2 = A.buildData(month, named);
+  assert.deepEqual(A.byPlace(d2.slices).map((p) => p.key), ["Parking area", "Main building", "Core 8", "No place"]);
+  assert.ok(A.flowline(d2.slices, [], named.places).levels.includes("_"));
+  assert.ok(!A.flowline(d2.slices, [], master.places).levels.includes("_")); // not named: left out
+}
 const trades = A.byTrade(data.slices);
 near(trades.find((t) => t.key === "Carpenter").hours, 11 + 11 + 15 + 8, "carpenter hours");
 near(trades.reduce((s, t) => s + t.pct, 0), 1, "shares add up");

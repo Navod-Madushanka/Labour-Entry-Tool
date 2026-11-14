@@ -19,6 +19,10 @@ from app.domain.codes import normalise_activity
 from app.domain.models import DaySheet
 
 PAIR = re.compile(r"\d\d")
+# The place key of codes with no ending (03-11-00-00): no ending is not "no place", it is the
+# project's own (often the main building); the office names it like any ending. "_" can never be
+# a real ending (those are letters and numbers).
+NO_ENDING = "_"
 
 
 def place_suffix(code: object) -> str | None:
@@ -35,6 +39,17 @@ def place_suffix(code: object) -> str | None:
     return "-".join(rest) or None
 
 
+def place_key(code: object) -> str | None:
+    """The key a code's place is named under: its ending, ``NO_ENDING`` for a work code with none
+    (``03-11-00-00``), None for something that is not a work code."""
+    if (suffix := place_suffix(code)) is not None:
+        return suffix
+    if not isinstance(code, str):
+        return None
+    parts = normalise_activity(code).split("-")
+    return NO_ENDING if len(parts) >= 4 and all(PAIR.fullmatch(p) for p in parts[:4]) else None
+
+
 def work_part(code: str) -> str:
     """The code without its place: ``03-11-00-00-C-8`` -> ``03-11-00-00``."""
     suffix = place_suffix(code)
@@ -43,7 +58,7 @@ def work_part(code: str) -> str:
 
 
 class Place(BaseModel):
-    suffix: str
+    suffix: str  # the ending, or NO_ENDING for codes with none
     name: str = ""  # what the office called it ("" = not named)
     codes: int  # activity-list codes with this suffix
     used: int = 0  # entry lines this month with it
@@ -56,10 +71,10 @@ def find_places(
     """Every suffix in the activity list, the most used first."""
     codes: dict[str, list[str]] = {}
     for code in activities:
-        if suffix := place_suffix(code):
-            codes.setdefault(suffix, []).append(code)
+        if key := place_key(code):
+            codes.setdefault(key, []).append(code)
     used = Counter(
-        place_suffix(line.code) for day in days for e in day.entries for line in e.activity_lines
+        place_key(line.code) for day in days for e in day.entries for line in e.activity_lines
     )
     places = [
         Place(suffix=s, name=names.get(s, ""), codes=len(c), used=used[s], example=c[0])
@@ -67,7 +82,8 @@ def find_places(
     ]
     # endings named by hand that no code in the list has yet (added ahead of new codes)
     places += [
-        Place(suffix=s, name=n, codes=0, used=used[s], example=f"03-11-00-00-{s}")
+        Place(suffix=s, name=n, codes=0, used=used[s],
+              example="03-11-00-00" if s == NO_ENDING else f"03-11-00-00-{s}")
         for s, n in names.items()
         if s not in codes and n
     ]

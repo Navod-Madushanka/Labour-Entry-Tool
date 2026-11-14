@@ -18,6 +18,8 @@ const SHOTS = process.argv[2];
   console.log("before:", (await card.locator("tbody").innerText()).replace(/\s+/g, " ").slice(0, 160));
   await card.getByLabel("Place for -P").fill("Car park");
   await card.getByLabel("Place for -C-8").fill("");
+  // codes with no ending (03-11-00-00) are a place too: named like the others
+  await card.getByLabel("Place for codes with no ending").fill("Main building");
   await card.getByLabel("New code ending").fill("-s");
   await card.getByLabel("Place for the new ending").fill("Skywalk");
   if (SHOTS) await card.screenshot({ path: `${SHOTS}/places-edit.png` });
@@ -30,7 +32,7 @@ const SHOTS = process.argv[2];
   if (!vals.includes("-P=Car park") || !vals.includes("-S=Skywalk") || !vals.includes("-C-8=")) throw new Error("names not saved as edited");
   const master = await (await p.request.get(BASE + "api/master")).json();
   console.log("master places:", JSON.stringify(master.places));
-  if (master.places.P !== "Car park" || master.places["C-8"] || master.places.S !== "Skywalk") throw new Error("master not updated");
+  if (master.places.P !== "Car park" || master.places["C-8"] || master.places.S !== "Skywalk" || master.places._ !== "Main building") throw new Error("master not updated");
   // the entry screen: the code's place label
   await p.getByRole("link", { name: "Entry" }).click();
   await p.locator("#worker").fill("AAA-01"); await p.keyboard.press("Enter");
@@ -38,6 +40,9 @@ const SHOTS = process.argv[2];
   await p.keyboard.type("03-11-00-00-P");
   await p.waitForFunction(() => document.querySelector(".hint.place")?.innerText === "Concrete Forming · Car park");
   console.log("entry shows:", await p.locator(".hint.place").first().innerText());
+  await p.keyboard.press("Control+a"); await p.keyboard.type("03-11-00-00");
+  await p.waitForFunction(() => /Main building$/.test(document.querySelector(".hint.place")?.innerText ?? ""));
+  console.log("no ending shows:", await p.locator(".hint.place").first().innerText());
   if (errs.length) throw new Error(errs.join("\n"));
   await b.close();
   console.log("places-edit e2e: ok");

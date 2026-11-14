@@ -1,5 +1,23 @@
 # Changelog
 
+## Codes with no ending are a place too, named by the office (14 Nov 2026)
+
+Asked for: an activity code with no place ending (03-11-00-00, not -P, -C-1, -C-8) is not "no
+place"; let the user decide which place it is.
+
+- **"no ending" is a row in the place names**, on the start page and on Codes & registration
+  (Trades, places & activity codes), with an example code, the lines used this month and the code
+  count. Name it like any ending, e.g. "Main building". It is asked once per project like the
+  others, and kept for every workbook of the project.
+- **Everywhere a place is shown it follows**: the entry screen's code hint ("Concrete Forming ·
+  Main building"), the SQL panel's place column, the site report and Analysis (By place, the
+  place filter).
+- **Before it has a name**, Analysis shows those hours as **"No ending (not named)"**, apart from
+  **"No place"**, which now means only hours with no activity code at all.
+- **Flowline**: once named, it is a level of its own, ordered with the other places.
+- Stored under the key "_" (never a real ending). Tests: server, analysis unit test,
+  `e2e/places-edit.cjs` (names it and checks the entry screen).
+
 ## Supervisors page: one clear job, status first, plain words (14 Nov 2026)
 
 Asked for: make the Supervisors tab more user friendly and easier to understand.

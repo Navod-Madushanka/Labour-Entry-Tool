@@ -4,8 +4,9 @@
 // once the PM puts the places in order.
 import { useContext, useMemo, useState, type ClipboardEvent } from "react";
 import { api, type Master } from "../api";
-import { ALL, flowline, NO_CODE, planned, programme, sCurves, weekOf, workPart, type DayRow, type Slice } from "../analysis";
+import { ALL, flowline, NO_CODE, NO_ENDING_PLACE, NO_PLACE, planned, programme, sCurves, weekOf, workPart, type DayRow, type Slice } from "../analysis";
 import { CardHelp } from "./CardHelp";
+import { endingLabel, NO_ENDING } from "../codes";
 import { store } from "../store";
 import { COLORS, DayBars, DisruptedCtx, SaveImage, h } from "./charts";
 import { date as fmtDate } from "../fmt";
@@ -114,7 +115,7 @@ function Gantt({ slices, days, desc, onPick, compact }: { slices: Slice[]; days:
             return (
               <g key={b.key} className="gantt-row" onClick={() => onPick(b.key)} style={{ cursor: "pointer" }} tabIndex={0} role="button"
                 aria-label={`Filter by ${b.key}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(b.key); } }}>
-                <title>{`${b.key}${d ? ` — ${d}` : ""}${b.place && b.place !== "No place" ? ` · ${b.place}` : ""}\n${shortDate(dateOf.get(b.first)) || `day ${b.first}`} – ${shortDate(dateOf.get(b.last)) || `day ${b.last}`} (days ${b.first}–${b.last}), ${b.activeDays} with work\n${h(b.hours)} h · peak ${b.peak} people\nClick to filter every view by this activity`}</title>
+                <title>{`${b.key}${d ? ` — ${d}` : ""}${b.place && b.place !== NO_PLACE && b.place !== NO_ENDING_PLACE ? ` · ${b.place}` : ""}\n${shortDate(dateOf.get(b.first)) || `day ${b.first}`} – ${shortDate(dateOf.get(b.last)) || `day ${b.last}`} (days ${b.first}–${b.last}), ${b.activeDays} with work\n${h(b.hours)} h · peak ${b.peak} people\nClick to filter every view by this activity`}</title>
                 {r % 2 === 1 && <rect x={0} y={y} width={width} height={rh} fill="var(--row)" opacity="0.45" />}
                 <rect className="gantt-hover" x={0} y={y} width={width} height={rh} fill="var(--primary-bg)" opacity="0" />
                 <line x1={0} x2={width} y1={y + rh} y2={y + rh} stroke="var(--line)" />
@@ -364,11 +365,11 @@ function Flowline({ slices, days, master, desc, onSaved, colorOf }: { slices: Sl
   const [pinned, setPinned] = useState<string | null>(null);
   const focus = pinned ?? hot;
   const saved = master.place_order ?? [];
-  const flow = useMemo(() => flowline(slices, saved), [slices, saved]);
+  const flow = useMemo(() => flowline(slices, saved, master.places), [slices, saved, master.places]);
   const [order, setOrder] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const levels = order ?? flow.levels;
-  const name = (suffix: string) => master.places?.[suffix] || `-${suffix}`;
+  const name = (suffix: string) => master.places?.[suffix] || endingLabel(suffix);
   const move = (i: number, by: number) => {
     const next = [...levels];
     const [x] = next.splice(i, 1);
@@ -388,7 +389,7 @@ function Flowline({ slices, days, master, desc, onSaved, colorOf }: { slices: Sl
   };
   const acts = flow.activities.slice(0, shown);
   // the work part's description: from any of its codes (the place does not change what it is)
-  const actDesc = (a: string) => desc(a) ?? flow.segments.filter((x) => x.activity === a).map((x) => desc(`${a}-${x.suffix}`)).find(Boolean) ?? null;
+  const actDesc = (a: string) => desc(a) ?? flow.segments.filter((x) => x.activity === a).map((x) => desc(x.suffix === NO_ENDING ? a : `${a}-${x.suffix}`)).find(Boolean) ?? null;
   const cw = 22, left = 150, bottom = 30, top = 10, lh = Math.max(34, Math.min(60, 240 / Math.max(levels.length, 1)));
   const height = top + levels.length * lh + bottom;
   const width = left + days.length * cw + 12;

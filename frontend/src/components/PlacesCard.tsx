@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { PlacesView } from "../api";
 import { CardHelp } from "./CardHelp";
+import { endingLabel, NO_ENDING } from "../codes";
 
 const MAIN = (p: PlacesView["places"][number]) => p.used > 0 || p.codes > 1;
 
@@ -50,14 +51,15 @@ export function PlacesCard({
   );
   const intro: ReactNode = (
     <>
-      The end of a code tells where the work was done, e.g. <b>{view.places[0]?.example}</b>. Name the places
+      The end of a code tells where the work was done, e.g. <b>{(view.places.find((p) => p.suffix !== NO_ENDING) ?? view.places[0])?.example}</b>. Name the places
       {view.project ? (
         <>
           {" "}
           of project <b>{view.project.toUpperCase()}</b>
         </>
       ) : null}{" "}
-      once and the entry screen shows them next to the codes.{" "}
+      once and the entry screen shows them next to the codes. A code with <b>no ending</b> (like 03-11-00-00) is a place
+      too, often the main building: name it like the others.{" "}
     </>
   );
 
@@ -112,12 +114,13 @@ export function PlacesCard({
               return (
                 <tr key={p.suffix} className={`${view.new.includes(p.suffix) ? "new " : ""}${empty ? "empty" : "filled"}`}>
                   <td>
-                    <code>-{p.suffix}</code>
+                    <code>{endingLabel(p.suffix)}</code>
+                    {p.suffix === NO_ENDING && <div className="muted small">e.g. {p.example}</div>}
                   </td>
                   <td>
                     <input
                       className={empty ? "needs-name" : undefined}
-                      aria-label={`Place for -${p.suffix}`}
+                      aria-label={p.suffix === NO_ENDING ? "Place for codes with no ending" : `Place for -${p.suffix}`}
                       value={names[p.suffix] ?? ""}
                       placeholder={edit ? "Name this place…" : "Place name"}
                       maxLength={60}

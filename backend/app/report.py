@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from app.domain.codes import cell_text, person_key, trade_from_name
 from app.domain.descriptions import standard_description
 from app.domain.models import WorkbookSnapshot, as_number
-from app.domain.places import place_suffix
+from app.domain.places import place_key
 from app.domain.rules import canonical_day_type, compute_entry
 
 NO_CODE = "Unallocated (ZIDLE)"
@@ -113,7 +113,7 @@ def _describe(code: str, ctx: Context) -> str:
     if code == NO_CODE:
         return "Worked hours not booked to an activity code"
     parts = [ctx.descriptions.get(code) or standard_description(code) or ""]
-    if (s := place_suffix(code)) and ctx.places.get(s):
+    if (s := place_key(code)) and ctx.places.get(s):
         parts.append(ctx.places[s])
     return " · ".join(p for p in parts if p)
 

@@ -39,7 +39,7 @@ from app.books import BookSettings, project_key, workbook_kind
 from app.config import Config
 from app.domain.health import HealthReport, run_health
 from app.domain.models import SnapshotMeta, WorkbookSnapshot
-from app.domain.places import Place, find_places
+from app.domain.places import NO_ENDING, Place, find_places
 from app.excel.adapter import WorkbookError
 from app.service import EntryService
 from app.setup import (
@@ -700,7 +700,8 @@ async def get_places(request: Request) -> PlacesView:
 
 
 class PlacesRequest(BaseModel):
-    names: dict[str, str]  # suffix -> name; "" leaves one unnamed (and it is not asked again)
+    # suffix -> name ("_": codes with no ending); "" leaves one unnamed (and it is not asked again)
+    names: dict[str, str]
 
 
 @router.post("/places", response_model=SetupState)
@@ -713,7 +714,7 @@ def set_places(body: PlacesRequest, request: Request) -> SetupState:
     saved = session.settings.get_key(book.places_key)
     names = {**saved.get("places", {})}
     for suffix in body.names:
-        if not re.fullmatch(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*", suffix):
+        if suffix != NO_ENDING and not re.fullmatch(r"[A-Za-z0-9]+(-[A-Za-z0-9]+)*", suffix):
             msg = f"-{suffix} is not a code ending (letters and numbers, like P or C-8)."
             raise HTTPException(422, msg)
     for suffix, name in body.names.items():

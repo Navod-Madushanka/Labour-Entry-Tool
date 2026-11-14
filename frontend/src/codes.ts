@@ -13,10 +13,27 @@ export function placeSuffix(code: string): string | null {
   return rest.length ? rest.join("-") : null;
 }
 
-/** The place name of a code, if the office named its suffix. */
-export function placeName(code: string, places: Record<string, string> | undefined): string | null {
+/** The place key of codes with no ending ("03-11-00-00"): no ending is not "no place", it is a
+ * place of the project's own (often the main building), named by the office like any ending.
+ * "_" can never be a real ending (those are letters and numbers). As the server (places.py). */
+export const NO_ENDING = "_";
+
+/** The key a code's place is named under: its ending, NO_ENDING for a work code with none, null
+ * for something that is not a work code. */
+export function placeKey(code: string): string | null {
   const suffix = placeSuffix(code);
-  return (suffix && places?.[suffix]) || null;
+  if (suffix) return suffix;
+  const parts = code.trim().split("-");
+  return parts.length >= 4 && parts.slice(0, 4).every((p) => PAIR.test(p)) ? NO_ENDING : null;
+}
+
+/** How an ending is shown: "-P", or "no ending". */
+export const endingLabel = (key: string) => (key === NO_ENDING ? "no ending" : `-${key}`);
+
+/** The place name of a code, if the office named its ending (or "no ending"). */
+export function placeName(code: string, places: Record<string, string> | undefined): string | null {
+  const key = placeKey(code);
+  return (key && places?.[key]) || null;
 }
 
 /** What a code is, in words: the office's description or the MasterFormat title (from Labour
