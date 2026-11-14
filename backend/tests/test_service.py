@@ -348,3 +348,21 @@ def test_live_snapshot_reports_progress(small_snapshot, tmp_path):
     assert len(snap.days) == len(small_snapshot.days)
     assert seen[0] == {"done": 1, "total": len(small_snapshot.days) + 1, "step": "sheet 1"}
     assert service.progress is None  # done
+
+
+def test_undo_gives_back_the_entries_to_push_again(service, fake):
+    """Undo hands back what the push had put in Excel, for the manpower sheet: a new entry as is,
+    a correction with overwrite (pushing it again replaces the entry the undo brought back)."""
+    new = entry(name="INC-02", overwrite=True, time_out=21.0, activities=acts(13.0))
+    res = service.commit([new], USER)
+    undo = service.undo(res.batch_id, USER)
+    [back] = undo.entries
+    assert (back.sheet, back.calling_name, back.time_in, back.time_out) == ("1", "INC-02", 7.0, 21.0)
+    assert back.overwrite and back.activities[0].hours == 13.0
+    again = service.commit([back.model_copy(update={"acknowledged": new.acknowledged})], USER)
+    assert again.status == "written"  # pushed again as it was
+
+
+def test_undo_of_a_clear_gives_nothing_back(service, fake):
+    res = service.commit([EntryInput(sheet="1", calling_name="INB-01", overwrite=True)], USER)
+    assert service.undo(res.batch_id, USER).entries == []

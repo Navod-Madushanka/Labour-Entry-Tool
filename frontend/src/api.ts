@@ -205,6 +205,7 @@ export interface UndoResult {
   conflicts: string[];
   error: string | null;
   note: string | null;
+  entries?: EntryInput[]; // what the undone push had put in Excel: back on the manpower sheet
 }
 
 export interface HeaderFixResult {

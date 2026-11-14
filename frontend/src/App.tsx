@@ -377,13 +377,31 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   };
 
   const undo = async (b: Batch) => {
-    if (!window.confirm(`Undo batch #${b.id} (${b.cells} cells on sheet ${b.sheets.join(", ")})?`)) return;
+    const entries = !b.note ? " Its entries come back onto the manpower sheet: edit them and push again, or discard the sheet." : "";
+    if (!window.confirm(`Undo batch #${b.id} (${b.cells} cells on sheet ${b.sheets.join(", ")})?${entries}`)) return;
     setBusy(true);
     setResult(null);
     try {
       const res = await api.undo(b.id, user);
-      if (res.status === "undone") setMessage(`Batch #${b.id} undone.${res.note ? ` ${res.note}` : ""}`);
-      else setMessage(`Undo ${res.status}: ${res.error ?? res.conflicts.join("; ")}`);
+      if (res.status === "undone") {
+        // The undone entries go back on the manpower sheet (not lost): correct and push again, or
+        // "Discard sheet". An entry of the same worker already waiting there is kept, not replaced.
+        const waiting = new Set(queue.map((q) => `${q.input.sheet}|${q.input.calling_name}`));
+        const back = (res.entries ?? []).filter((e) => !waiting.has(`${e.sheet}|${e.calling_name}`));
+        if (back.length) {
+          addToQueue(back);
+          if (page !== "entry") window.location.hash = "";
+          if (back[0].sheet !== sheet && master?.sheets.includes(back[0].sheet)) setSheet(back[0].sheet);
+        }
+        const kept = (res.entries ?? []).length - back.length;
+        const where = [...new Set(back.map((e) => e.sheet))].join(", ");
+        setMessage(
+          `Batch #${b.id} undone.` +
+            (back.length ? ` ${back.length} ${back.length === 1 ? "entry is" : "entries are"} back on the manpower sheet (sheet ${where}): edit and push again, or discard the sheet.` : "") +
+            (kept ? ` ${kept} left out: ${kept === 1 ? "that worker is" : "those workers are"} already waiting there.` : "") +
+            (res.note ? ` ${res.note}` : ""),
+        );
+      } else setMessage(`Undo ${res.status}: ${res.error ?? res.conflicts.join("; ")}`);
       const daySheets = b.sheets.filter((s) => master?.sheets.includes(s));
       if (daySheets.length < b.sheets.length) api.master(true).then(setMaster).catch(fail); // Labour Detail
       await Promise.all(daySheets.map(reloadDay));

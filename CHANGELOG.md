@@ -1,5 +1,21 @@
 # Changelog
 
+## Undo puts the entries back on the manpower sheet (14 Nov 2026)
+
+Asked for: when undoing, load the entries into the manpower sheet first, so they can be edited and
+pushed again, or the sheet discarded.
+
+- **Undo no longer loses the work.** Undoing a push takes its entries out of Excel as before, and
+  puts them back on the manpower sheet as they were pushed (times, activity lines, additional,
+  remark). There you can correct them and push again, or press **Discard sheet N** to drop them.
+  The tool goes to the entry page and that sheet; the message says how many came back.
+- An undone correction comes back marked to replace: pushing it again replaces the entry the
+  undo brought back, as the first push did.
+- A worker already waiting on that sheet is kept as it is (not replaced); the message says so.
+- A push that cleared a worker brings nothing back. Header fixes, employee codes and new workers
+  undo as before.
+- `e2e/undo-to-sheet.cjs` (made-up data): push, undo, edit, push again, undo, discard.
+
 ## Lighter on a busy office PC: fewer Excel reads, an indexed log, less redrawing (14 Nov 2026)
 
 Asked for: the tool is too heavy on an 8 GB, 10th-gen i5 PC that also runs two or three

@@ -113,6 +113,9 @@ class UndoResult(BaseModel):
     conflicts: list[str] = Field(default_factory=list)
     error: str | None = None
     note: str | None = None
+    # the entries the undone push had put in Excel, as typed: the screen puts them back on the
+    # manpower sheet to edit and push again, or to discard
+    entries: list[EntryInput] = Field(default_factory=list)
 
 
 class HeaderFixResult(BaseModel):
@@ -691,6 +694,7 @@ class EntryService:
             return UndoResult(status="conflict", batch_id=batch_id, conflicts=conflicts)
         if not undo_changes:
             return reject("Nothing to undo: the cells already hold the old values.")
+        back = self._undone_entries(by_block)
         allow = {
             "allow_header": bool(header_changes),
             "allow_codes": bool(code_changes),
@@ -719,7 +723,27 @@ class EntryService:
         self.audit.finish(undo_id, "done")
         note = (f"{lost_formulas} cell(s) held a broken lookup formula (#N/A); they are blank now. "
                 "The backup copy still has the formulas.") if lost_formulas else None  # fmt: skip
-        return UndoResult(status="undone", batch_id=batch_id, undo_batch_id=undo_id, note=note)
+        return UndoResult(status="undone", batch_id=batch_id, undo_batch_id=undo_id, note=note,
+                          entries=back)  # fmt: skip
+
+    def _undone_entries(self, by_block: dict[tuple[str, int], list[Change]]) -> list[EntryInput]:
+        """The day-sheet entries an undo takes out of Excel, as they are there now (what the push
+        wrote): back on the manpower sheet they can be corrected and pushed again. ``overwrite`` is
+        set where the undo brings back an earlier entry (a correction undone): pushing again
+        replaces it, as the push did. A cleared block (nothing to bring back) is left out."""
+        out: list[EntryInput] = []
+        for sheet in dict.fromkeys(s for s, _ in by_block):
+            entries = {e.row: e for e in self.workbook.read_day(sheet).entries}
+            for (s, r), changes in by_block.items():
+                e = entries.get(r)
+                if s != sheet or e is None or not e.has_input or not e.calling_name:
+                    continue
+                try:
+                    out.append(entry_as_input(e, overwrite=any(not is_blank(ch.old)
+                                                               for ch in changes)))  # fmt: skip
+                except ValueError:  # a cell the form can't hold (junk typed in Excel): left out
+                    continue
+        return out
 
     def _read_inputs(self, sheet: str, r: int) -> dict:
         """Column A and every input cell of the block starting at row r, in one read."""
@@ -1213,6 +1237,18 @@ class EntryService:
 
     def recent_batches(self, limit: int = 20) -> list[Batch]:
         return self.audit.recent(limit, workbook=self.workbook.name)
+
+
+def entry_as_input(e: Entry, overwrite: bool = False) -> EntryInput:
+    """A day-sheet entry as the form would have it (numbers as numbers, codes as text)."""
+    text = lambda v: cell_text(v).strip() or None  # noqa: E731
+    return EntryInput(
+        sheet=e.sheet, calling_name=str(e.calling_name), time_in=as_number(e.time_in),
+        time_out=as_number(e.time_out), additional=as_number(e.additional),
+        remark=text(e.remark), overwrite=overwrite,
+        activities=[ActivityInput(code=text(a.code), hours=as_number(a.hours))
+                    for a in e.activities if not (is_blank(a.code) and is_blank(a.hours))],
+    )  # fmt: skip
 
 
 def clean_name(name: str) -> str:
