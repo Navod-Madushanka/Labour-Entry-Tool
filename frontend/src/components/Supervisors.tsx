@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type Master, type Owned, type Review, type Supervisor } from "../api";
 import type { Month } from "../history";
 import { fingerprint, ManpowerRecord, recordColumns } from "./ManpowerSheet";
+import { CardHelp } from "./CardHelp";
+import { EmptyState } from "./EmptyState";
 
 type ReviewState = "todo" | "ok" | "problem" | "changed";
 const REVIEW_LABEL: Record<ReviewState, string> = {
-  todo: "Not reviewed",
+  todo: "Not checked yet",
   ok: "✓ Matches the paper",
-  problem: "⚠ Problem",
-  changed: "Changed since review",
+  problem: "⚠ Doesn't match",
+  changed: "↻ Changed since checked",
 };
+type CheckFilter = "" | "check" | "problem" | "ok"; // "check": not checked yet, or changed since
 
 
 interface Group {
@@ -44,12 +47,14 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
   const [names, setNames] = useState<Supervisor[]>([]);
   const [who, setWho] = useState(""); // "" = everyone
   const [sheet, setSheet] = useState(""); // "" = every day
-  const [open, setOpen] = useState<string[]>([]); // groups shown as sheets
+  const [open, setOpen] = useState<string[] | null>(null); // sheets opened; null: the default (all, when 3 or fewer)
   const [error, setError] = useState<string | null>(null);
   const [moveTo, setMoveTo] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState("");
   const [query, setQuery] = useState("");
-  const [reviewFilter, setReviewFilter] = useState<"" | ReviewState>("");
+  const [reviewFilter, setReviewFilter] = useState<CheckFilter>("");
+  const [noteFor, setNoteFor] = useState<string | null>(null); // the sheet whose "what is different" box is open
+  const [noteText, setNoteText] = useState("");
   const [reviews, setReviews] = useState<Review[]>([]);
   const [renaming, setRenaming] = useState<{
     old: string;
@@ -126,18 +131,12 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
     (g) =>
       (!who || g.supervisor === who) &&
       (!sheet || g.sheet === sheet) &&
-      (!reviewFilter || state(g).state === reviewFilter) &&
+      (!reviewFilter || (reviewFilter === "check" ? ["todo", "changed"].includes(state(g).state) : state(g).state === reviewFilter)) &&
       matches(g),
   );
   const workerHits = q ? shown.flatMap((g) => g.owned.filter((o) => hit(g, o)).map((o) => ({ g, o }))) : [];
-  const toReview = groups.filter((g) => state(g).state !== "ok").length;
 
-  const review = async (g: Group, status: Review["status"]) => {
-    let note: string | null = null;
-    if (status === "problem") {
-      note = window.prompt(`What does not match on sheet ${g.sheet} of ${g.supervisor}?`, state(g).review?.note ?? "");
-      if (!note?.trim()) return;
-    }
+  const review = async (g: Group, status: Review["status"], note: string | null = null) => {
     try {
       setReviews(
         await api.reviewSheet({
@@ -167,7 +166,8 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
           !(owned ?? []).some((o) => o.sheet === sheet && o.calling_name === v.entry.calling_name),
       )
     : [];
-  const visible = shown.length <= 3 ? shown.map((g) => g.key) : open;
+  const defaultOpen = shown.length <= 3 ? shown.map((g) => g.key) : [];
+  const visible = open ?? defaultOpen;
 
   const move = async (g: Group) => {
     const to = (moveTo[g.key] ?? "").replace(/\s+/g, " ").trim();
@@ -180,26 +180,100 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
           to,
         ),
       );
-      setOpen((o) => o.map((k) => (k === g.key ? `${g.sheet}|${to}` : k)));
+      setOpen((o) => o && o.map((k) => (k === g.key ? `${g.sheet}|${to}` : k)));
       api.supervisors().then(setNames).catch(fail);
     } catch (e) {
       fail(e);
     }
   };
 
+  const tally = { check: 0, problem: 0, ok: 0 };
+  for (const g of groups) {
+    const st = state(g).state;
+    if (st === "ok") tally.ok++;
+    else if (st === "problem") tally.problem++;
+    else tally.check++;
+  }
+  const filtered = !!(q || who || sheet || reviewFilter);
+  const clearFilters = () => {
+    setQuery("");
+    setWho("");
+    setSheet("");
+    setReviewFilter("");
+  };
+  const toggle = (key: string) =>
+    setOpen((o) => {
+      const now = o ?? defaultOpen;
+      return now.includes(key) ? now.filter((k) => k !== key) : [...now, key];
+    });
+  const saveNote = async (g: Group) => {
+    if (!noteText.trim()) return;
+    await review(g, "problem", noteText.trim());
+    setNoteFor(null);
+  };
+
   return (
     <section className="supervisors">
       <div className="section-head">
-        <h2>Supervisors' manpower sheets</h2>
+        <h2>Supervisors' sheets</h2>
       </div>
-      <p className="muted">
-        At each push the tool asks whose manpower sheet it is. Here each day's entries are shown by supervisor, laid out
-        like the paper, with what is in Excel now (≠ Excel: changed in Excel after the push). Undoing a push gives the
-        entries back to the supervisor before it.
-      </p>
+      <p className="sup-lead">Check each supervisor's day in the tool against their paper manpower sheet.</p>
+      <CardHelp id="supervisors">
+        <ol className="sup-steps">
+          <li>
+            <b>Push</b> entries from the Entry page: the tool asks whose paper sheet they came from.
+          </li>
+          <li>
+            <b>Open</b> a sheet below: that supervisor's workers for that day, laid out like their paper.
+          </li>
+          <li>
+            <b>Compare</b> it with the paper and answer <i>Does this match?</i>: <b>✓ Yes</b>, or <b>⚠ No</b> with a
+            note of what is different.
+          </li>
+        </ol>
+        <p>
+          A cell marked <b>≠ Excel</b> was changed in Excel after the push. A sheet that changes after you checked it
+          shows <b>↻ Changed since checked</b>: check it again. Undoing a push gives the entries back to the supervisor
+          before it. Picked the wrong supervisor at push? Use <b>Move to</b> under the sheet.
+        </p>
+      </CardHelp>
       {error && <p className="error-text">{error}</p>}
 
+      {owned && groups.length > 0 && (
+        <div className="sup-tiles" role="group" aria-label="Show sheets by check">
+          {(
+            [
+              ["check", "To check", tally.check, "Not checked yet, or changed since"],
+              ["problem", "Doesn't match", tally.problem, "Marked as different from the paper"],
+              ["ok", "Matches the paper", tally.ok, "Checked: the same as the paper"],
+              ["", "All sheets", groups.length, "Every supervisor sheet"],
+            ] as const
+          ).map(([k, label, n, hint]) => (
+            <button
+              key={k || "all"}
+              className={`sup-tile tile-${k || "all"}${reviewFilter === k ? " on" : ""}`}
+              aria-pressed={reviewFilter === k}
+              title={hint}
+              onClick={() => setReviewFilter(k)}
+            >
+              <span className="sup-tile-n">{n}</span>
+              <span className="sup-tile-label">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="sup-filters row">
+        <label className="field sup-search">
+          Find
+          <input
+            type="search"
+            aria-label="Search sheets"
+            placeholder="A worker, name, code, supervisor, sheet no. or date"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
         <label className="field">
           Supervisor
           <select aria-label="Supervisor" value={who} onChange={(e) => setWho(e.target.value)}>
@@ -230,31 +304,6 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
           </select>
         </label>
         <label className="field">
-          Review
-          <select
-            aria-label="Review"
-            value={reviewFilter}
-            onChange={(e) => setReviewFilter(e.target.value as "" | ReviewState)}
-          >
-            <option value="">All sheets</option>
-            {(Object.keys(REVIEW_LABEL) as ReviewState[]).map((k) => (
-              <option key={k} value={k}>
-                {REVIEW_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field sup-search">
-          Search
-          <input
-            type="search"
-            aria-label="Search sheets"
-            placeholder="worker, name, code, supervisor, sheet no. or date"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
-        <label className="field">
           Day
           <select aria-label="Day" value={sheet} onChange={(e) => setSheet(e.target.value)}>
             <option value="">Every day</option>
@@ -266,28 +315,22 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
             ))}
           </select>
         </label>
+        {filtered && (
+          <button className="link sup-clear" onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
       </div>
 
       {owned && groups.length > 0 && (
-        <p className="small sup-summary">
-          {groups.length} {groups.length === 1 ? "sheet" : "sheets"} ·{" "}
-          {toReview ? <span className="warn-text">{toReview} to review</span> : "all reviewed"}
-          {(q || who || sheet || reviewFilter) && (
-            <>
-              {" "}
-              · showing {shown.length}{" "}
-              <button
-                className="link small"
-                onClick={() => {
-                  setQuery("");
-                  setWho("");
-                  setSheet("");
-                  setReviewFilter("");
-                }}
-              >
-                Clear
-              </button>
-            </>
+        <p className="small muted sup-summary" role="status">
+          {filtered ? `Showing ${shown.length} of ${groups.length} sheets` : `${groups.length} ${groups.length === 1 ? "sheet" : "sheets"}`} ·{" "}
+          {tally.check + tally.problem ? (
+            <span className="warn-text">
+              {tally.check} to check{tally.problem ? `, ${tally.problem} not matching` : ""}
+            </span>
+          ) : (
+            <span className="ok-text">all checked ✓</span>
           )}
         </p>
       )}
@@ -306,20 +349,25 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
       {owned === null ? (
         <p className="muted">Loading…</p>
       ) : groups.length === 0 ? (
-        <p className="muted">
-          No sheets yet. Push entries from the Entry page: the tool asks whose manpower sheet they are.
-        </p>
+        <EmptyState
+          title="No supervisor sheets yet"
+          steps={[
+            "Enter a supervisor's workers on the Entry page.",
+            "Press Push: the tool asks whose paper sheet it is. Pick or type the supervisor.",
+            "Come back here to check that sheet against the paper.",
+          ]}
+        />
       ) : (
         <>
           <div className="table-wrap">
             <table className="sup-index">
               <thead>
                 <tr>
+                  <th>Check</th>
                   <th>Day</th>
                   <th>Supervisor</th>
-                  <th>Workers</th>
-                  <th>Changed in Excel</th>
-                  <th>Review</th>
+                  <th className="num">Workers</th>
+                  <th title="Workers changed in Excel after the push">Changed in Excel</th>
                   <th>Pushed</th>
                   <th />
                 </tr>
@@ -329,32 +377,42 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
                   const changed = recordColumns(g.owned, month[g.sheet]).filter((c) => c.note).length;
                   const isOpen = visible.includes(g.key);
                   return (
-                    <tr key={g.key} className={isOpen ? "on" : undefined}>
+                    <tr
+                      key={g.key}
+                      className={`sup-row-link${isOpen ? " on" : ""}`}
+                      onClick={(e) => !(e.target as HTMLElement).closest("button") && toggle(g.key)}
+                    >
+                      <td>
+                        <ReviewBadge {...state(g)} compact />
+                      </td>
                       <td>
                         Sheet {g.sheet} <span className="muted">{dayText(month[g.sheet]?.header.date)}</span>
                       </td>
                       <td>
                         <b>{g.supervisor}</b>
                       </td>
-                      <td>{g.owned.length}</td>
+                      <td className="num">{g.owned.length}</td>
                       <td>
-                        {changed ? <span className="warn-text">{changed}</span> : <span className="muted">—</span>}
-                      </td>
-                      <td>
-                        <ReviewBadge {...state(g)} />
+                        {changed ? (
+                          <span className="warn-text" title="Changed in Excel after the push (≠ Excel on the sheet)">
+                            {changed} {changed === 1 ? "worker" : "workers"}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
                       </td>
                       <td className="muted small">
                         {when(g.last)} by {g.users.join(", ")}
                       </td>
                       <td>
-                        {shown.length > 3 && (
-                          <button
-                            className="link"
-                            onClick={() => setOpen((o) => (isOpen ? o.filter((k) => k !== g.key) : [...o, g.key]))}
-                          >
-                            {isOpen ? "Hide" : "Show sheet"}
-                          </button>
-                        )}
+                        <button
+                          className="link sup-open"
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? "Hide" : "Open"} sheet ${g.sheet} of ${g.supervisor}`}
+                          onClick={() => toggle(g.key)}
+                        >
+                          {isOpen ? "Hide ▴" : "Open ▾"}
+                        </button>
                       </td>
                     </tr>
                   );
@@ -362,53 +420,101 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
               </tbody>
             </table>
           </div>
-          {shown.length === 0 && <p className="muted">No sheet matches.</p>}
+          {shown.length === 0 && (
+            <p className="muted">
+              No sheet matches.{" "}
+              <button className="link" onClick={clearFilters}>
+                Clear filters
+              </button>
+            </p>
+          )}
           {unowned.length > 0 && (
-            <p className="muted small">
-              {unowned.length} more {unowned.length === 1 ? "entry" : "entries"} on sheet {sheet}{" "}
-              {unowned.length === 1 ? "has" : "have"} no supervisor (pushed before supervisors were asked, or typed in
-              Excel):{" "}
-              {unowned
-                .slice(0, 12)
-                .map((v) => v.entry.calling_name)
-                .join(", ")}
-              {unowned.length > 12 ? " …" : ""}
+            <p className="sup-unowned small">
+              <b>
+                {unowned.length} {unowned.length === 1 ? "entry" : "entries"} on sheet {sheet} {unowned.length === 1 ? "has" : "have"} no
+                supervisor
+              </b>{" "}
+              <span className="muted">
+                (pushed before the tool asked, or typed straight into Excel):{" "}
+                {unowned
+                  .slice(0, 12)
+                  .map((v) => v.entry.calling_name)
+                  .join(", ")}
+                {unowned.length > 12 ? " …" : ""}
+              </span>
             </p>
           )}
 
           <div className="manpower-pages">
             {shown
               .filter((g) => visible.includes(g.key))
-              .map((g) => (
-                <div key={g.key} className="mp-day" data-sheet={g.sheet} data-supervisor={g.supervisor}>
-                  <ManpowerRecord
-                    sheet={g.sheet}
-                    day={month[g.sheet]}
-                    supervisor={g.supervisor}
-                    columns={recordColumns(g.owned, month[g.sheet])}
-                    places={master.places}
-                    descriptions={master.descriptions}
-                    activities={master.check_activities}
-                    highlight={q ? (c) => g.owned.some((o) => o.calling_name === c.name && hit(g, o)) : undefined}
-                    footer={
-                      <>
-                        <div className="sup-review">
-                          <ReviewBadge {...state(g)} />
-                          <button className="small" onClick={() => review(g, "ok")} disabled={state(g).state === "ok"}>
-                            ✓ Matches the paper
+              .map((g) => {
+                const st = state(g);
+                return (
+                  <div key={g.key} className="mp-day" data-sheet={g.sheet} data-supervisor={g.supervisor}>
+                    <div className={`sup-check st-${st.state}`}>
+                      <div className="sup-check-q">
+                        <b>
+                          Does this match {g.supervisor}'s paper sheet for {dayText(month[g.sheet]?.header.date) || `sheet ${g.sheet}`}?
+                        </b>
+                        <ReviewBadge {...st} />
+                      </div>
+                      {noteFor === g.key ? (
+                        <div className="sup-note">
+                          <input
+                            aria-label={`What is different on sheet ${g.sheet} of ${g.supervisor}`}
+                            placeholder="What is different? e.g. AAA-02 out 18:00 on the paper"
+                            value={noteText}
+                            autoFocus
+                            maxLength={500}
+                            onChange={(e) => setNoteText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveNote(g);
+                              if (e.key === "Escape") setNoteFor(null);
+                            }}
+                          />
+                          <button className="small primary" disabled={!noteText.trim()} onClick={() => saveNote(g)}>
+                            Save note
                           </button>
-                          <button className="small" onClick={() => review(g, "problem")}>
-                            ⚠ Problem…
+                          <button className="link small" onClick={() => setNoteFor(null)}>
+                            Cancel
                           </button>
-                          {state(g).review && (
+                        </div>
+                      ) : (
+                        <div className="sup-check-actions">
+                          <button className="small sup-yes" onClick={() => review(g, "ok")} disabled={st.state === "ok"}>
+                            ✓ Yes, it matches
+                          </button>
+                          <button
+                            className="small sup-no"
+                            onClick={() => {
+                              setNoteFor(g.key);
+                              setNoteText(st.review?.note ?? "");
+                            }}
+                          >
+                            ⚠ No, something is different…
+                          </button>
+                          {st.review && (
                             <button className="link small" onClick={() => review(g, "cleared")}>
-                              Take back the review
+                              Undo my answer
                             </button>
                           )}
                         </div>
+                      )}
+                    </div>
+                    <ManpowerRecord
+                      sheet={g.sheet}
+                      day={month[g.sheet]}
+                      supervisor={g.supervisor}
+                      columns={recordColumns(g.owned, month[g.sheet])}
+                      places={master.places}
+                      descriptions={master.descriptions}
+                      activities={master.check_activities}
+                      highlight={q ? (c) => g.owned.some((o) => o.calling_name === c.name && hit(g, o)) : undefined}
+                      footer={
                         <span className="sup-move">
-                          {g.owned.length} {g.owned.length === 1 ? "worker" : "workers"} · pushed {when(g.last)} by{" "}
-                          {g.users.join(", ")} · Wrong supervisor? Give this sheet to{" "}
+                          {g.owned.length} {g.owned.length === 1 ? "worker" : "workers"} · pushed {when(g.last)} by {g.users.join(", ")} ·
+                          Wrong supervisor? Move to{" "}
                           <input
                             list="sup-names"
                             aria-label={`New supervisor for sheet ${g.sheet} of ${g.supervisor}`}
@@ -426,11 +532,11 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
                             Move
                           </button>
                         </span>
-                      </>
-                    }
-                  />
-                </div>
-              ))}
+                      }
+                    />
+                  </div>
+                );
+              })}
           </div>
         </>
       )}
@@ -441,7 +547,7 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
       </datalist>
 
       <details className="sup-list">
-        <summary>Supervisor list ({names.length})</summary>
+        <summary>Manage supervisor names ({names.length})</summary>
         <p className="muted small">
           The names offered at push: the ones used most recently first. Removing a name only takes it off this list; its
           sheets keep it. Renaming changes it on every sheet too.
@@ -532,18 +638,17 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
   );
 }
 
-function ReviewBadge({ state, review }: { state: ReviewState; review?: Review }) {
+function ReviewBadge({ state, review, compact = false }: { state: ReviewState; review?: Review; compact?: boolean }) {
   const title = review
-    ? `${review.status === "ok" ? "Matched the paper" : `Problem: ${review.note ?? ""}`} · ${review.user}, ${when(review.created_at)}` +
-      (state === "changed" ? " · the sheet changed after this review: check it again" : "")
+    ? `${review.status === "ok" ? "Matched the paper" : `Doesn't match: ${review.note ?? ""}`} · ${review.user}, ${when(review.created_at)}` +
+      (state === "changed" ? " · the sheet changed after this check: check it again" : "")
     : "Not compared with the paper yet";
-  const cls = state === "ok" ? "ok-text" : state === "todo" ? "muted" : "warn-text";
   return (
-    <span className={`sup-badge ${cls}`} title={title}>
+    <span className={`sup-badge st-${state}`} title={title}>
       {REVIEW_LABEL[state]}
-      {review && state === "problem" && review.note ? `: ${review.note}` : ""}
-      {review && state !== "todo" && (
-        <span className="muted small">
+      {!compact && review && state === "problem" && review.note ? `: ${review.note}` : ""}
+      {!compact && review && state !== "todo" && (
+        <span className="sup-badge-by">
           {" "}
           · {review.user}, {when(review.created_at)}
         </span>

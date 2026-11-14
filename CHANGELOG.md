@@ -1,5 +1,27 @@
 # Changelog
 
+## Supervisors page: one clear job, status first, plain words (14 Nov 2026)
+
+Asked for: make the Supervisors tab more user friendly and easier to understand.
+
+- **One sentence says what the page is for**: check each supervisor's day against their paper
+  manpower sheet. The longer explanation is three numbered steps (Push → Open → Compare) under
+  "How this works", folded away once read.
+- **Four status tiles at the top**: To check, Doesn't match, Matches the paper, All sheets, each with
+  its count. Click one to show only those sheets (they replace the Review drop-down).
+- **Plain words**: "Not checked yet", "✓ Matches the paper", "⚠ Doesn't match", "↻ Changed since
+  checked" (was Not reviewed / Problem / Changed since review), as coloured pills.
+- **The question sits above each sheet**: "Does this match Kamal's paper sheet for Sun, Oct 4?"
+  with **✓ Yes, it matches** and **⚠ No, something is different…**. "No" opens a note box right
+  there (no pop-up window). "Undo my answer" replaces "Take back the review".
+- **Table**: status is the first column; click anywhere on a row (or Open ▾ / Hide ▴, now on every
+  row) to open that sheet. "Changed in Excel" says how many workers.
+- **Filters**: Find comes first with a wider box; "Clear filters" appears when any is set, also on
+  "No sheet matches."
+- **No sheets yet**: three steps to get the first one. Entries with no supervisor stand out in an
+  amber note. The name list is "Manage supervisor names".
+- Light and dark checked; `e2e/supervisors.cjs` updated for the new wording and the note box.
+
 ## Undo puts the entries back on the manpower sheet (14 Nov 2026)
 
 Asked for: when undoing, load the entries into the manpower sheet first, so they can be edited and

@@ -88,15 +88,18 @@ const out = process.argv[2] || ".";
 
   // Review: matches the paper, then a problem with a note
   const sheet = p.locator('.mp-day[data-supervisor="Kamal Perera"]');
-  await sheet.getByRole("button", { name: "✓ Matches the paper" }).click();
+  await sheet.getByRole("button", { name: "✓ Yes, it matches" }).click();
   await p.waitForSelector("table.sup-index >> text=✓ Matches the paper");
-  await sheet.getByRole("button", { name: "⚠ Problem…" }).click();
-  await p.waitForSelector("table.sup-index >> text=AAA-02 out 18:00 on the paper");
-  await p.getByLabel("Review").selectOption("problem");
-  if ((await p.locator("table.sup-index tbody tr").count()) !== 1) throw new Error("review filter");
-  await p.getByLabel("Review").selectOption("");
-  await sheet.getByRole("button", { name: "✓ Matches the paper" }).click();
-  await p.waitForSelector("text=all reviewed");
+  await sheet.getByRole("button", { name: "⚠ No, something is different…" }).click();
+  await p.getByLabel("What is different on sheet 4 of Kamal Perera").fill("AAA-02 out 18:00 on the paper");
+  await sheet.getByRole("button", { name: "Save note" }).click();
+  await p.waitForSelector(".mp-day >> text=AAA-02 out 18:00 on the paper");
+  await p.waitForSelector("table.sup-index >> text=⚠ Doesn't match");
+  await p.getByRole("button", { name: /Doesn't match/ }).first().click(); // the tile: only those sheets
+  if ((await p.locator("table.sup-index tbody tr").count()) !== 1) throw new Error("check filter");
+  await p.getByRole("button", { name: /All sheets/ }).click();
+  await sheet.getByRole("button", { name: "✓ Yes, it matches" }).click();
+  await p.waitForSelector("text=all checked ✓");
   await p.screenshot({ path: `${out}/supervisor-review.png`, fullPage: true });
   // the sheet changes after the review (a worker given to another supervisor): review again
   const a4 = all.find((o) => o.calling_name === "AAA-04");
@@ -104,7 +107,7 @@ const out = process.argv[2] || ".";
   await p.reload(); await p.waitForSelector("table.sup-index tbody tr");
   const idx = (await p.locator("table.sup-index").innerText()).replace(/\s+/g, " ");
   console.log("after a change:", idx);
-  if (!idx.includes("Changed since review") || !idx.includes("Not reviewed")) throw new Error("change since review not shown");
+  if (!idx.includes("Changed since checked") || !idx.includes("Not checked yet")) throw new Error("change since check not shown");
 
   // Analysis: hours by supervisor, and the supervisor filter
   await p.getByRole("link", { name: "Analysis" }).click();

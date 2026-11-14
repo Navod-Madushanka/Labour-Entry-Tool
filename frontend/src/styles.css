@@ -758,7 +758,7 @@ details.card > summary .badge { margin-left: 6px; }
 .sup-list { margin-top: 20px; }
 .sup-list ul { list-style: none; padding: 0; }
 .sup-list li { padding: 3px 0; }
-.sup-search input { min-width: 280px; }
+.sup-search input { min-width: 360px; }
 .sup-summary, .sup-hits { margin: 4px 0 8px; }
 .sup-review { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
 .sup-badge { font-weight: 600; }
@@ -1471,3 +1471,49 @@ section.entry { box-shadow: var(--shadow); }
 .flow-order li button.link:hover:not(:disabled) { color: var(--primary); }
 .flow-order > button { align-self: flex-start; }
 .analysis details.card-help { border: none; background: none; padding: 0; box-shadow: none; margin: 0 0 8px; }
+
+/* --- Supervisors page: one job (check each sheet against the paper), status first --- */
+.supervisors .sup-lead { margin: 2px 0 6px; font-size: 15px; }
+.supervisors .card-help { margin: 0 0 12px; }
+.sup-steps { margin: 4px 0 6px; padding-left: 20px; }
+.sup-steps li { margin: 2px 0; }
+.sup-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 6px 0 14px; }
+.sup-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; text-align: left; }
+.sup-tile:hover { background: var(--row); }
+.sup-tile-n { font-size: 24px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sup-tile-label { font-size: 13px; color: var(--muted); }
+.sup-tile.tile-check { border-left-color: var(--caution); }
+.sup-tile.tile-problem { border-left-color: var(--critical); }
+.sup-tile.tile-ok { border-left-color: var(--positive); }
+.sup-tile.tile-all { border-left-color: var(--primary); }
+.sup-tile.on { outline: 2px solid var(--primary); outline-offset: -1px; background: var(--primary-bg); }
+.sup-tile.on .sup-tile-label { color: var(--text); font-weight: 600; }
+.sup-filters { align-items: flex-end; }
+.sup-clear { margin-bottom: 8px; }
+.sup-index th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 600; }
+.sup-index td { padding: 7px 10px; vertical-align: middle; }
+.sup-index th.num, .sup-index td.num { text-align: right; }
+.sup-index tr.sup-row-link { cursor: pointer; }
+.sup-index tr.sup-row-link:hover td { background: var(--row); }
+.sup-index tr.on td { background: var(--primary-bg); }
+.sup-open { white-space: nowrap; font-weight: 600; }
+.sup-badge { display: inline-block; font-weight: 600; font-size: 13px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.sup-badge.st-todo { background: var(--row); color: var(--muted); border: 1px dashed var(--field-line); }
+.sup-badge.st-ok { background: var(--positive-bg); color: var(--positive); }
+.sup-badge.st-problem { background: var(--critical-bg); color: var(--critical); white-space: normal; }
+.sup-badge.st-changed { background: var(--caution-bg); color: var(--caution); }
+.sup-badge-by { font-weight: 400; opacity: 0.8; }
+.sup-check { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; margin-bottom: 8px; border: 1px solid var(--line); border-left: 4px solid var(--caution); border-radius: 8px; background: var(--panel); }
+.sup-check.st-ok { border-left-color: var(--positive); }
+.sup-check.st-problem { border-left-color: var(--critical); }
+.sup-check-q { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sup-check-actions, .sup-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sup-note input { min-width: 320px; }
+.sup-yes:not(:disabled) { background: var(--positive); border-color: var(--positive); color: var(--positive-bg); font-weight: 600; }
+.sup-no { border-color: var(--critical); color: var(--critical); }
+.sup-unowned { border-left: 3px solid var(--caution); background: var(--caution-bg); padding: 6px 10px; border-radius: 6px; }
+.manpower-pages .mp-day + .mp-day { margin-top: 22px; }
+@media (max-width: 720px) {
+  .sup-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sup-search input, .sup-note input { min-width: 0; width: 100%; }
+}
