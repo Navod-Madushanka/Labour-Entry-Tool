@@ -39,6 +39,7 @@ interface Props {
   allSheets: string[]; // the workbook's day sheets, for "Move to"
   onMoveSheet: (from: string, to: string) => void; // entered on the wrong day: move them all
   mismatch?: Map<number, string>; // queue id -> "the usual crew has another code today"
+  codeList?: string[]; // the workbook's activity codes, most used first: suggestions for "+ code"
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
@@ -110,7 +111,8 @@ function parseHours(text: string): number | null {
 }
 
 /** A sheet cell that can be changed in place: click, type, Enter (Esc cancels). */
-function EditCell<T>({ shown, start, parse, onSave, label }: {
+function EditCell<T>({ shown, start, parse, onSave, label, list }: {
+  list?: string; // a datalist of suggestions (codes)
   shown: React.ReactNode;
   start: string;
   parse: (text: string) => T | null;
@@ -144,6 +146,7 @@ function EditCell<T>({ shown, start, parse, onSave, label }: {
   return (
     <input
       ref={box}
+      list={list}
       className={`mp-input${bad ? " bad" : ""}`}
       aria-label={label}
       autoFocus
@@ -163,7 +166,25 @@ function EditCell<T>({ shown, start, parse, onSave, label }: {
 }
 
 export function ManpowerSheet(props: Props) {
-  const { items, month, places, descriptions, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet } = props;
+  const { items, month, places, descriptions, activities, ready, busy, onWrite, onEdit, onRemove, onChange, onDiscardSheet, allSheets, onMoveSheet, codeList = [] } = props;
+  // The code rows keep their place: a code stays where it first appeared and a new one goes to the
+  // bottom (ticking, unticking or changing hours never moves the rows). Per day sheet.
+  const rowOrder = useRef<Record<string, string[]>>({});
+  const ordered = (sheet: string, present: string[]) => {
+    const was = [...new Set(rowOrder.current[sheet] ?? [])].filter((c) => present.includes(c)); // once each (a rename onto another row)
+    const next = [...was, ...present.filter((c) => !was.includes(c))];
+    rowOrder.current[sheet] = next;
+    return next;
+  };
+  // "+ code" suggestions: the codes already on that day first (Excel and waiting), then the
+  // workbook's list, most used first; each with its description and place.
+  const suggestFor = (sheet: string) => {
+    const today = [
+      ...(month[sheet]?.entries ?? []).flatMap((v) => v.entry.activities.map((a) => (typeof a.code === "string" ? a.code.trim() : ""))),
+      ...items.filter((i) => i.input.sheet === sheet).flatMap((i) => i.input.activities.map((a) => a.code?.trim() ?? "")),
+    ].filter(Boolean);
+    return [...new Set([...today.map((c) => c.toUpperCase()), ...codeList])];
+  };
   const [withExcel, setWithExcel] = useState(false);
   // Codes added on the sheet (a row to tick workers on), per day sheet, until they are used.
   const [extra, setExtra] = useState<Record<string, string[]>>({});
@@ -215,11 +236,27 @@ export function ManpowerSheet(props: Props) {
         <div className="manpower-pages">
           {sheets.map(({ sheet, day, pages }) => (
             <div key={sheet} className="mp-day">
+            {activities && !busy && (
+              <datalist id={`mp-codes-${sheet}`}>
+                {suggestFor(sheet).map((c) => (
+                  <option key={c} value={c} label={codeLabel(c, places, descriptions) ?? undefined} />
+                ))}
+              </datalist>
+            )}
             {pages.map((cols, n) => {
               pageNo += 1;
-              const codes = activities ? [...new Set([...cols.flatMap((c) => c.acts.map((a) => a.code)), ...(extra[sheet] ?? [])])] : [];
+              const codes = activities ? ordered(`${sheet}-${n}`, [...new Set([...cols.flatMap((c) => c.acts.map((a) => a.code)), ...(extra[sheet] ?? [])])]) : [];
+              const listId = `mp-codes-${sheet}`;
               const editable = cols.filter((c) => c.id !== undefined && c.input) as (Column & { id: number; input: EntryInput })[];
               const canEdit = activities && !busy && editable.length > 0;
+              // A code row off the sheet: taken off every waiting worker on this page (their worked
+              // hours go to their other codes), after asking when it is on someone.
+              const removeCode = (code: string) => {
+                const on = editable.filter((c) => c.acts.some((a) => a.code === code));
+                if (on.length && !window.confirm(`Take ${code} off ${on.length === 1 ? on[0].name : `${on.length} workers`}? Their worked hours go to their other codes.`)) return;
+                for (const c of on) onChange(c.id, untickCode(c.input, code));
+                setExtra((x) => ({ ...x, [sheet]: (x[sheet] ?? []).filter((e) => e !== code) }));
+              };
               const addCode = () => {
                 const code = parseCode(newCode[sheet] ?? "");
                 if (code && !codes.includes(code)) setExtra((x) => ({ ...x, [sheet]: [...(x[sheet] ?? []), code] }));
@@ -343,10 +380,24 @@ export function ManpowerSheet(props: Props) {
                                     // every waiting worker on this page with the code gets the new one
                                     for (const c of editable) if (c.acts.some((a) => a.code === code)) onChange(c.id, renameCode(c.input, code, to));
                                     setExtra((x) => ({ ...x, [sheet]: (x[sheet] ?? []).map((e) => (e === code ? to : e)) }));
+                                    // the renamed row stays where it was
+                                    const key = `${sheet}-${n}`;
+                                    rowOrder.current[key] = (rowOrder.current[key] ?? []).map((e) => (e === code ? to : e));
                                   }}
+                                  list={listId}
                                 />
                               ) : (
                                 code
+                              )}
+                              {canEdit && !cols.some((c) => c.source === "excel" && c.acts.some((a) => a.code === code)) && (
+                                <button
+                                  className="mp-remove-code"
+                                  title={`Remove ${code} from this sheet`}
+                                  aria-label={`Remove ${code} from sheet ${sheet}`}
+                                  onClick={() => removeCode(code)}
+                                >
+                                  ✕
+                                </button>
                               )}
                             </td>
                             <td className="mp-desc">{codeLabel(code, places, descriptions)}</td>
@@ -407,11 +458,26 @@ export function ManpowerSheet(props: Props) {
                                   placeholder="+ code"
                                   aria-label={`Add an activity code to sheet ${sheet}`}
                                   value={newCode[sheet] ?? ""}
-                                  onChange={(e) => setNewCode((x) => ({ ...x, [sheet]: e.target.value }))}
+                                  onInput={(e) => {
+                                    const v = (e.target as HTMLInputElement).value;
+                                    // picked from the suggestions (not typed): added at once
+                                    if ((e as unknown as InputEvent).inputType === "insertReplacementText") {
+                                      const code = parseCode(v);
+                                      if (code && suggestFor(sheet).includes(code)) {
+                                        if (!codes.includes(code)) setExtra((x) => ({ ...x, [sheet]: [...(x[sheet] ?? []), code] }));
+                                        setNewCode((x) => ({ ...x, [sheet]: "" }));
+                                        return;
+                                      }
+                                    }
+                                    setNewCode((x) => ({ ...x, [sheet]: v }));
+                                  }}
                                   onKeyDown={(e) => e.key === "Enter" && addCode()}
                                   onBlur={addCode}
+                                  list={listId}
+                                  title="Type a code or part of its description: the list suggests the codes of this day first"
                                 />
                               )}
+
                             </td>
                             <td className="mp-desc" />
                             <td className="mp-label-col" />

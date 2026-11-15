@@ -634,6 +634,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const pushArea = master ? (
     <>
             <ManpowerSheet
+              codeList={activityOrder}
               items={queue}
               mismatch={mismatches}
               activities={master.check_activities}

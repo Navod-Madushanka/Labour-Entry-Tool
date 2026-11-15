@@ -7,6 +7,8 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1360, height: 1000 } });
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
+  const asked = []; p.on("dialog", (d) => { asked.push(d.message()); d.accept(); });
+  const rowCodes = () => p.locator(".mp-grid tbody td.mp-code").evaluateAll((els) => els.map((e) => (e.querySelector(".mp-edit, input")?.textContent || e.querySelector("input")?.value || e.textContent).replace("✕", "").trim()).filter((t) => t && t !== "+ code"));
   await p.goto(BASE);
   await p.evaluate(() => { localStorage.setItem("labour.user", "Tester"); for (const k of Object.keys(localStorage)) if (k.startsWith("labour.queue")) localStorage.removeItem(k); });
   await p.reload();
@@ -39,6 +41,12 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   await p.waitForFunction(() => !document.querySelector(".push-bar button")?.disabled);
   console.log("push ready after the tick: yes");
 
+  // "+ code" suggests the workbook's codes (with what they are), the day's own first
+  const sugg = await p.locator("datalist#mp-codes-7 option").evaluateAll((os) => os.map((o) => `${o.value}=${o.label}`));
+  console.log("suggestions:", sugg.slice(0, 4).join(" | "));
+  if (sugg.length < 3 || !sugg.some((x) => x.startsWith("03-11-00-00-P=") && x.includes("Concrete"))) throw new Error("no code suggestions");
+  if ((await p.getByLabel("Add an activity code to sheet 7").getAttribute("list")) !== "mp-codes-7") throw new Error("+ code box not linked to the suggestions");
+
   // add a new code row and tick AAA-01 on it too: the 11 h are shared 5.5 + 5.5
   await p.getByLabel("Add an activity code to sheet 7").fill("03-20-00-00-c-8");
   await p.keyboard.press("Enter");
@@ -64,12 +72,24 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   console.log("fifth tick box disabled:", fifth);
   if (!fifth || (q4.match(/· 2\.75/g) || []).length !== 4) throw new Error("4 codes at 2.75 h each expected, the fifth disabled");
 
+  const order = await rowCodes();
+  console.log("rows:", order.join(", "));
+
   // untick two: the hours go back to the others
   await p.getByLabel("AAA-01 on 03-11-00-00-P").uncheck();
   await p.getByLabel("AAA-01 on 01-20-00-00").uncheck();
   await p.getByLabel("AAA-01 on 03-11-00-00", { exact: true }).uncheck();
   await p.waitForFunction(() => [...document.querySelectorAll(".queue tbody tr")].some((r) => r.innerText.includes("AAA-01") && r.innerText.includes("03-20-00-00-C-8 · 11")));
   console.log("after unticking three: AAA-01 has 03-20-00-00-C-8 · 11");
+  const after = await rowCodes();
+  if (after.join() !== order.join()) throw new Error(`rows moved: ${after.join(", ")}`);
+  console.log("rows kept their place after ticking and unticking: yes");
+
+  // a code row on nobody: removed at once (no question)
+  await p.getByRole("button", { name: "Remove 01-54-00-00 from sheet 7" }).click();
+  await p.waitForFunction(() => ![...document.querySelectorAll(".mp-grid td.mp-code")].some((t) => t.textContent.includes("01-54-00-00")));
+  if (asked.length) throw new Error("asked before removing an unused code");
+  console.log("unused row removed:", (await rowCodes()).join(", "));
 
   // rename 03-11-00-00 (AAA-02) to 03-11-00-00-P from the code cell
   await p.getByRole("button", { name: "Change code 03-11-00-00", exact: true }).click();
@@ -80,11 +100,14 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:8012/";
   console.log("renamed:", q3.slice(0, 120));
   if (!q3.includes("03-11-00-00-P")) throw new Error("rename failed");
 
-  // untick AAA-01: no code again -> warning, push held
-  await p.getByLabel("AAA-01 on 03-20-00-00-C-8").uncheck();
+  // remove the row AAA-01 is on: asked first, then AAA-01 has no code again -> warning, push held
+  await p.getByRole("button", { name: "Remove 03-20-00-00-C-8 from sheet 7" }).click();
+  await p.waitForFunction(() => ![...document.querySelectorAll(".mp-grid td.mp-code")].some((t) => t.textContent.includes("03-20-00-00-C-8")));
+  console.log("asked:", asked[asked.length - 1]);
+  if (!/Take 03-20-00-00-C-8 off AAA-01/.test(asked[asked.length - 1] ?? "")) throw new Error("not asked before taking the code off a worker");
   await settle();
   if (await pushReady()) throw new Error("push allowed after unticking the only code");
-  console.log("untick -> warning again, push held: yes");
+  console.log("removed -> warning again, push held: yes");
   if (errs.length) throw new Error(errs.join("\n"));
   await b.close();
   console.log("sheet-codes e2e: ok");

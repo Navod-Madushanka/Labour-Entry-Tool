@@ -1,5 +1,22 @@
 # Changelog
 
+## Manpower sheet: code suggestions, remove a code, rows that stay put (15 Nov 2026)
+
+Asked for: on the manpower sheet, a code added there got no suggestions, a code could not be
+removed, and the rows kept re-ordering themselves, which was disorienting.
+
+- **Suggestions for "+ code"** (and when changing a code): the workbook's activity codes with
+  their description and place, the codes already used that day first, then the most used this
+  month. Type part of a code or of its description; picking one from the list adds the row at once.
+- **Remove a code row**: a ✕ beside the code (shown when you point at the row). A row nobody is
+  ticked on goes at once; a row with workers on it asks first ("Take 03-20-00-00-C-8 off AAA-01?"),
+  and their worked hours go to their other codes. Not shown for a code a worker already in Excel
+  (grey) has.
+- **The rows stay where they are**: a code keeps the row it first appeared on and new codes go to
+  the bottom. Ticking, unticking, changing hours or renaming a code never moves the rows.
+- `e2e/sheet-codes.cjs`: the suggestions, the row order through ticks and unticks, removing an
+  unused row and a used one.
+
 ## The manpower sheet under the SQL panel (14 Nov 2026)
 
 Asked for: an SQL UPDATE or INSERT goes to the manpower sheet, but that is on another tab (Entry);

@@ -1520,3 +1520,10 @@ section.entry { box-shadow: var(--shadow); }
 
 /* The manpower sheet under the SQL panel: what an UPDATE / INSERT put on the waiting list */
 .sql-manpower { margin-top: 16px; scroll-margin-top: 12px; background: none; border: none; box-shadow: none; padding: 0; }
+
+/* Manpower sheet: a code row can be taken off (✕ beside the code, shown on hover or focus) */
+.mp-grid td.mp-code { position: relative; }
+.mp-remove-code { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); border: none; background: none; color: var(--muted); font-size: 12px; padding: 2px 4px; cursor: pointer; opacity: 0; }
+.mp-grid tr:hover .mp-remove-code, .mp-remove-code:focus-visible { opacity: 1; }
+.mp-remove-code:hover { color: var(--critical); }
+@media print { .mp-remove-code { display: none; } }
