@@ -28,9 +28,10 @@ NO_ENDING = "_"
 def place_suffix(code: object) -> str | None:
     """``03-11-00-00-C-8`` -> ``C-8``; ``03-44-13-15-05-A`` -> ``A`` (extra number pairs are
     finer detail, not a place); None for a code without one."""
-    if not isinstance(code, str):
+    text = normalise_activity(code) if isinstance(code, str) else None
+    if not text:  # not text, or only spaces (a blank cell in the activity list)
         return None
-    parts = normalise_activity(code).split("-")
+    parts = text.split("-")
     if len(parts) < 5 or not all(PAIR.fullmatch(p) for p in parts[:4]):
         return None
     rest = parts[4:]
@@ -44,16 +45,17 @@ def place_key(code: object) -> str | None:
     (``03-11-00-00``), None for something that is not a work code."""
     if (suffix := place_suffix(code)) is not None:
         return suffix
-    if not isinstance(code, str):
+    text = normalise_activity(code) if isinstance(code, str) else None
+    if not text:
         return None
-    parts = normalise_activity(code).split("-")
+    parts = text.split("-")
     return NO_ENDING if len(parts) >= 4 and all(PAIR.fullmatch(p) for p in parts[:4]) else None
 
 
 def work_part(code: str) -> str:
     """The code without its place: ``03-11-00-00-C-8`` -> ``03-11-00-00``."""
     suffix = place_suffix(code)
-    text = normalise_activity(code)
+    text = normalise_activity(code) or ""
     return text[: -len(suffix) - 1] if suffix else text
 
 

@@ -548,3 +548,14 @@ def test_status_name_asks_excel_at_most_every_30_s(monkeypatch):
     now[0] += 31
     wb.status_name()
     assert Book.calls == 3
+
+
+def test_member_not_found_is_excel_busy_and_unknown_interface_is_excel_gone():
+    from app.excel import xlwings_adapter as xa
+    from app.excel.adapter import NotConnectedError, WorkbookBusyError
+
+    class Com(Exception):
+        pass
+
+    assert isinstance(xa.translate_com_error(Com(-2147352573, "Member not found.")), WorkbookBusyError)
+    assert isinstance(xa.translate_com_error(Com(-2147023179, "The interface is unknown.")), NotConnectedError)

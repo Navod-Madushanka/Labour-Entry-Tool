@@ -203,6 +203,7 @@ class Status(BaseModel):
     error: str | None = None
     unsaved_changes: bool = False
     backup: str | None = None
+    excel_busy: float | None = None  # seconds Excel has been busy with a job (not answering yet)
 
 
 class WorkerView(BaseModel):

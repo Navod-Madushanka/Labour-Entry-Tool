@@ -47,10 +47,16 @@ T = TypeVar("T")
 RPC_E_CALL_REJECTED = -2147418111  # 0x80010001
 VBA_E_IGNORE = -2146777998  # 0x800AC472, Excel is in edit mode
 RPC_E_SERVERCALL_RETRYLATER = -2147417846  # 0x8001010A
-BUSY_HRESULTS = frozenset({RPC_E_CALL_REJECTED, VBA_E_IGNORE, RPC_E_SERVERCALL_RETRYLATER})
+# "Member not found": what a busy Excel (a cell being edited, a dialog open) answers some calls
+# with; seen on an office PC on day-sheet reads, which worked again a moment later
+DISP_E_MEMBERNOTFOUND = -2147352573  # 0x80020003
+BUSY_HRESULTS = frozenset(
+    {RPC_E_CALL_REJECTED, VBA_E_IGNORE, RPC_E_SERVERCALL_RETRYLATER, DISP_E_MEMBERNOTFOUND}
+)
 RPC_S_CALL_FAILED = -2147023170  # 0x800706BE "the remote procedure call failed"
 # RPC server unavailable, call failed, object disconnected: Excel gone (after the retries)
-GONE_HRESULTS = frozenset({-2147023174, RPC_S_CALL_FAILED, -2147417848})
+# RPC_S_UNKNOWN_IF (-2147023179, "The interface is unknown"): Excel closing down
+GONE_HRESULTS = frozenset({-2147023174, RPC_S_CALL_FAILED, -2147417848, -2147023179})
 # Seen for a moment while Excel prints (or shows a dialog): retried like "busy" before the
 # connection is called lost. Not for the print itself, which must never run twice.
 TRANSIENT_HRESULTS = frozenset({RPC_S_CALL_FAILED})
@@ -277,8 +283,22 @@ class XlwingsWorkbook:
     def _sheet(self, sheet: str) -> Any:
         try:
             return self._com(lambda: self.book.sheets[sheet])
+        except (NotConnectedError, WorkbookBusyError):
+            raise  # Excel closed or busy: not a missing sheet
         except WorkbookError as exc:
+            if not self._alive():
+                raise NotConnectedError(
+                    "Lost the connection to Excel. Is the workbook still open?"
+                ) from exc
             raise KeyError(f"no sheet {sheet!r} in the workbook") from exc
+
+    def _alive(self) -> bool:
+        """The workbook still answers (closed in Excel: every call on it fails)."""
+        try:
+            self._com(lambda: self.book.name, timeout=2.0)
+        except WorkbookError:
+            return False
+        return True
 
     def read_range(self, sheet: str, address: str) -> list[list[CellValue]]:
         sht = self._sheet(sheet)

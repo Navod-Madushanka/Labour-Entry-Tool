@@ -31,6 +31,7 @@ class ExcelWorker:
     ):
         self._jobs: queue.Queue = queue.Queue()
         self._init, self._cleanup = init, cleanup
+        self._running: tuple[str, float] | None = None  # the job on the thread now, since when
         self._thread = threading.Thread(target=self._loop, name=name, daemon=True)
         self._thread.start()
 
@@ -47,6 +48,17 @@ class ExcelWorker:
     ) -> T:
         """Blocking variant for scripts."""
         return self.submit(fn, *args, **kwargs).result(timeout)
+
+    def busy_for(self) -> float:
+        """Seconds the job on the thread has been running (0 when idle). A call into Excel can hang
+        for minutes while Excel is busy (a dialog, a long recalculation, another program using it):
+        callers then answer "Excel is busy" at once instead of queueing behind it."""
+        running = self._running
+        return time.perf_counter() - running[1] if running else 0.0
+
+    @property
+    def waiting(self) -> int:
+        return self._jobs.qsize()
 
     @property
     def thread(self) -> threading.Thread:
@@ -65,6 +77,7 @@ class ExcelWorker:
                 if not future.set_running_or_notify_cancel():
                     continue
                 started = time.perf_counter()
+                self._running = (_name(fn), started)
                 try:
                     future.set_result(fn(*args, **kwargs))
                 except BaseException as exc:  # handed to the caller
@@ -75,6 +88,8 @@ class ExcelWorker:
                 else:
                     if (took := time.perf_counter() - started) > SLOW:
                         log.info("%s took %.1f s (%d waiting)", _name(fn), took, self._jobs.qsize())
+                finally:
+                    self._running = None
         finally:
             if self._cleanup:
                 self._cleanup()

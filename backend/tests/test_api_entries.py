@@ -33,7 +33,7 @@ def client(fake, tmp_path):
 def test_status(client, fake):
     body = client.get("/api/status").json()
     assert body == {"connected": True, "mode": "live", "workbook": fake.name, "error": None,
-                    "unsaved_changes": False, "backup": None}  # fmt: skip
+                    "unsaved_changes": False, "backup": None, "excel_busy": None}  # fmt: skip
 
 
 def test_preview_writes_nothing(client, fake):
@@ -212,3 +212,39 @@ def test_unchanged_reads_answer_304(client):
     changed = client.get("/api/days/1", headers={"If-None-Match": tag})
     assert changed.status_code == 200 and changed.headers["ETag"] != tag
     assert "cached" not in changed.json()["entries"][0]["entry"]  # still left out
+
+
+def test_a_stuck_excel_does_not_look_like_a_lost_connection(client, fake, monkeypatch):
+    """Seen on an office PC: one read hung for 14 minutes while Excel was busy, and every request
+    queued behind it timed out (the screen said Excel was gone). Now the status answers at once
+    with how long Excel has been busy, other requests are told "busy" at once, and everything is
+    normal again when Excel answers."""
+    import threading
+    import time
+
+    from app.api import entries as entries_api
+
+    assert client.get("/api/status").json()["connected"]  # a status to answer from
+    monkeypatch.setattr(entries_api, "STUCK", 0.2)
+    release, started = threading.Event(), threading.Event()
+    real = fake.read_master
+
+    def hanging():
+        started.set()
+        release.wait(10)
+        return real()
+
+    monkeypatch.setattr(fake, "read_master", hanging)
+    worker = client.app.state.get_worker()
+    job = worker.submit(lambda: client.app.state.get_service().master(fresh=True))
+    assert started.wait(5)
+    time.sleep(3.3)  # stuck for a while
+    t = time.perf_counter()
+    status = client.get("/api/status").json()
+    assert time.perf_counter() - t < 1 and status["connected"] and status["excel_busy"] >= 3
+    res = client.get("/api/days/1")
+    assert res.status_code == 503 and "Excel is busy" in res.json()["detail"] and "nothing is lost" in res.json()["detail"]
+    release.set()
+    job.result(5)
+    assert client.get("/api/days/1").status_code == 200
+    assert client.get("/api/status").json()["excel_busy"] is None

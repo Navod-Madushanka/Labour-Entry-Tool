@@ -21,6 +21,7 @@ export interface Status {
   error: string | null;
   unsaved_changes: boolean;
   backup: string | null;
+  excel_busy?: number | null; // seconds Excel has been busy with a job (not answering yet)
 }
 
 export type CodeStatus = "valid" | "missing" | "error" | "zero" | "invalid";

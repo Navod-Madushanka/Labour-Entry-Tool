@@ -63,6 +63,15 @@ export function StatusBar(props: Props) {
       ) : (
         !status.connected && <span className="badge error">Not connected: {status.error}</span>
       )}
+      {status?.connected && (status.excel_busy ?? 0) > 3 && (
+        <span
+          className="badge warn excel-busy"
+          role="status"
+          title="Excel has not answered the tool for a while: an open dialog or message box, a cell being edited, or a long calculation. Finish it in Excel; the tool carries on by itself and nothing is lost."
+        >
+          Excel busy {Math.round(status.excel_busy!)} s · waiting (check Excel for an open dialog)
+        </span>
+      )}
       {historyLoaded < historyTotal && (
         <span className="muted small">
           Loading month {historyLoaded}/{historyTotal}

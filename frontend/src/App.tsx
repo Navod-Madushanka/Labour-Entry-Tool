@@ -111,7 +111,17 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // A day read again but unchanged comes back as the same object (api.ts): keep the month as it
   // is then, so Analysis, the suggestions and the day list don't all work it out again.
   const putDay = useCallback((s: string, d: DayView) => setMonth((m) => (m[s] === d ? m : { ...m, [s]: d })), []);
-  const refreshStatus = useCallback(() => api.status().then(setStatus).catch(fail), []);
+  // One status check at a time: while Excel hangs, checks every 10 s would only pile up behind it.
+  const statusAsked = useRef(false);
+  const refreshStatus = useCallback(() => {
+    if (statusAsked.current) return Promise.resolve();
+    statusAsked.current = true;
+    return api
+      .status()
+      .then(setStatus)
+      .catch(fail)
+      .finally(() => (statusAsked.current = false));
+  }, []);
   // Enough history for the day list's "most recent first" (the list itself scrolls).
   const refreshBatches = useCallback(() => api.batches(200).then(setBatches).catch(() => undefined), []);
   const reloadDay = useCallback(

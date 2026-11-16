@@ -1,5 +1,32 @@
 # Changelog
 
+## "Lost connection to Excel" on an office PC: a busy Excel no longer looks like a lost one (16 Nov 2026)
+
+From a colleague's log file (version 1.0.0, 31 Oct – 16 Nov). What happened, several times a day:
+one call into Excel did not come back while Excel was busy (14 minutes once): a dialog or
+message box open, a cell being edited, or a long calculation. Every other request (the status
+every 10 s, the day, the checks) queued behind it on the one Excel thread, up to 41 of them, and
+each gave up after 2 minutes, so the screen said Excel was not answering. Restarting the tool did
+not help while Excel was still busy (listing the open workbooks took 72–84 s).
+
+- **The status answers at once while Excel is busy**, from the last status, with how long Excel
+  has been busy: the bar shows **"Excel busy 45 s · waiting (check Excel for an open dialog)"**
+  instead of an error. The connection is still there; nothing is lost.
+- **No pile-up**: while Excel has not answered a call for 15 s, new requests are told at once
+  "Excel is busy … check Excel for an open dialog … nothing is lost" instead of queueing for 2
+  minutes each. Everything works again as soon as Excel answers.
+- **One status check at a time** from the page (they no longer stack up while Excel hangs).
+- **"Member not found"** (what a busy Excel answers some calls with) is now retried as "busy",
+  not reported as an error; **"The interface is unknown"** (Excel closing) means Excel was closed.
+- **Excel closed** (in the evening): said as "Lost the connection to Excel. Is the workbook still
+  open?", no longer "no sheet 'Labour Detail' in the workbook".
+- **Fixed**: a blank cell (only spaces) in Labour Detail's activity-code list broke the place
+  names page ("'NoneType' object has no attribute 'split'"), seen in the same log.
+- Already in newer versions than 1.0.0: the status check calls Excel at most every 30 s and not at
+  all while the tool is behind Excel. That PC should get this build.
+- Tests: a read held for seconds on the made-up workbook: the status answers within a second with
+  the busy time, a day read is told "busy" at once, and all is normal after; the new error codes.
+
 ## Analysis: Back undoes the last filter or tab change (16 Nov 2026)
 
 Asked for: after filtering in Analysis there was no way back except reloading the page.

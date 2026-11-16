@@ -75,6 +75,11 @@ async def run_service(
     """
     service: EntryService = request.app.state.get_service()
     timeout = EXCEL_WAIT if wait is None else wait
+    worker = request.app.state.get_worker()
+    if (stuck := worker.busy_for()) > STUCK:
+        # Excel has not answered the job before for a while: say so now instead of queueing behind
+        # it for two minutes (requests piling up behind one stuck call looked like a lost connection)
+        raise HTTPException(503, busy_text(stuck))
     try:
         try:
             return await asyncio.wait_for(request.app.state.get_worker().run(fn, service), timeout)
@@ -99,13 +104,31 @@ async def run_service(
         raise HTTPException(422, str(exc)) from exc
 
 
+STUCK = 15.0  # seconds a job may hold the Excel thread before new requests are told "busy"
+
+
+def busy_text(seconds: float) -> str:
+    return (
+        f"Excel is busy: it has not answered for {seconds:.0f} s. Check Excel for an open dialog or "
+        "message box, a cell being edited, or a long calculation, and finish it. The tool waits "
+        "for Excel: nothing is lost, the connection is still there."
+    )
+
+
 @router.get("/status", response_model=Status)
 async def get_status(request: Request) -> Status:
     if (reason := request.app.state.excel_disabled) is not None:
         return Status(connected=False, error=reason)
     if not request.app.state.has_service():
         return Status(connected=False, error="No workbook chosen yet.")
-    return await run_service(request, lambda s: s.status())
+    # Polled every 10 s: while Excel is busy with a job, answer from the last status at once (with
+    # how long Excel has been busy) instead of queueing a call into Excel behind it.
+    last: Status | None = getattr(request.app.state, "last_status", None)
+    if (busy := request.app.state.get_worker().busy_for()) > 3 and last is not None and last.connected:
+        return last.model_copy(update={"excel_busy": round(busy)})
+    status = await run_service(request, lambda s: s.status())
+    request.app.state.last_status = status
+    return status
 
 
 def unchanged_or_json(request: Request, view: BaseModel, exclude: Any = None) -> Response:
