@@ -20,6 +20,7 @@ import { MedicalDialog } from "./components/MedicalDialog";
 import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
+import { Updates } from "./components/Updates";
 import { StoryNote, StoryReader } from "./components/StoryCorner";
 import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
 import { clearInput, emptyForm, fromEntry, fromInput, type FormState } from "./form";
@@ -111,7 +112,21 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // A day read again but unchanged comes back as the same object (api.ts): keep the month as it
   // is then, so Analysis, the suggestions and the day list don't all work it out again.
   const putDay = useCallback((s: string, d: DayView) => setMonth((m) => (m[s] === d ? m : { ...m, [s]: d })), []);
-  const refreshStatus = useCallback(() => api.status().then(setStatus).catch(fail), []);
+  // The tool was updated and restarted (a new version answers): reload the page onto it. The
+  // waiting entries are kept by the browser and come back.
+  const seenVersion = useRef<string | null>(null);
+  const refreshStatus = useCallback(
+    () =>
+      api
+        .status()
+        .then((s) => {
+          if (s.version && seenVersion.current && s.version !== seenVersion.current) window.location.reload();
+          seenVersion.current ??= s.version ?? null;
+          setStatus(s);
+        })
+        .catch(fail),
+    [],
+  );
   // Enough history for the day list's "most recent first" (the list itself scrolls).
   const refreshBatches = useCallback(() => api.batches(200).then(setBatches).catch(() => undefined), []);
   const reloadDay = useCallback(
@@ -708,6 +723,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
 
   return (
     <>
+      <Updates waiting={queue.length} />
       <StatusBar
         page={page}
         status={status}

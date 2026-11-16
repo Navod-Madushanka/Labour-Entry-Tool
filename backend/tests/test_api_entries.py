@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app import __version__
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config
@@ -33,7 +34,7 @@ def client(fake, tmp_path):
 def test_status(client, fake):
     body = client.get("/api/status").json()
     assert body == {"connected": True, "mode": "live", "workbook": fake.name, "error": None,
-                    "unsaved_changes": False, "backup": None}  # fmt: skip
+                    "unsaved_changes": False, "backup": None, "version": __version__}  # fmt: skip
 
 
 def test_preview_writes_nothing(client, fake):

@@ -21,6 +21,19 @@ export interface Status {
   error: string | null;
   unsaved_changes: boolean;
   backup: string | null;
+  version?: string; // the tool's version: a change means it was updated (the page reloads)
+}
+
+/** Updates of the Windows package (backend/app/updater.py). */
+export interface UpdateState {
+  current: string;
+  latest: string | null;
+  state: "idle" | "checking" | "downloading" | "ready" | "up_to_date" | "error" | "off";
+  notes: string | null;
+  error: string | null;
+  auto: boolean;
+  can_install: boolean;
+  checked_at: number | null;
 }
 
 export type CodeStatus = "valid" | "missing" | "error" | "zero" | "invalid";
@@ -534,6 +547,10 @@ export const api = {
     return res.blob();
   },
   status: () => call<Status>("GET", "/api/status"),
+  updateState: () => call<UpdateState>("GET", "/api/update"),
+  checkUpdate: () => call<UpdateState>("POST", "/api/update/check"),
+  setUpdateAuto: (auto: boolean) => call<UpdateState>("POST", "/api/update/auto", { auto }),
+  installUpdate: () => call<{ restarting: boolean }>("POST", "/api/update/install"),
   master: (fresh = false) => getHeld<Master>("/api/master", fresh),
   day: (sheet: string, fresh = false) => getHeld<DayView>(`/api/days/${encodeURIComponent(sheet)}`, fresh),
   preview: (entries: EntryInput[]) =>

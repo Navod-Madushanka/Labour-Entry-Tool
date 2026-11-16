@@ -1,5 +1,37 @@
 # Changelog
 
+## Automatic updates, signed and safe for the data; the page reloads itself (16 Nov 2026)
+
+Asked for: automatic update and reload, if it can be done in a standard way that is safe for the
+data.
+
+- **How**: the usual pattern of desktop updaters (Sparkle, Tauri). Every few hours the tool asks
+  GitHub for the latest release (public repository: no token or account on the PC; only a plain
+  "LabourEntryTool-updater" request, nothing about the PC, the user or the workbooks). A newer
+  version is downloaded in the background and its **Ed25519 signature** is checked against the
+  public key built into the tool. The private key lives only in GitHub Actions secrets, so a
+  tampered zip or a fake release is refused and deleted. Downloads only from GitHub, over HTTPS,
+  with a size limit, and a zip that would write outside its folder is refused.
+- **Installed only when you choose**: a bar says "Version … is ready" → **Restart and update**
+  (about half a minute), or **Later**: it then installs by itself the next time the tool starts,
+  before any work. Never in the middle of entering.
+- **Safe for the data**: only the program folder is swapped (after the tool has stopped). The old
+  one is kept as `LabourEntryTool.previous`, put back if the swap fails, and `config.yaml` is
+  carried over. The data folder (backups, change log, settings, history) is never touched, the
+  workbook stays open in Excel, and entries waiting to go to Excel come back after the restart.
+- **Reload**: the page notices the tool answering on a new version and reloads itself onto it.
+- **Version button** (bottom right): installed and newest version, what's new, **Check now**, and
+  the automatic switch.
+- **Release pipeline**: each build is stamped with a version (major.minor from pyproject, then the
+  run number, e.g. 1.0.212). With the `UPDATE_SIGNING_KEY` secret set, every push to main that
+  passes the tests becomes a signed release with the latest CHANGELOG entry as its notes. Without
+  the secret the build is unsigned, no release is made, and updates stay off.
+- **One-time setup** (repository owner): `LabourEntryTool.exe --make-update-key`, then save its line
+  as the `UPDATE_SIGNING_KEY` Actions secret. Details in the package README.
+- Tests: signed release staged; tampered, wrong-key, non-GitHub and zip-slip downloads refused;
+  no key = no requests at all; the signing script and the updater agree; `e2e/updates.cjs` (the
+  bar, the panel, the reload on the new version).
+
 ## Manpower sheet: code suggestions, remove a code, rows that stay put (15 Nov 2026)
 
 Asked for: on the manpower sheet, a code added there got no suggestions, a code could not be

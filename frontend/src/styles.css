@@ -1527,3 +1527,14 @@ section.entry { box-shadow: var(--shadow); }
 .mp-grid tr:hover .mp-remove-code, .mp-remove-code:focus-visible { opacity: 1; }
 .mp-remove-code:hover { color: var(--critical); }
 @media print { .mp-remove-code { display: none; } }
+
+/* Updates: a bar when a verified new version is ready, and the version button (bottom right) */
+.update-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 16px; background: var(--primary-bg); border-bottom: 1px solid var(--line); color: var(--text); font-size: 14px; }
+.update-bar.restarting { background: var(--caution-bg); }
+.update-chip { position: fixed; right: 12px; bottom: 8px; z-index: 40; }
+.update-chip > button { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; opacity: 0.85; }
+.update-panel { position: absolute; right: 0; bottom: 30px; width: min(380px, calc(100vw - 32px)); padding: 12px 14px; box-shadow: var(--shadow); }
+.update-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.update-notes { white-space: pre-wrap; max-height: 220px; overflow: auto; font: 12px/1.45 system-ui, sans-serif; background: var(--row); padding: 6px 8px; border-radius: 6px; }
+@media print { .update-bar, .update-chip { display: none; } }
+.update-panel label.check { display: flex; align-items: flex-start; gap: 6px; white-space: normal; margin: 6px 0 8px; }
