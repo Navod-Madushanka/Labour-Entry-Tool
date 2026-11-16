@@ -124,6 +124,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // activity codes, workers and entries changed in Excel show up without "Reload from Excel".
   const lastSync = useRef(0);
   const syncing = useRef(false);
+  // Automatic save and reload (switches beside "Save Excel file" and "Reload from Excel"; on unless
+  // turned off on this PC).
+  const [autoSave, setAutoSave] = useState(() => store.get("labour.auto.save") !== "0");
+  const [autoReload, setAutoReload] = useState(() => store.get("labour.auto.reload") !== "0");
+  const [lastRead, setLastRead] = useState<Date | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null); // why the automatic save waits
   useEffect(() => {
     const sync = () => {
       // Not while the last re-read is still on its way (on a slow PC reading through Excel can
@@ -133,18 +140,71 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       if (document.visibilityState !== "visible" || !master || syncing.current || Date.now() - lastSync.current < 10000) return;
       lastSync.current = Date.now();
       syncing.current = true;
+      const was = month[sheet];
       Promise.allSettled([
-        api.master(true).then(setMaster),
-        api.day(sheet, true).then((d) => putDay(sheet, d)),
-      ]).finally(() => (syncing.current = false));
+        api.master(true).then((m) => {
+          setMaster(m);
+          return m !== master; // a new object: Labour Detail changed in Excel
+        }),
+        api.day(sheet, true).then((d) => {
+          putDay(sheet, d);
+          return d !== was;
+        }),
+      ])
+        .then((r) => {
+          setLastRead(new Date());
+          // changed in Excel: the waiting entries are checked again against what is there now
+          if (r.some((x) => x.status === "fulfilled" && x.value)) setRecheck((x) => x + 1);
+        })
+        .finally(() => (syncing.current = false));
     };
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
+    // Automatic reload: also every 2 minutes while the tool is on screen (changes made in Excel by
+    // someone else, or on another PC, show up without pressing anything).
+    const timer = autoReload ? setInterval(sync, 120_000) : undefined;
     return () => {
+      clearInterval(timer);
       window.removeEventListener("focus", sync);
       document.removeEventListener("visibilitychange", sync);
     };
-  }, [master, sheet]);
+  }, [master, sheet, autoReload]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Automatic reload of the other days: about every 10 minutes, while the tool is on screen and
+  // nobody has typed for a minute, the rest of the month is read again quietly, one day at a time
+  // (Analysis and the suggestions see changes made in Excel). Stops as soon as someone types or
+  // a push starts, so it never holds up the work.
+  const lastKey = useRef(0);
+  useEffect(() => {
+    const key = () => (lastKey.current = Date.now());
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  useEffect(() => {
+    if (!master || !autoReload) return;
+    let stop = false;
+    const quiet = () => !stop && document.visibilityState === "visible" && !busyRef.current && Date.now() - lastKey.current > 60_000;
+    const round = async () => {
+      if (!quiet() || syncing.current) return;
+      for (const s of master.sheets.filter((x) => x !== sheet)) {
+        if (!quiet()) return;
+        try {
+          putDay(s, await api.day(s, true));
+        } catch {
+          /* a day that can't be read now keeps what was there */
+        }
+        await new Promise((r) => setTimeout(r, 400)); // gentle on a busy PC
+      }
+      if (!stop) setLastRead(new Date());
+    };
+    const timer = setInterval(round, 600_000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [master, sheet, autoReload, putDay]);
 
   // Start: status, master, the chosen sheet, then the rest of the month in the background.
   useEffect(() => {
@@ -270,6 +330,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         ? `Labour Detail: ${[dWorkers && `${dWorkers > 0 ? "+" : ""}${dWorkers} workers`, dCodes && `${dCodes > 0 ? "+" : ""}${dCodes} activity codes`].filter(Boolean).join(", ")}`
         : "Labour Detail: no changes";
       setMessage(`Reloaded from Excel at ${time}. ${sheetPart}; ${masterPart}.`);
+      setLastRead(new Date());
       // the other days (suggestions, the day list, Analysis), one by one
       const others = Object.keys(month).filter((s) => s !== at && Number(s) >= 1);
       for (let i = 0; i < others.length; i++) {
@@ -443,11 +504,40 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     try {
       await api.save();
       setMessage("Workbook saved.");
+      setSavedAt(new Date());
+      setSaveNote(null);
       refreshStatus();
     } catch (e) {
       fail(e);
     }
   };
+
+  // Automatic save: a few seconds after the tool has written to Excel (a push, an undo, a header
+  // fix, codes), the workbook is saved, as "Save Excel file" does. Not while a push is running;
+  // Excel busy (a cell being edited, a dialog open): tried again a little later, quietly. The
+  // backup made before the first write of the session stays as it was.
+  const [saveRetry, setSaveRetry] = useState(0);
+  useEffect(() => {
+    if (!autoSave || !status?.connected || !status.unsaved_changes || busy) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        await api.save();
+        if (cancelled) return;
+        setSavedAt(new Date());
+        setSaveNote(null);
+        refreshStatus();
+      } catch (e) {
+        if (cancelled) return;
+        setSaveNote(`Auto-save waiting: ${e instanceof Error ? e.message : String(e)}`);
+        setTimeout(() => setSaveRetry((n) => n + 1), 30_000);
+      }
+    }, 4000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [autoSave, status?.connected, status?.unsaved_changes, busy, saveRetry, refreshStatus]);
 
   // Commands: the month as loaded plus the queue are the current state; results only go to the queue.
   const commandCtx = useMemo((): CommandContext | null => {
@@ -715,6 +805,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         historyLoaded={Object.keys(month).length}
         historyTotal={master?.sheets.length ?? 0}
         onSave={save}
+        autoSave={autoSave}
+        onAutoSave={(on) => {
+          setAutoSave(on);
+          store.set("labour.auto.save", on ? "1" : "0");
+        }}
+        savedAt={savedAt}
+        saveNote={autoSave ? saveNote : null}
         onChangeUser={() => setAskName(true)}
         onChangeWorkbook={() => leave(onChangeWorkbook)}
         books={books}
@@ -860,6 +957,12 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               onFix={fixHeader}
               onReload={reloadFromExcel}
               reloading={reloading}
+              autoReload={autoReload}
+              onAutoReload={(on) => {
+                setAutoReload(on);
+                store.set("labour.auto.reload", on ? "1" : "0");
+              }}
+              lastRead={lastRead}
             />
             <EntryForm
               master={master}

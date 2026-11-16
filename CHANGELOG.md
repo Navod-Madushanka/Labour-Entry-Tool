@@ -1,5 +1,25 @@
 # Changelog
 
+## Automatic save and reload from Excel (16 Nov 2026)
+
+Asked for: "Save Excel file" and "Reload from Excel" should happen by themselves. (The automatic
+program updates added just before were taken back out: not wanted yet.)
+
+- **Auto-save** (switch beside "Save Excel file", on unless turned off on this PC): a few seconds
+  after the tool writes to Excel (a push, an undo, a header fix, codes), the workbook is saved, as
+  the button does. Never while a push runs. Excel busy (a cell being edited, a dialog open): the
+  bar says "Auto-save waiting" and it tries again 30 s later, quietly. The status bar shows
+  "✓ Saved 10:42". The backup made before the first write of the session is kept as it was.
+- **Auto reload** (switch "Auto" beside "Reload from Excel", on unless turned off): Labour Detail
+  and the open day are read again when you come back from Excel (as before) and now also every
+  2 minutes while the tool is on screen. The other days of the month are read again about every
+  10 minutes, one at a time, only while nobody has typed for a minute; it stops as soon as someone
+  types or a push starts. Unchanged sheets cost nothing (the "not modified" answers); a change
+  re-checks the waiting entries. "read 10:42" beside the switch says when.
+- "Reload from Excel" stays for an immediate full read.
+- `e2e/auto-save-reload.cjs` (made-up data, clock fast-forwarded): saved by itself after a push;
+  switched off it stays unsaved; an entry written behind the page's back shows up within 2 minutes.
+
 ## Manpower sheet: code suggestions, remove a code, rows that stay put (15 Nov 2026)
 
 Asked for: on the manpower sheet, a code added there got no suggestions, a code could not be

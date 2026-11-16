@@ -8,6 +8,10 @@ interface Props {
   historyLoaded: number;
   historyTotal: number;
   onSave: () => void;
+  autoSave: boolean; // save by itself after the tool writes to Excel
+  onAutoSave: (on: boolean) => void;
+  savedAt: Date | null;
+  saveNote: string | null; // why the automatic save is waiting (Excel busy)
   onChangeUser: () => void;
   onChangeWorkbook: () => void;
   books: BookInfo[];
@@ -20,7 +24,8 @@ interface Props {
 
 export function StatusBar(props: Props) {
   const { page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story } = props;
-  const { books, onSwitch, onAddWorkbook, onCloseBook, onChangeMonth } = props;
+  const { books, onSwitch, onAddWorkbook, onCloseBook, onChangeMonth, autoSave, onAutoSave, savedAt, saveNote } = props;
+  const savedText = savedAt ? savedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : null;
   const active = books.find((b) => b.active)?.name ?? status?.workbook ?? "";
   const backup = status?.backup ? `Backup: ${status.backup}` : "No backup yet";
   return (
@@ -64,10 +69,19 @@ export function StatusBar(props: Props) {
         </span>
       )}
       <span className="spacer" />
-      {status?.unsaved_changes && <span className="badge warn">Not saved in Excel yet</span>}
+      {status?.unsaved_changes ? (
+        <span className="badge warn" title={saveNote ?? undefined}>
+          {autoSave ? (saveNote ? "Auto-save waiting (Excel busy)" : "Saving soon…") : "Not saved in Excel yet"}
+        </span>
+      ) : (
+        savedText && <span className="saved-note small" title="The workbook in Excel was saved">✓ Saved {savedText}</span>
+      )}
       <button onClick={onSave} disabled={!status?.connected || !status.unsaved_changes}>
         Save Excel file
       </button>
+      <label className="auto-switch small" title="Save the workbook by itself a few seconds after the tool writes to Excel (a push, an undo, a fix)">
+        <input type="checkbox" checked={autoSave} onChange={(e) => onAutoSave(e.target.checked)} /> Auto-save
+      </label>
       <button
         className={`link${story.on ? "" : " muted"}`}
         onClick={story.onOpen}

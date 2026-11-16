@@ -13,6 +13,9 @@ interface Props {
   onFix: (issues: Issue[]) => void;
   onReload: () => void;
   reloading: string | null; // progress while "Reload from Excel" runs
+  autoReload: boolean; // read Excel again by itself (back from Excel, every 2 min, the rest every 10)
+  onAutoReload: (on: boolean) => void;
+  lastRead: Date | null;
 }
 
 const longDate = (iso: string | null | undefined) =>
@@ -27,7 +30,7 @@ const kind = (type: unknown) => {
 
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
-export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading }: Props) {
+export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading, autoReload, onAutoReload, lastRead }: Props) {
   const h = day?.header;
   const issues = day?.header_issues ?? [];
   const blocking = issues.some((i) => i.severity === "BLOCK");
@@ -79,6 +82,18 @@ export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, ackn
         >
           {reloading ? <><span className="spinner" aria-hidden /> {reloading}</> : "⟳ Reload from Excel"}
         </button>
+        <label
+          className="auto-switch small"
+          title="Read Excel again by itself: when you come back from Excel, every 2 minutes for this day and Labour Detail, and the other days about every 10 minutes when you are not typing"
+        >
+          <input type="checkbox" checked={autoReload} onChange={(e) => onAutoReload(e.target.checked)} /> Auto
+          {lastRead && (
+            <span className="muted">
+              {" "}
+              · read {lastRead.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </label>
       </div>
       {issues.length > 0 && (
         <div className={`banner ${blocking ? "BLOCK" : "WARN"}`} role="alert">

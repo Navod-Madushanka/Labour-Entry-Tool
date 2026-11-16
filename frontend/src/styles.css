@@ -1527,3 +1527,9 @@ section.entry { box-shadow: var(--shadow); }
 .mp-grid tr:hover .mp-remove-code, .mp-remove-code:focus-visible { opacity: 1; }
 .mp-remove-code:hover { color: var(--critical); }
 @media print { .mp-remove-code { display: none; } }
+
+/* Automatic save / reload switches beside their buttons */
+.auto-switch { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+.statusbar .auto-switch { color: inherit; opacity: 0.9; }
+.saved-note { color: var(--positive); white-space: nowrap; }
+.statusbar .saved-note { color: #8fd9a8; }
