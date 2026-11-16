@@ -32,6 +32,7 @@ export interface Slice {
   cost: number; // at standard rates: normal hours x hourly rate + OT x hourly rate x multiplier
   otPremium: number; // the part of the cost above the normal rate (OT x hourly x (multiplier - 1))
   rated: boolean; // a rate was known for the worker (else cost is 0)
+  workbook?: string; // several workbooks analysed together (advanced mode): which one
 }
 
 export interface EntryRow {
@@ -50,6 +51,7 @@ export interface EntryRow {
   codes: string[];
   unknownCodes: string[];
   issues: Issue[];
+  workbook?: string; // several workbooks analysed together: which one
 }
 
 export interface Data {
@@ -110,6 +112,41 @@ export function buildData(month: Month, master: DataMaster, owners: Map<string, 
   const data = buildDataNow(month, master, owners);
   lastData = { month, master, owners, data };
   return data;
+}
+
+/** buildData without keeping the result (another workbook's month in advanced mode). */
+export const buildDataFor = (month: Month, master: DataMaster, owners: Map<string, string> = new Map()): Data => buildDataNow(month, master, owners);
+
+/** A workbook's name without the common "Labour Entry Sheet October 2026 - " and the extension:
+ * "Supply", "Company 02". */
+export function bookLabel(workbook: string): string {
+  const base = workbook.replace(/\.(xlsb|xlsx|xlsm|xls|json)$/i, "");
+  const tail = base.split(/\s+-\s+/).pop()?.trim();
+  return tail && tail !== base ? tail : base;
+}
+
+/** Several workbooks of the same month as one (advanced mode): every slice and entry keeps its
+ * workbook; a calling name used in more than one workbook gets " · <workbook>" so two people are
+ * never added up as one (the BP, the trade and the rates stay each workbook's own). */
+export function mergeData(parts: { workbook: string; data: Data }[]): Data {
+  if (parts.length === 1) {
+    const [{ workbook, data }] = parts;
+    return { ...data, slices: data.slices.map((x) => ({ ...x, workbook })), entries: data.entries.map((x) => ({ ...x, workbook })) };
+  }
+  const seen = new Map<string, number>();
+  for (const { data } of parts) for (const n of data.workers.keys()) seen.set(n, (seen.get(n) ?? 0) + 1);
+  for (const { data } of parts) for (const e of data.entries) if (!data.workers.has(e.name)) seen.set(e.name, (seen.get(e.name) ?? 0) + 1);
+  const out: Data = { slices: [], entries: [], days: [], workers: new Map(), withActivities: parts.some((p) => p.data.withActivities) };
+  const days = new Map<number, Data["days"][number]>();
+  for (const { workbook, data } of parts) {
+    const tag = (n: string) => ((seen.get(n) ?? 0) > 1 ? `${n} · ${bookLabel(workbook)}` : n);
+    for (const x of data.slices) out.slices.push({ ...x, name: tag(x.name), person: tag(x.person), workbook });
+    for (const x of data.entries) out.entries.push({ ...x, name: tag(x.name), person: tag(x.person), workbook });
+    for (const [n, w] of data.workers) out.workers.set(tag(n), { ...w, calling_name: tag(n), person: tag(w.person) });
+    for (const d of data.days) if (!days.has(d.day)) days.set(d.day, d);
+  }
+  out.days = [...days.values()].sort((a, b) => a.day - b.day);
+  return out;
 }
 
 function buildDataNow(
@@ -183,12 +220,13 @@ export interface Filter {
   code?: string;
   from?: number;
   to?: number;
+  workbook?: string; // advanced mode: one of the workbooks analysed together
 }
 
 export function applyFilter(data: Data, f: Filter): { slices: Slice[]; entries: EntryRow[] } {
   const inDays = (d: number) => (f.from === undefined || d >= f.from) && (f.to === undefined || d <= f.to);
   const slices = data.slices.filter(
-    (s) => inDays(s.day) && (!f.trade || s.trade === f.trade) && (!f.supervisor || s.supervisor === f.supervisor) && (!f.place || s.place === f.place) && (!f.code || s.code === f.code),
+    (s) => inDays(s.day) && (!f.trade || s.trade === f.trade) && (!f.supervisor || s.supervisor === f.supervisor) && (!f.place || s.place === f.place) && (!f.code || s.code === f.code) && (!f.workbook || s.workbook === f.workbook),
   );
   const keys = new Set(slices.map((s) => `${s.sheet}|${s.name}`));
   const entries = data.entries.filter((e) => keys.has(`${e.sheet}|${e.name}`));
@@ -1173,6 +1211,7 @@ export interface BpWorker {
   sundays: number; // Sundays and holidays worked
   cost: number; // at standard rates (0 without rates)
   flags: string[]; // to check before the bill is certified
+  workbook?: string; // advanced mode: the workbook this worker is in
 }
 
 export interface BpGroup {
@@ -1195,10 +1234,27 @@ export function bpBill(data: Data, entries: EntryRow[], opts: { daysInRow?: numb
   const runs = new Map(people(data, entries).map((p) => [p.person, p.longestRun]));
   const cost = new Map<string, number>();
   for (const s of data.slices) cost.set(`${s.sheet}|${s.name}`, (cost.get(`${s.sheet}|${s.name}`) ?? 0) + s.cost);
+  // Several workbooks together: the same employee code (one real person) with an entry on the same
+  // day in two workbooks is billed twice, by two labour suppliers (or the same one twice).
+  const books = new Set(entries.map((e) => e.workbook).filter(Boolean));
+  const twice = new Set<string>(); // "name|day" booked in another workbook the same day
+  if (books.size > 1) {
+    const at = new Map<string, Set<string>>();
+    const codeOf = (n: string) => {
+      const w = data.workers.get(n);
+      return w && w.code_status === "valid" ? text(w.employee_code).toUpperCase() : "";
+    };
+    for (const e of data.entries) {
+      const c = codeOf(e.name);
+      if (c) at.set(`${c}|${e.day}`, (at.get(`${c}|${e.day}`) ?? new Set()).add(e.workbook ?? ""));
+    }
+    for (const e of data.entries) if ((at.get(`${codeOf(e.name)}|${e.day}`)?.size ?? 0) > 1) twice.add(`${e.name}|${e.day}`);
+  }
   const by = new Map<string, BpWorker>();
   for (const e of entries) {
     const w = data.workers.get(e.name);
-    const bp = text(w?.bp) || NO_BP;
+    // no BP in Labour Detail: each workbook on its own (advanced mode), not all lumped together
+    const bp = text(w?.bp) || (books.size > 1 && e.workbook ? `${bookLabel(e.workbook)} · no business partner in Labour Detail` : NO_BP);
     const r = by.get(e.name) ?? { name: e.name, trade: e.trade, bp, days: 0, billable: 0, short: 0, hours: 0, ot: 0, sundays: 0, cost: 0, flags: [] };
     r.days += 1;
     if (e.worked >= 6) r.billable += 1;
@@ -1210,6 +1266,8 @@ export function bpBill(data: Data, entries: EntryRow[], opts: { daysInRow?: numb
     const add = (f: string) => !r.flags.includes(f) && r.flags.push(f);
     if (e.issues.some((i) => i.rule === "W03")) add("double booking");
     if (opts.changedAfterReview?.has(`${e.sheet}|${e.name}`)) add("changed after review");
+    if (twice.has(`${e.name}|${e.day}`)) add("same day in another workbook");
+    if (e.workbook) r.workbook = e.workbook;
     by.set(e.name, r);
   }
   for (const r of by.values()) {

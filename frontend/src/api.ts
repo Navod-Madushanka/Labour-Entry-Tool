@@ -535,6 +535,12 @@ export const api = {
     return res.blob();
   },
   status: () => call<Status>("GET", "/api/status"),
+  // Analysis, advanced mode: several open workbooks at once (read-only)
+  combined: (names: string[]) =>
+    call<{ books: { workbook: string; master: Master; days: Record<string, DayView>; owners: { sheet: string; calling_name: string; supervisor: string }[] }[]; notes: string[] }>(
+      "GET",
+      `/api/combined?${names.map((n) => `name=${encodeURIComponent(n)}`).join("&")}`,
+    ),
   master: (fresh = false) => getHeld<Master>("/api/master", fresh),
   day: (sheet: string, fresh = false) => getHeld<DayView>(`/api/days/${encodeURIComponent(sheet)}`, fresh),
   preview: (entries: EntryInput[]) =>

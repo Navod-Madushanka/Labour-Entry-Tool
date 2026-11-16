@@ -3,19 +3,20 @@
 // double bookings, missing employee codes, long runs, entries changed after supervisor review.
 import { useMemo, useState } from "react";
 import { api, type Master } from "../api";
-import { bpBill, DEFAULT_LIMITS, NO_BP, type Data, type EntryRow } from "../analysis";
+import { bookLabel, bpBill, DEFAULT_LIMITS, NO_BP, type Data, type EntryRow } from "../analysis";
 import { h } from "./charts";
 import { BillCompare } from "./BillCompare";
 import { num as fmtNum } from "../fmt";
 
 const rs = (n: number) => `Rs ${fmtNum(Math.round(n))}`;
 
-export function BpCheck({ data, entries, master, money, changedAfterReview }: {
+export function BpCheck({ data, entries, master, money, changedAfterReview, books }: {
   data: Data;
   entries: EntryRow[];
   master: Master;
   money: boolean;
   changedAfterReview: Set<string>;
+  books?: string[]; // advanced mode: the workbooks analysed together
 }) {
   const groups = useMemo(
     () => bpBill(data, entries, { daysInRow: master.limits?.days_in_row ?? DEFAULT_LIMITS.days_in_row, changedAfterReview }),
@@ -25,18 +26,29 @@ export function BpCheck({ data, entries, master, money, changedAfterReview }: {
   const [msg, setMsg] = useState<string | null>(null);
   const label = (bp: string) => (bp === NO_BP ? `${master.workbook.replace(/\.(xlsb|xlsx|json)$/i, "")} (no business partner in Labour Detail)` : bp);
 
+  // advanced mode: billable worker-days per business partner and workbook (who bills what, where)
+  const matrix = useMemo(() => {
+    if (!books) return null;
+    return groups.map((g) => {
+      const per = new Map<string, number>();
+      for (const w of g.workers) per.set(w.workbook ?? "", (per.get(w.workbook ?? "") ?? 0) + w.billable);
+      return { bp: g.bp, per, total: g.billable, flagged: g.flagged };
+    });
+  }, [books, groups]);
   const exportIt = async () => {
     setMsg(null);
     try {
-      const note = `${master.workbook} · ${master.month} · a day counts at 6+ effective hours (the BP Bill rule)${money ? " · cost at standard rates" : ""}`;
-      const cols = ["Worker", "Trade", "Days", "Billable days", "Under 6 h", "Hours", "OT", "Sundays / holidays", ...(money ? ["Cost (Rs)"] : []), "Check"];
+      const note = `${books ? books.join(" + ") : master.workbook} · ${master.month} · a day counts at 6+ effective hours (the BP Bill rule)${money ? " · cost at standard rates" : ""}`;
+      const cols = [...(books ? ["Workbook"] : []), "Worker", "Trade", "Days", "Billable days", "Under 6 h", "Hours", "OT", "Sundays / holidays", ...(money ? ["Cost (Rs)"] : []), "Check"];
       const blob = await api.exportAnalysis(`BP bill check ${master.month}`, [
         { name: "Summary", note, columns: ["Business partner", "Workers", "Billable worker-days", "Worker-days", "Hours", "OT", "Sundays / holidays", ...(money ? ["Cost (Rs)"] : []), "Workers to check"],
           rows: groups.map((g) => [label(g.bp), g.workers.length, g.billable, g.days, Math.round(g.hours * 100) / 100, Math.round(g.ot * 100) / 100, g.sundays, ...(money ? [Math.round(g.cost)] : []), g.flagged]) },
         ...groups.map((g) => ({
           name: label(g.bp).slice(0, 31), note, columns: cols,
-          rows: g.workers.map((w) => [w.name, w.trade, w.days, w.billable, w.short, Math.round(w.hours * 100) / 100, Math.round(w.ot * 100) / 100, w.sundays, ...(money ? [Math.round(w.cost)] : []), w.flags.join(", ")]),
+          rows: g.workers.map((w) => [...(books ? [bookLabel(w.workbook ?? "")] : []), w.name, w.trade, w.days, w.billable, w.short, Math.round(w.hours * 100) / 100, Math.round(w.ot * 100) / 100, w.sundays, ...(money ? [Math.round(w.cost)] : []), w.flags.join(", ")]),
         })),
+        ...(matrix && books ? [{ name: "By workbook", note, columns: ["Business partner", ...books.map(bookLabel), "Total billable worker-days", "Workers to check"],
+          rows: matrix.map((m) => [label(m.bp), ...books.map((b) => m.per.get(b) ?? 0), m.total, m.flagged]) }] : []),
       ]); // prettier-ignore
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -63,6 +75,47 @@ export function BpCheck({ data, entries, master, money, changedAfterReview }: {
         </span>
       </div>
       {msg && <p className="error-text">{msg}</p>}
+      {matrix && books && (
+        <div className="card bp-matrix">
+          <h3>Billable worker-days by business partner and workbook</h3>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Business partner</th>
+                  {books.map((b) => (
+                    <th key={b} className="num" title={b}>
+                      {bookLabel(b)}
+                    </th>
+                  ))}
+                  <th className="num">Total</th>
+                  <th className="num">To check</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matrix.map((m) => (
+                  <tr key={m.bp}>
+                    <td>{label(m.bp)}</td>
+                    {books.map((b) => (
+                      <td key={b} className="num">
+                        {m.per.get(b) || <span className="muted">—</span>}
+                      </td>
+                    ))}
+                    <td className="num">
+                      <b>{m.total}</b>
+                    </td>
+                    <td className="num">{m.flagged ? <span className="warn-text">{m.flagged}</span> : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted small">
+            A business partner in more than one workbook is one row here. <b>Same day in another workbook</b>: the same employee code has an
+            entry on the same day in two workbooks (billed twice?).
+          </p>
+        </div>
+      )}
       {groups.map((g) => {
         const shown = onlyFlagged ? g.workers.filter((w) => w.flags.length) : g.workers;
         return (
@@ -85,14 +138,14 @@ export function BpCheck({ data, entries, master, money, changedAfterReview }: {
                 <table className="data">
                   <thead>
                     <tr>
-                      <th>Worker</th><th>Trade</th><th className="num">Days</th><th className="num">Billable</th><th className="num" title="Days under 6 effective hours: the BP Bill does not count them">Under 6 h</th>
+                      {books && <th>Workbook</th>}<th>Worker</th><th>Trade</th><th className="num">Days</th><th className="num">Billable</th><th className="num" title="Days under 6 effective hours: the BP Bill does not count them">Under 6 h</th>
                       <th className="num">Hours</th><th className="num">OT</th><th className="num">Sun / hol</th>{money && <th className="num">Cost</th>}<th>Check</th>
                     </tr>
                   </thead>
                   <tbody>
                     {shown.map((w) => (
                       <tr key={w.name}>
-                        <td>{w.name}</td><td>{w.trade}</td><td className="num">{w.days}</td><td className="num"><b>{w.billable}</b></td><td className="num">{w.short || ""}</td>
+                        {books && <td className="small">{bookLabel(w.workbook ?? "")}</td>}<td>{w.name}</td><td>{w.trade}</td><td className="num">{w.days}</td><td className="num"><b>{w.billable}</b></td><td className="num">{w.short || ""}</td>
                         <td className="num">{h(w.hours)}</td><td className="num">{h(w.ot)}</td><td className="num">{w.sundays || ""}</td>{money && <td className="num">{rs(w.cost)}</td>}
                         <td>{w.flags.map((f) => <span key={f} className="badge warn small">{f}</span>)}</td>
                       </tr>
@@ -109,7 +162,7 @@ export function BpCheck({ data, entries, master, money, changedAfterReview }: {
       <p className="muted small">
         Checks: <b>double booking</b> — the same person booked twice with overlapping times (W03); <b>no employee code</b> — the ERP upload
         lines go out blank; <b>long run</b> — more days in a row than the fatigue limit; <b>changed after review</b> — the supervisor's sheet was
-        checked against the paper, then changed.
+        checked against the paper, then changed{books ? <>; <b>same day in another workbook</b> — the same employee code on the same day in two of the workbooks analysed together</> : null}.
       </p>
       <BillCompare />
     </>

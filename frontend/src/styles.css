@@ -1537,3 +1537,11 @@ section.entry { box-shadow: var(--shadow); }
 /* Analysis: "← Back" undoes the last filter or tab change (browser history) */
 .filters .analysis-back { align-self: flex-end; white-space: nowrap; }
 .filters .analysis-back:disabled { opacity: 0.45; }
+
+/* Analysis, advanced mode: several workbooks together */
+.books-pick { position: relative; }
+.books-pick > button.books-on { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.books-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: min(340px, calc(100vw - 32px)); padding: 10px 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
+.books-panel .check { display: flex; gap: 6px; align-items: center; }
+.combined-note { margin: 2px 0 8px; padding: 6px 10px; border-left: 3px solid var(--primary); background: var(--primary-bg); border-radius: 6px; }
+.bp-matrix { margin-bottom: 12px; }

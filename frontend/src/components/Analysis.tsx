@@ -2,9 +2,12 @@
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, type ExportTable, type LostView, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
+import { api, type BookInfo, type DayView, type ExportTable, type LostView, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
+  bookLabel,
+  buildDataFor,
+  mergeData,
   applyFilter,
   buildData,
   byCode,
@@ -92,9 +95,55 @@ interface Props {
   total: number;
   onMasterChanged?: () => void; // place order or plan saved: read the master again
   user?: string; // who gives lost-time reasons here
+  books?: BookInfo[]; // the workbooks open in the tool (advanced mode: several analysed together)
 }
 
-export function Analysis({ master, month, loaded, total, onMasterChanged, user = "" }: Props) {
+type OtherBook = { workbook: string; master: Master; days: Record<string, DayView>; owners: { sheet: string; calling_name: string; supervisor: string }[] };
+
+export function Analysis({ master, month, loaded, total, onMasterChanged, user = "", books = [] }: Props) {
+  // Advanced mode: other open workbooks of the same month analysed together with this one (the BP
+  // bill check over every labour source). Remembered on this PC; read-only.
+  const others = books.filter((b) => !b.active && b.name !== master.workbook);
+  const sameMonth = (b: BookInfo) => !b.month || b.month === master.month;
+  const [combine, setCombineState] = useState<string[]>(() => {
+    try {
+      return JSON.parse(store.get("labour.analysis.combine") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+  const setCombine = (names: string[]) => {
+    setCombineState(names);
+    store.set("labour.analysis.combine", JSON.stringify(names));
+  };
+  const chosen = combine.filter((n) => others.some((b) => b.name === n && sameMonth(b)));
+  const [booksOpen, setBooksOpen] = useState(false);
+  const [otherData, setOtherData] = useState<OtherBook[]>([]);
+  const [otherNotes, setOtherNotes] = useState<string[]>([]);
+  const [otherLoading, setOtherLoading] = useState(false);
+  const [otherTick, setOtherTick] = useState(0); // "Read again"
+  const chosenKey = chosen.join("|");
+  useEffect(() => {
+    if (!chosen.length) {
+      setOtherData([]);
+      setOtherNotes([]);
+      return;
+    }
+    let stale = false;
+    setOtherLoading(true);
+    api
+      .combined(chosen)
+      .then((r) => {
+        if (stale) return;
+        setOtherData(r.books);
+        setOtherNotes(r.notes);
+      })
+      .catch((e) => !stale && setOtherNotes([e instanceof Error ? e.message : String(e)]))
+      .finally(() => !stale && setOtherLoading(false));
+    return () => {
+      stale = true;
+    };
+  }, [chosenKey, otherTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const [view, setView] = useState<View>(() => (store.get("labour.analysis.view") as View) || "overview");
   const [filter, setFilter] = useState<Filter>({});
   const [exporting, setExporting] = useState(false);
@@ -153,7 +202,19 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
     }
     return out;
   }, [reviews, owned, month]);
-  const data = useMemo(() => buildData(month, master, owners), [month, master, owners]);
+  const own = useMemo(() => buildData(month, master, owners), [month, master, owners]);
+  const combined = chosen.length > 0 && otherData.length > 0;
+  const data = useMemo(() => {
+    if (!combined) return own;
+    return mergeData([
+      { workbook: master.workbook, data: own },
+      ...otherData.map((b) => ({
+        workbook: b.workbook,
+        data: buildDataFor(b.days, b.master, new Map(b.owners.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor]))),
+      })),
+    ]);
+  }, [combined, own, otherData, master.workbook]);
+  const bookNames = combined ? [master.workbook, ...otherData.map((b) => b.workbook)] : [];
   const { slices, entries } = useMemo(() => applyFilter(data, filter), [data, filter]);
   const k = useMemo(() => kpis(slices), [slices]);
   const allDays = data.days;
@@ -205,9 +266,10 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
   }, []);
 
   const set = (patch: Partial<Filter>) => setFilter((f) => ({ ...f, ...patch }));
-  const filtered = Boolean(filter.trade || filter.supervisor || filter.place || filter.code || filter.from || filter.to);
+  const filtered = Boolean(filter.trade || filter.supervisor || filter.place || filter.code || filter.from || filter.to || filter.workbook);
   const dayName = (d?: number) => { const x = allDays.find((y) => y.day === d); return x ? dayLabel(x) : String(d); };
   const chips: { key: string; label: string; value: string; clear: Partial<Filter> }[] = [
+    filter.workbook ? { key: "workbook", label: "Workbook", value: bookLabel(filter.workbook), clear: { workbook: undefined } } : null,
     filter.trade ? { key: "trade", label: "Trade", value: filter.trade, clear: { trade: undefined } } : null,
     filter.supervisor ? { key: "supervisor", label: "Supervisor", value: filter.supervisor, clear: { supervisor: undefined } } : null,
     filter.place ? { key: "place", label: "Place", value: filter.place, clear: { place: undefined } } : null,
@@ -237,7 +299,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
     <DisruptedCtx.Provider value={disruptedSet}>
     <section className={`analysis${compact ? " compact" : ""}`}>
       <div className="section-head">
-        <h2>Analysis · {master.workbook}</h2>
+        <h2>Analysis · {combined ? `${bookNames.length} workbooks` : master.workbook}</h2>
         <span className="row analysis-tools">
           <span className="seg" role="group" aria-label="Show hours or rupees">
             <button className={!moneyOn ? "active" : ""} onClick={() => setMoneyOn(false)}>Hours</button>
@@ -247,6 +309,55 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
             <button className={!compact ? "active" : ""} aria-pressed={!compact} onClick={() => setCompact(false)} title="More space between sections">Comfortable</button>
             <button className={compact ? "active" : ""} aria-pressed={compact} onClick={() => setCompact(true)} title="More on one screen">Compact</button>
           </span>
+          {others.length > 0 && (
+            <span className="books-pick">
+              <button
+                className={`small${chosen.length ? " books-on" : ""}`}
+                aria-expanded={booksOpen}
+                onClick={() => setBooksOpen((o) => !o)}
+                title="Advanced: analyse other open workbooks of the same month together with this one (e.g. the BP bill check over every labour source)"
+              >
+                {chosen.length ? `Workbooks: ${chosen.length + 1}` : "Workbooks: this one"} ▾
+              </button>
+              {booksOpen && (
+                <div className="books-panel card" role="dialog" aria-label="Workbooks to analyse together">
+                  <b className="small">Analyse together (advanced)</b>
+                  <p className="muted small">The workbooks open in the tool, same month. Read-only: Excel is not changed.</p>
+                  <label className="check small">
+                    <input type="checkbox" checked disabled /> {bookLabel(master.workbook)} <span className="muted">(this one)</span>
+                  </label>
+                  {others.map((b) => (
+                    <label key={b.name} className={`check small${sameMonth(b) ? "" : " muted"}`} title={sameMonth(b) ? b.name : `${b.name}: another month (${b.month})`}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Analyse ${b.name} too`}
+                        disabled={!sameMonth(b)}
+                        checked={chosen.includes(b.name)}
+                        onChange={(e) => setCombine(e.target.checked ? [...chosen, b.name] : chosen.filter((n) => n !== b.name))}
+                      />{" "}
+                      {bookLabel(b.name)}
+                      {!sameMonth(b) && <span className="muted"> · another month</span>}
+                    </label>
+                  ))}
+                  <div className="row">
+                    {chosen.length > 0 && (
+                      <>
+                        <button className="small" onClick={() => setOtherTick((t) => t + 1)} disabled={otherLoading}>
+                          {otherLoading ? "Reading…" : "↻ Read them again"}
+                        </button>
+                        <button className="link small" onClick={() => setCombine([])}>
+                          Only this one
+                        </button>
+                      </>
+                    )}
+                    <button className="link small" onClick={() => setBooksOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </span>
+          )}
           <button className="link small" onClick={() => setRatesOpen((o) => !o)}>Standard rates…</button>
           <button onClick={() => setReportOpen(true)} disabled={!data.slices.length} title="One A4 page for a week or the month, and the monthly labour return">
             Site report
@@ -260,6 +371,16 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         From the day sheets as loaded ({loaded} of {total}
         {complete ? "" : ", still loading"}) · waiting entries count once pushed · Excel is not changed
       </p>
+      {chosen.length > 0 && (
+        <p className={`combined-note small${otherNotes.length ? " warn-text" : ""}`} role="status">
+          {otherLoading && !combined
+            ? `Reading ${chosen.map(bookLabel).join(", ")}…`
+            : combined
+              ? <>Advanced: <b>{bookNames.map(bookLabel).join(" + ")}</b> analysed together (same month). Each keeps its own business partners, trades and rates; a calling name used in two workbooks shows "· workbook". Filter by Workbook to see one.</>
+              : null}
+          {otherNotes.length > 0 && ` ${otherNotes.join(" ")}`}
+        </p>
+      )}
       {error && <p className="error-text">{error}</p>}
       {reportOpen && (
         <SiteReport
@@ -299,6 +420,19 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
         >
           ← Back
         </button>
+        {combined && (
+          <label>
+            Workbook
+            <select aria-label="Workbook filter" value={filter.workbook ?? ""} onChange={(e) => set({ workbook: e.target.value || undefined })}>
+              <option value="">All {bookNames.length}</option>
+              {bookNames.map((b) => (
+                <option key={b} value={b}>
+                  {bookLabel(b)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Trade
           <select value={filter.trade ?? ""} onChange={(e) => set({ trade: e.target.value || undefined })}>
@@ -389,7 +523,7 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
       ) : view === "fatigue" ? (
         <Fatigue data={data} entries={entries} days={daily(data, slices, filter)} master={master} disrupted={disruptedSet} carry={carry} onSaved={() => onMasterChanged?.()} />
       ) : view === "bp" ? (
-        <BpCheck data={data} entries={entries} master={master} money={money} changedAfterReview={changedAfterReview} />
+        <BpCheck data={data} entries={entries} master={master} money={money} changedAfterReview={changedAfterReview} books={combined ? bookNames : undefined} />
       ) : view === "lost" ? (
         <LostTime data={data} slices={slices} items={lost.items} causes={lost.causes} user={user} onSaved={(items) => setLost((l) => ({ ...l, items }))} />
       ) : view === "activities" ? (

@@ -331,3 +331,28 @@ assert.ok(work.some((x) => x.supervisor === "Kamal" && x.place === "Core 8"));
 }
 
 console.log("analysis: all passed");
+
+// ---- several workbooks together (advanced mode)
+{
+  const one = A.buildDataFor(month, master);
+  // the same made-up month as a second labour source, with other employee codes
+  const other = A.buildDataFor(month, { ...master, workers: master.workers.map((w) => ({ ...w, employee_code: `Y${w.calling_name}`, bp: "Other BP" })) });
+  const merged = A.mergeData([{ workbook: "Labour Entry Sheet October 2026 - Supply.xlsb", data: one }, { workbook: "Labour Entry Sheet October 2026 - Company 02.xlsb", data: other }]);
+  assert.equal(A.bookLabel("Labour Entry Sheet October 2026 - Company 02.xlsb"), "Company 02");
+  assert.equal(merged.slices.length, one.slices.length * 2);
+  // a calling name in both workbooks is kept apart, never added up as one person
+  assert.ok(merged.workers.has("AA-01 · Supply") && merged.workers.has("AA-01 · Company 02") && !merged.workers.has("AA-01"));
+  assert.ok(Math.abs(A.kpis(merged.slices).hours - 2 * A.kpis(one.slices).hours) < 1e-9);
+  // the workbook filter
+  const onlyOther = A.applyFilter(merged, { workbook: "Labour Entry Sheet October 2026 - Company 02.xlsb" });
+  assert.equal(onlyOther.slices.length, one.slices.length);
+  // BP bill: each workbook's BP; different employee codes -> no "same day in another workbook"
+  const groups = A.bpBill(merged, merged.entries);
+  assert.ok(groups.some((g) => g.bp === "Other BP" && g.workers.every((w) => w.workbook.endsWith("Company 02.xlsb"))));
+  assert.ok(!groups.some((g) => g.workers.some((w) => w.flags.includes("same day in another workbook"))));
+  // the same employee codes in both (one person on two suppliers' sheets the same day): flagged
+  const same = A.mergeData([{ workbook: "A.xlsb", data: one }, { workbook: "B.xlsb", data: A.buildDataFor(month, master) }]);
+  const flagged = A.bpBill(same, same.entries).flatMap((g) => g.workers).filter((w) => w.flags.includes("same day in another workbook"));
+  assert.ok(flagged.length >= 2 && new Set(flagged.map((w) => w.workbook)).size === 2);
+  console.log("several workbooks: ok");
+}

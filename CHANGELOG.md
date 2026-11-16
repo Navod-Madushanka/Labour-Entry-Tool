@@ -1,5 +1,28 @@
 # Changelog
 
+## Analysis, advanced mode: several workbooks together, above all for the BP bill (16 Nov 2026)
+
+Asked for: an advanced mode in Analysis for the data of several workbooks, especially the BP bill.
+
+- **Workbooks: this one ▾** (Analysis header, when more than one workbook is open in the tool):
+  tick other open workbooks of the same month (e.g. Supply + Company 02) to analyse them together
+  with this one. Remembered on this PC; "↻ Read them again" after changes in Excel; "Only this one"
+  goes back. Read-only: Excel is not changed. A workbook of another month cannot be ticked (the
+  days would not line up).
+- **Every view covers them all**: the totals, trades, places, programme, overtime, fatigue,
+  export… Each workbook keeps its own business partners, trades and standard rates. A calling
+  name used in two workbooks shows "AAA-01 · Supply" so two people are never added up as one. A
+  **Workbook** filter (and chip) shows one of them; ← Back undoes it like any filter.
+- **BP bill check**: a table of **billable worker-days by business partner and workbook** (who bills
+  what, in which workbook, and how many workers to check), a Workbook column in each business
+  partner's list, workers with no business partner kept per workbook, and a new check, **same
+  day in another workbook**: the same employee code with an entry on the same day in two
+  workbooks (one person billed twice?). "Export for the QS" adds the workbook column and a "By
+  workbook" sheet.
+- Server: `GET /api/combined?name=…` gives each open workbook's Labour Detail, days and supervisors
+  (from the tool's copy where read already). Tests: server, analysis unit test (merge, names kept
+  apart, the filter, the new check), `e2e/analysis-books.cjs` (made-up data).
+
 ## "Lost connection to Excel" on an office PC: a busy Excel no longer looks like a lost one (16 Nov 2026)
 
 From a colleague's log file (version 1.0.0, 31 Oct – 16 Nov). What happened, several times a day:
