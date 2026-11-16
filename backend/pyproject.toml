@@ -15,7 +15,6 @@ dependencies = [
     "pyxlsb>=1.0.10",
     "python-calamine>=0.3",  # fast .xlsb reading of the day sheets (falls back to pyxlsb)
     "openpyxl>=3.1",
-    "cryptography>=42",  # checks the signature of an update before it is installed (app/updater.py)
     "xlwings>=0.31; sys_platform == 'win32'",
     "pywin32>=306; sys_platform == 'win32'",
 ]
@@ -27,7 +26,7 @@ dev = ["pytest>=8", "ruff>=0.5", "pre-commit>=3.7", "httpx>=0.27"]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["static/*", "static/app/*", "static/app/assets/*", "update_key.pub"]
+app = ["static/*", "static/app/*", "static/app/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -27,9 +27,6 @@ from app.api import (
 from app.api import (
     history as history_api,
 )
-from app.api import (
-    update as update_api,
-)
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore
 from app.config import Config, load_config
@@ -76,7 +73,6 @@ def create_app(
         import asyncio
 
         evening = asyncio.create_task(report.scheduler(app))  # the PM and QS report (#10)
-        app.state.updater.run_in_background()  # the Windows package only, once signing is set up
         yield
         evening.cancel()
         if app.state.worker is not None:
@@ -116,9 +112,6 @@ def create_app(
         return await call_next(request)
 
     app.state.config = config
-    from app.updater import Updater
-
-    app.state.updater = Updater()
     app.state.snapshots = health.SnapshotCache()
     app.state.excel_disabled = (
         None if config.excel.enabled else "Live Excel is switched off (excel.enabled in config)."
@@ -181,7 +174,6 @@ def create_app(
     app.include_router(history_api.router)
     app.include_router(report.router)
     app.include_router(bpbill.router)
-    app.include_router(update_api.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", StaticFiles(directory=APP, html=True), name="app")

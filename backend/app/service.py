@@ -18,7 +18,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app import __version__
 from app.audit.backups import BackupManager
 from app.audit.store import AuditStore, Batch, Change
 from app.carryover import previous_days, previous_workbook
@@ -204,7 +203,6 @@ class Status(BaseModel):
     error: str | None = None
     unsaved_changes: bool = False
     backup: str | None = None
-    version: str = __version__  # the tool's: a change means it was updated (the page reloads)
 
 
 class WorkerView(BaseModel):

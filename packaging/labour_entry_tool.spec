@@ -11,11 +11,8 @@ BACKEND = ROOT / "backend"
 hidden = collect_submodules("uvicorn")  # picks its loops and protocols by name at run time
 hidden += ["app.api.entries", "app.api.health", "app.api.registration", "app.api.setup",
            "app.api.timecards", "python_calamine", "pyxlsb", "openpyxl", "tkinter",
-           "tkinter.filedialog", "app.api.update", "app.updater",
-           "cryptography.hazmat.primitives.asymmetric.ed25519"]  # fmt: skip
+           "tkinter.filedialog"]  # fmt: skip
 datas = collect_data_files("app", includes=["static/**/*"])  # the entry UI and the health page
-# the public key that checks updates (written by the release build from the signing secret)
-datas += collect_data_files("app", includes=["update_key.pub"])
 try:  # live Excel (Windows only)
     hidden += collect_submodules("xlwings", filter=lambda m: ".pro" not in m)
     hidden += ["win32com", "win32com.client", "pythoncom", "pywintypes"]
