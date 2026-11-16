@@ -1533,3 +1533,7 @@ section.entry { box-shadow: var(--shadow); }
 .statusbar .auto-switch { color: inherit; opacity: 0.9; }
 .saved-note { color: var(--positive); white-space: nowrap; }
 .statusbar .saved-note { color: #8fd9a8; }
+
+/* Analysis: "← Back" undoes the last filter or tab change (browser history) */
+.filters .analysis-back { align-self: flex-end; white-space: nowrap; }
+.filters .analysis-back:disabled { opacity: 0.45; }

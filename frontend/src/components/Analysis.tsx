@@ -1,7 +1,7 @@
 // Analysis tab: what the loaded month says about hours, manpower, overtime, attendance and data
 // quality. Every figure is worked out in the browser from the day sheets already loaded
 // (src/analysis.ts); Excel is not asked. Export puts the same tables in an .xlsx file.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, type ExportTable, type LostView, type Master, type Owned, type Review, type SuggestLogSummary, type SuggestOfferSummary } from "../api";
 import type { Month } from "../history";
 import {
@@ -170,6 +170,40 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
     store.set(SUMMARY_PREFIX + master.workbook, JSON.stringify(summarise(master.workbook, master.month, data)));
   }, [complete, data, master.workbook, master.month]);
 
+  // Back: every filter or view change is a step in the browser's history, so the browser's Back
+  // button (or the mouse's back button, Alt+←) and "← Back" here undo the last filter or tab change,
+  // one at a time, without reloading the page. Back past the first step leaves Analysis as before.
+  const restoring = useRef(false);
+  const lastPushed = useRef<string | null>(null);
+  const [depth, setDepth] = useState(0); // steps that "← Back" can undo
+  useEffect(() => {
+    const key = JSON.stringify({ view, filter });
+    const state = window.history.state as { analysis?: { view: View; filter: Filter; depth: number } } | null;
+    if (lastPushed.current === null) {
+      // the first state on opening Analysis: kept in the current history entry
+      window.history.replaceState({ ...(state ?? {}), analysis: { view, filter, depth: 0 } }, "", window.location.href);
+    } else if (restoring.current) {
+      restoring.current = false;
+    } else if (key !== lastPushed.current) {
+      const d = (state?.analysis?.depth ?? 0) + 1;
+      window.history.pushState({ analysis: { view, filter, depth: d } }, "", window.location.href);
+      setDepth(d);
+    }
+    lastPushed.current = key;
+  }, [view, filter]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const a = (e.state as { analysis?: { view: View; filter: Filter; depth: number } } | null)?.analysis;
+      if (!a) return;
+      restoring.current = true;
+      setView(a.view);
+      setFilter(a.filter ?? {});
+      setDepth(a.depth ?? 0);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const set = (patch: Partial<Filter>) => setFilter((f) => ({ ...f, ...patch }));
   const filtered = Boolean(filter.trade || filter.supervisor || filter.place || filter.code || filter.from || filter.to);
   const dayName = (d?: number) => { const x = allDays.find((y) => y.day === d); return x ? dayLabel(x) : String(d); };
@@ -257,6 +291,14 @@ export function Analysis({ master, month, loaded, total, onMasterChanged, user =
 
       <div className="analysis-sticky" style={{ top: barH }}>
       <div className="filters card">
+        <button
+          className="analysis-back small"
+          disabled={depth === 0}
+          onClick={() => window.history.back()}
+          title={depth ? "Undo the last filter or tab change (also the browser's Back button)" : "Nothing to go back to yet"}
+        >
+          ← Back
+        </button>
         <label>
           Trade
           <select value={filter.trade ?? ""} onChange={(e) => set({ trade: e.target.value || undefined })}>

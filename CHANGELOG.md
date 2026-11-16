@@ -1,5 +1,17 @@
 # Changelog
 
+## Analysis: Back undoes the last filter or tab change (16 Nov 2026)
+
+Asked for: after filtering in Analysis there was no way back except reloading the page.
+
+- **← Back** at the start of the filter bar undoes the last change, one step at a time: a filter
+  set from a drop-down, a chart or a table row (e.g. clicking a Gantt row), a chip removed, "Clear
+  filters", or another tab. Greyed out when there is nothing to go back to.
+- **The browser's Back and Forward buttons** (and the mouse's back button) do the same, with no
+  page reload. Back past the first step leaves Analysis for the page before, as usual.
+- `e2e/analysis-back.cjs` (made-up data): three steps undone by ← Back and the browser's Back,
+  Forward brings one back, and the page is never reloaded.
+
 ## Automatic save and reload from Excel (16 Nov 2026)
 
 Asked for: "Save Excel file" and "Reload from Excel" should happen by themselves. (The automatic
