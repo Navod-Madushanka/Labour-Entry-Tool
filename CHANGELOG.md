@@ -1,5 +1,17 @@
 # Changelog
 
+## SQL panel: a misspelt name after != or NOT IN stops the change (17 Nov 2026)
+
+Asked: is "not equal" there (UPDATE … WHERE code = '03-11-00-00' AND calling_name != 'INB-01')?
+
+- Yes: `!=`, `<>` and `NOT IN (…)` leave workers out, in UPDATE, DELETE and SELECT.
+- **New safety check**: a name after `!=`, `<>` or `NOT IN` that is no worker in Labour Detail (a
+  typo such as 'INB=01') leaves nobody out, so the UPDATE would also change the very worker it
+  was meant to spare. Now an UPDATE or DELETE stops instead: "'INB=01' is not a calling name, so
+  it leaves nobody out (did you mean INB-01?). Nothing was changed: correct the name and run it
+  again." A SELECT says the same as a note.
+- Unit tests with made-up names.
+
 ## Workbooks with employee numbers as calling names now work (17 Nov 2026)
 
 Asked: why one company's November workbook did not work with the tool. Checked read-only.

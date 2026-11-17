@@ -975,6 +975,29 @@ function unknownNameNotes(where: Expr | null, ctx: CommandContext): string[] {
     });
 }
 
+/** Names a WHERE leaves out (calling_name != 'X', <> 'X', NOT IN (…)) that are no worker: a typo
+ * there ("INB=01") leaves nobody out, so an UPDATE or DELETE would also change the very worker it
+ * was meant to spare. Said as one sentence each (with the likely name). */
+function unknownExcludedNames(where: Expr | null, ctx: CommandContext): string[] {
+  const names: string[] = [];
+  const isName = (e: Expr) => e.k === "col" && ["calling_name", "calling name"].includes(e.name.toLowerCase());
+  const lit = (e: Expr) => (e.k === "lit" && typeof e.v === "string" ? e.v : null);
+  const walk = (e: Expr | null): void => {
+    if (!e) return;
+    if (e.k === "bin" && (e.op === "and" || e.op === "or")) { walk(e.l); walk(e.r); }
+    else if (e.k === "bin" && e.op === "!=" && isName(e.l) && lit(e.r)) names.push(lit(e.r)!);
+    else if (e.k === "in" && e.neg && isName(e.e)) e.list.forEach((x) => lit(x) && names.push(lit(x)!));
+  };
+  walk(where);
+  const known = new Set(ctx.workers.map((w) => w.calling_name.toUpperCase()));
+  return names
+    .filter((n) => !known.has(n.trim().toUpperCase()))
+    .map((n) => {
+      const hint = didYouMean(n.trim().toUpperCase().replace(/[=_ .]/g, "-"), known) ?? didYouMean(n.trim().toUpperCase(), known);
+      return `"${n}" is not a calling name, so it leaves nobody out${hint ? ` (did you mean ${hint}?)` : ""}.`;
+    });
+}
+
 /** The supervisors with entries this month, A–Z. */
 function supervisorNames(ctx: CommandContext): string[] {
   return [...new Set(ctx.owners?.values() ?? [])].sort((a, b) => a.localeCompare(b));
@@ -1196,7 +1219,7 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
     res.table = { columns: items.map((x) => x.alias ?? (x.e.k === "col" ? findCol(t, x.e.name).name : x.text)), rows: table };
     res.summary = `${table.length} row${table.length === 1 ? "" : "s"} from ${t.name}. Nothing is changed.`;
     if (!table.length && st.where) res.notes.push(...emptyCodeNotes(st.where, t.name, ctx));
-    res.notes.push(...unknownNameNotes(st.where, ctx), ...unknownSupervisorNotes(st.where, ctx));
+    res.notes.push(...unknownNameNotes(st.where, ctx), ...unknownExcludedNames(st.where, ctx), ...unknownSupervisorNotes(st.where, ctx));
     return res;
   }
 
@@ -1242,6 +1265,9 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
   }
 
   if (!st.where) throw new CommandError(`${st.kind.toUpperCase()} without WHERE would change every entry of the month. Add a WHERE (WHERE 1 = 1 if you really mean all).`);
+  // a worker meant to be left out but misspelt: nothing is changed until the name is right
+  const notOut = unknownExcludedNames(st.where, ctx);
+  if (notOut.length) throw new CommandError(`${notOut.join(" ")} Nothing was changed: correct the name and run it again.`);
   const matched = entryRows(ctx).filter(({ row }) => truthy(evaluate(st.where!, { t, row, group: null })));
   if (st.kind === "delete") {
     for (const { row, inExcel } of matched) {

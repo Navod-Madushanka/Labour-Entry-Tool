@@ -323,4 +323,13 @@ t("errors and help for functions", () => {
   const o = sql("UPDATE entries SET out = LEAST(out, 18) WHERE calling_name = 'BBB-02' AND day = 1");
   assert.equal(o.inputs[0].time_out, 18);
 });
+t("!= / <> / NOT IN leave a worker out; a misspelt name there stops an UPDATE (it would leave nobody out)", () => {
+  const upd = (w) => sql(`UPDATE entries SET code = 'ACT-002' WHERE code = 'ACT-001' AND day = 1 AND ${w}`).inputs.map((i) => i.calling_name).sort();
+  assert.deepEqual(upd("calling_name != 'BBB-01'"), ["BBB-02", "BBB-03", "BBB-04"]);
+  assert.deepEqual(upd("calling_name <> 'BBB-01'"), ["BBB-02", "BBB-03", "BBB-04"]);
+  assert.deepEqual(upd("calling_name NOT IN ('BBB-01', 'BBB-02')"), ["BBB-03", "BBB-04"]);
+  assert.match(err("UPDATE entries SET code = 'ACT-002' WHERE code = 'ACT-001' AND calling_name != 'BBB=01'"), /"BBB=01" is not a calling name, so it leaves nobody out \(did you mean BBB-01\?\)\. Nothing was changed/);
+  assert.match(err("DELETE FROM entries WHERE day = 1 AND calling_name NOT IN ('BBB-01', 'BBB-0x')"), /"BBB-0x" is not a calling name/);
+  assert.ok(sql("SELECT calling_name FROM entries WHERE day = 1 AND calling_name != 'BBB=01'").notes.some((x) => /leaves nobody out/.test(x)));
+});
 console.log(`sql: ${n} tests passed`);
