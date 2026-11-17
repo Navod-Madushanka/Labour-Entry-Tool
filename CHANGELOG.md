@@ -1,5 +1,17 @@
 # Changelog
 
+## "Whose manpower sheet is this?" scrolls on small screens (17 Nov 2026)
+
+Asked for: the supervisor pop-up at push should scroll on smaller screens.
+
+- The dialog now fits the window and scrolls as a whole (the supervisor list, the typed name,
+  the lost-time reasons); the **Push** button stays pinned at the bottom, always in view.
+- Short windows (laptops at 600 px or less, zoomed in) give the supervisor list a little less
+  height; on a phone the Push button is full width and the margins smaller.
+- `e2e/supervisor-dialog-small.cjs` (made-up data, 40 made-up supervisors, lost time open):
+  1366×600, 1280×520, 1280×420, 390×700 and 360×560 — the dialog fits, scrolls where needed, the
+  last lost-time reason can be reached and Push is in view after choosing a supervisor.
+
 ## SQL panel: a misspelt name after != or NOT IN stops the change (17 Nov 2026)
 
 Asked: is "not equal" there (UPDATE … WHERE code = '03-11-00-00' AND calling_name != 'INB-01')?

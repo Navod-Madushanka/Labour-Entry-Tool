@@ -1545,3 +1545,18 @@ section.entry { box-shadow: var(--shadow); }
 .books-panel .check { display: flex; gap: 6px; align-items: center; }
 .combined-note { margin: 2px 0 8px; padding: 6px 10px; border-left: 3px solid var(--primary); background: var(--primary-bg); border-radius: 6px; }
 .bp-matrix { margin-bottom: 12px; }
+
+/* "Whose manpower sheet is this?": fits any screen. The dialog scrolls as a whole (the list of
+   supervisors, the lost-time reasons) and the Push button stays at the bottom, in view. */
+.supervisor-dialog { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.supervisor-dialog .actions { position: sticky; bottom: -18px; margin: 12px -18px -18px; padding: 10px 18px 14px; background: var(--panel); border-top: 1px solid var(--line); z-index: 1; }
+.modal-backdrop:has(.supervisor-dialog) { overflow-y: auto; }
+@media (max-height: 760px) {
+  .supervisor-dialog .sup-choices { max-height: 32vh; }
+  .supervisor-dialog .sup-kept, .supervisor-dialog .field { margin: 6px 0; }
+}
+@media (max-width: 520px) {
+  .modal.supervisor-dialog { padding: 14px; }
+  .supervisor-dialog .actions { bottom: -14px; margin: 12px -14px -14px; padding: 10px 14px 12px; }
+  .supervisor-dialog .actions button { width: 100%; }
+}
