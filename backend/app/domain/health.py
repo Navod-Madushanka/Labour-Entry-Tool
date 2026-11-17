@@ -146,7 +146,7 @@ def check_calling_names(ctx: _Context) -> list[Issue]:
                     suggestion=f"Use {' '.join(name.split())!r}.",
                 )
             )
-        elif parse_calling_name(name) is None:
+        elif parse_calling_name(name) is None and not name.isdigit():  # employee numbers as names: fine
             issues.append(
                 ctx.master_issue(
                     "M01",

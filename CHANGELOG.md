@@ -1,5 +1,25 @@
 # Changelog
 
+## Workbooks with employee numbers as calling names now work (17 Nov 2026)
+
+Asked: why one company's November workbook did not work with the tool. Checked read-only.
+
+- **The cause**: its calling names are employee numbers ("1234"), not "INB-01". Labour Detail holds
+  them as text, but on the day sheets the block's formula shows them as **numbers**, and the tool
+  took only text there as a name (a number in that cell usually means a reference to a blank
+  cell, which Excel shows as 0). So every worker on every day sheet looked nameless: no entry
+  matched Labour Detail, nothing could be shown, checked or written.
+- **Fixed**: a whole number in a block's calling-name cell is read as its text ("1234"), in the
+  file reader and when Excel is read live and before a write (the "is this still the same worker"
+  check). 0 still means no name.
+- **Check**: number-only calling names are no longer reported as "does not follow the INX-00
+  format" (93 warnings on that workbook).
+- Still reported on that workbook, as warnings (nothing blocked by them): its employee codes look
+  like "A1234" / "AB123", not X##### or XIN###; and one BLOCK to look at: sheet 24 says Holiday
+  while the 24th is not in the holiday list (confirm it on the start page, or fix the cell).
+- Tests with made-up numbers: the reader, the name match, the check. The workbook itself is not in
+  the repository.
+
 ## Analysis, advanced mode: several workbooks together, above all for the BP bill (16 Nov 2026)
 
 Asked for: an advanced mode in Analysis for the data of several workbooks, especially the BP bill.

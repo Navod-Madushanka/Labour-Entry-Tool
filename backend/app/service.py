@@ -27,6 +27,7 @@ from app.domain.codes import (
     EmployeeCodeStatus,
     cell_text,
     employee_code_status,
+    name_text,
     is_excel_error,
     person_key,
     trade_from_name,
@@ -764,7 +765,7 @@ class EntryService:
             cells[f"{c.activity}{r + i}"] = at(c.activity, r + i)
             cells[f"{c.hours}{r + i}"] = at(c.hours, r + i)
         name = at(c.calling_name, r)
-        return {"name": name if isinstance(name, str) else None, "cells": cells}
+        return {"name": name_text(name), "cells": cells}  # a number-only name as its text
 
     def _block_ranges(
         self, sheet: str, r: int, name: str | None, cells: dict[str, CellValue]

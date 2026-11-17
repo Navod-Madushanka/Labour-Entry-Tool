@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from app.config import TemplateConfig
-from app.domain.codes import cell_text
+from app.domain.codes import cell_text, name_text
 from app.domain.models import (
     ActivityCode,
     ActivityLine,
@@ -55,10 +55,9 @@ def day_max_col(t: TemplateConfig) -> int:
 
 
 def _text(value: CellValue) -> str | None:
-    """Text of a cached calling-name cell; Excel shows 0 for a reference to a blank cell."""
-    if isinstance(value, str):
-        return value
-    return None
+    """Text of a cached calling-name cell (a number-only name as its text); Excel shows 0 for a
+    reference to a blank cell."""
+    return name_text(value)
 
 
 def master_from_grid(grid: Grid, t: TemplateConfig) -> MasterData:

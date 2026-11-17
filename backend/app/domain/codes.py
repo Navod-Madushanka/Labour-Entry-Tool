@@ -31,6 +31,19 @@ def cell_text(value: CellValue) -> str:
 
 # --- Calling names ----------------------------------------------------------------------------
 
+
+def name_text(value: CellValue) -> str | None:
+    """A calling name as read from a day-sheet block (a formula showing Labour Detail's name).
+    Text as it is; a whole number as its text (some workbooks use employee numbers as calling
+    names, and the formula then shows 1234 as a number while Labour Detail holds "1234"); 0 or
+    anything else: no name (Excel shows 0 for a reference to a blank cell)."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value and float(value).is_integer():
+        return str(int(value))
+    return None
+
+
 CALLING_NAME_RE = re.compile(
     r"^(?P<group>[A-Z]{2})(?P<trade>[A-Z]{1,2})-(?P<num>\d{2,3})(?: (?P<role>[A-Z]{1,3}))?$"
 )
