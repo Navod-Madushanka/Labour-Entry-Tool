@@ -1,5 +1,28 @@
 # Changelog
 
+## Supervisors: manpower sheets entered, day by day (18 Nov 2026)
+
+Asked for: a diagram on the Supervisors page showing, for each day, whether each supervisor's
+manpower sheets were entered, knowing some supervisors hand in several sheets a day and others one.
+
+- **A grid at the top of the page**: one row per supervisor, one column per day sheet.
+  - **Green with a number**: that many of the supervisor's sheets entered that day (a sheet is
+    one push with that supervisor).
+  - **Amber "1/3"**: fewer than the supervisor usually hands in. "Usually" is the number seen most
+    often for them this month, shown by the name (Kamal ×2), so a supervisor with three sheets a
+    day and only one entered stands out as much as one with none.
+  - **Red "–"**: nothing entered on a working day, between the supervisor's first sheet and the
+    last day anyone has entered.
+  - Grey: Sunday / holiday with nothing; dashed: not entered yet.
+  - A small ✓ / ! on a cell: checked against the paper / does not match.
+- **The line at the top** says it for the latest day: "Sheet 17 (Mon 17 Nov): 4 of 6 supervisors
+  complete · still to enter: Nimal, Saman". A **Complete** row under the grid gives it for every
+  day (green when all are done), and **Gaps** at the end of each row counts that supervisor's.
+- **Click a cell** to open that supervisor's sheet for that day below.
+- A correction pushed later with the same supervisor counts as another sheet (said in the key).
+- `e2e/supervisor-calendar.cjs` (made-up pushes): two sheets a day, one sheet, a short day, a missing
+  day, the summary line, and the click.
+
 ## Export to Excel no longer fails with error 500 on odd characters (18 Nov 2026)
 
 Reported: with four workbooks ticked, "Export for the QS" in the BP bill check gave "Internal

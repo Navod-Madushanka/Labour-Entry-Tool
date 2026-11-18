@@ -4,6 +4,7 @@ import type { Month } from "../history";
 import { fingerprint, ManpowerRecord, recordColumns } from "./ManpowerSheet";
 import { CardHelp } from "./CardHelp";
 import { EmptyState } from "./EmptyState";
+import { SupervisorCalendar } from "./SupervisorCalendar";
 
 type ReviewState = "todo" | "ok" | "problem" | "changed";
 const REVIEW_LABEL: Record<ReviewState, string> = {
@@ -261,6 +262,25 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
             </button>
           ))}
         </div>
+      )}
+
+      {owned && groups.length > 0 && (
+        <SupervisorCalendar
+          owned={owned}
+          month={month}
+          sheets={master.sheets}
+          reviewState={(sh, sup) => {
+            const g = groups.find((x) => x.sheet === sh && x.supervisor === sup);
+            return g ? state(g).state : "todo";
+          }}
+          onPick={(sh, sup) => {
+            setWho(sup);
+            setSheet(sh);
+            setReviewFilter("");
+            setOpen([`${sh}|${sup}`]);
+            setTimeout(() => document.querySelector(`.mp-day[data-sheet="${sh}"][data-supervisor="${CSS.escape(sup)}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+          }}
+        />
       )}
 
       <div className="sup-filters row">
