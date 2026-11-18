@@ -30,6 +30,8 @@ const SHOTS = process.argv[2];
     const dlg = p.getByRole("dialog", { name: "Whose manpower sheet is this?" });
     await dlg.waitFor();
     const lost = dlg.locator("details.lost-pick");
+    await lost.waitFor({ timeout: 5000 }).catch(() => {}); // it appears a moment after the dialog
+    await p.waitForTimeout(300);
     if (await lost.count()) { // the tallest the dialog gets: the lost-time reasons shown
       if (!(await lost.evaluate((d) => d.open))) await lost.locator("summary").click();
       await p.waitForFunction(() => document.querySelector("details.lost-pick")?.open);
