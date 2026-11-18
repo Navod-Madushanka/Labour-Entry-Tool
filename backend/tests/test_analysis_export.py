@@ -63,3 +63,28 @@ def test_endpoint(monkeypatch):
     assert "Labour analysis 2026-10.xlsx" in res.headers["content-disposition"]
     assert load_workbook(io.BytesIO(res.content))["S"]["A2"].value == 1
     assert client.post("/api/analysis/export", json={"sheets": []}).status_code == 422
+
+
+def test_odd_text_from_the_workbooks_still_exports():
+    """Seen exporting the BP bill check over four workbooks: a control character in one cell (pasted
+    into Excel from another program) made the whole export fail with error 500. Made-up values."""
+    import io
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from openpyxl import load_workbook
+
+    from app.api.analysis import router
+
+    app = FastAPI()
+    app.include_router(router)
+    c = TestClient(app)
+    base = {"columns": ["Worker", "Days"], "rows": [["Worker\x0bone", 3], ["Two\x07", 2]]}
+    sheets = [{"name": "Summary", "note": "note\x01", **base}, {"name": "BP\x07one", **base},
+              {"name": "'Quoted BP'", **base}, {"name": "History", **base}]
+    sheets += [{"name": f"BP {i}", **base} for i in range(80)]  # many business partners
+    res = c.post("/api/analysis/export", json={"title": "BP bill check", "sheets": sheets})
+    assert res.status_code == 200
+    wb = load_workbook(io.BytesIO(res.content))
+    assert wb.sheetnames[:4] == ["Summary", "BPone", "Quoted BP", "History (sheet)"]
+    assert wb["Summary"]["A4"].value == "Workerone" and len(wb.sheetnames) == 84

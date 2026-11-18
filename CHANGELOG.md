@@ -1,5 +1,20 @@
 # Changelog
 
+## Export to Excel no longer fails with error 500 on odd characters (18 Nov 2026)
+
+Reported: with four workbooks ticked, "Export for the QS" in the BP bill check gave "Internal
+Server Error 500".
+
+- **The cause**: a control character in one cell (an invisible character, e.g. pasted into a
+  worker or business partner cell from another program). The library that writes the .xlsx
+  refuses the whole file for one of them. Four workbooks together make one far more likely.
+- **Fixed**: such characters are dropped from every exported cell, column title, note and sheet
+  name. This covers every "Export to Excel" in Analysis, which all use the same export.
+- Also: up to 250 sheets (was 50; the BP bill check makes one per business partner), and sheet
+  names Excel refuses are adjusted (an apostrophe at either end; "History", which Excel reserves).
+- Test with made-up values: control characters in names, notes and sheet names, odd sheet names,
+  84 sheets; the file opens and the text is kept without the bad characters.
+
 ## Several workbooks together: the tool keeps answering while the others are read (18 Nov 2026)
 
 From a log of 17 Nov (four workbooks open: Indian, Sub Contract, Company, Supply) and a report of

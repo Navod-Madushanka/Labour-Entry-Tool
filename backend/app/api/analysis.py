@@ -27,15 +27,26 @@ class Table(BaseModel):
 
 class ExportRequest(BaseModel):
     title: str = Field("Labour analysis", max_length=200)
-    sheets: list[Table] = Field(min_length=1, max_length=50)
+    # one sheet per business partner in the BP bill check: four workbooks together can have many
+    sheets: list[Table] = Field(min_length=1, max_length=250)
 
 
 _BAD = re.compile(r"[\[\]:*?/\\]")
+# Characters an .xlsx cannot hold (control characters, e.g. pasted into a cell from another
+# program): openpyxl refuses the whole file for one of them, so they are dropped.
+_ILLEGAL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def clean(value: Cell) -> Cell:
+    return _ILLEGAL.sub("", value) if isinstance(value, str) else value
 
 
 def sheet_title(name: str, taken: set[str]) -> str:
     """Excel sheet names: at most 31 characters, none of []:*?/\\, unique (case-insensitive)."""
-    base = _BAD.sub(" ", name).strip()[:31] or "Sheet"
+    # Excel also refuses an apostrophe at either end and the name "History" (reserved)
+    base = _BAD.sub(" ", clean(name)).strip().strip("'").strip()[:31] or "Sheet"
+    if base.lower() == "history":
+        base = "History (sheet)"
     title, n = base, 2
     while title.lower() in taken:
         suffix = f" ({n})"
@@ -59,15 +70,16 @@ def build_xlsx(req: ExportRequest) -> bytes:
         ws = wb.create_sheet(sheet_title(t.name, taken))
         r = 1
         if t.note:
-            ws.cell(1, 1, t.note).font = Font(italic=True)
+            ws.cell(1, 1, clean(t.note)).font = Font(italic=True)
             r = 3
         ws.freeze_panes = ws.cell(r + 1, 1)  # the header row stays in view
         for c, label in enumerate(t.columns, 1):
-            cell = ws.cell(r, c, label)
+            cell = ws.cell(r, c, clean(label))
             cell.font, cell.fill = head, fill
         for row in t.rows:
             r += 1
             for c, value in enumerate(row[: len(t.columns)], 1):
+                value = clean(value)
                 cell = ws.cell(r, c, value)
                 if isinstance(value, str) and value.startswith("="):
                     cell.data_type = "s"  # text that looks like a formula stays text
