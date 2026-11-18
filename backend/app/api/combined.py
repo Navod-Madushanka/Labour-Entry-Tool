@@ -32,21 +32,28 @@ async def combined(request: Request, name: list[str] = Query(default=[])) -> JSO
         if (stuck := worker.busy_for()) > STUCK:
             raise HTTPException(503, busy_text(stuck))
 
-        def read(service, workbook=n) -> dict:
+        # One short job per sheet, not one long one: reading a workbook not read yet goes through
+        # Excel sheet by sheet (a minute or more for three workbooks on a slow PC), and one long
+        # job would make every other request meanwhile answer "Excel is busy".
+        def head(service, workbook=n) -> dict:
             master = service.master_view()
-            days = {
-                s: service.day_view(s).model_dump(mode="json", exclude=WITHOUT_CACHED)
-                for s in service.workbook.day_sheet_names()
-            }
             owners = [
                 {"sheet": o.sheet, "calling_name": o.calling_name, "supervisor": o.supervisor}
                 for o in service.audit.owners(service.workbook.name)
             ]
-            return {"workbook": workbook, "master": master.model_dump(mode="json"), "days": days,
-                    "owners": owners}  # fmt: skip
+            return {"workbook": workbook, "master": master.model_dump(mode="json"), "days": {},
+                    "owners": owners, "sheets": service.workbook.day_sheet_names()}  # fmt: skip
+
+        def day(service, sheet) -> dict:
+            return service.day_view(sheet).model_dump(mode="json", exclude=WITHOUT_CACHED)
 
         try:
-            out.append(await asyncio.wait_for(worker.run(read, book.service), EXCEL_WAIT))
+            one = await asyncio.wait_for(worker.run(head, book.service), EXCEL_WAIT)
+            for sheet in one.pop("sheets"):
+                one["days"][sheet] = await asyncio.wait_for(
+                    worker.run(day, book.service, sheet), EXCEL_WAIT
+                )
+            out.append(one)
         except TimeoutError as exc:
             raise HTTPException(504, busy_text(EXCEL_WAIT)) from exc
         except (WorkbookError, KeyError, ValueError) as exc:

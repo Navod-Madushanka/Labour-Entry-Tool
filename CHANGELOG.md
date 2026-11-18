@@ -1,5 +1,20 @@
 # Changelog
 
+## Several workbooks together: the tool keeps answering while the others are read (18 Nov 2026)
+
+From a log of 17 Nov (four workbooks open: Indian, Sub Contract, Company, Supply) and a report of
+errors while trying the BP bill over them. The log itself had no failed request for it (it only
+records server errors and slow calls), but one weakness fits:
+
+- Reading the other workbooks for Analysis (advanced mode) was one long job per workbook on the
+  Excel thread: every day sheet not read yet, through Excel. With three live workbooks on an
+  office PC that is a minute or more, and since 16 Nov a job over 15 s makes every other request
+  answer "Excel is busy…" at once: the status, the automatic reload, the checks of waiting
+  entries. Now each workbook is read one sheet per job, so the rest of the tool keeps answering
+  in between.
+- Test: the other workbook's sheets read slowly; a day request in the middle is answered (it was
+  "Excel is busy" before the change).
+
 ## "Whose manpower sheet is this?" scrolls on small screens (17 Nov 2026)
 
 Asked for: the supervisor pop-up at push should scroll on smaller screens.
