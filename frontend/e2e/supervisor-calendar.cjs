@@ -24,26 +24,37 @@ const SHOTS = process.argv[2];
   await push("5", ["AAA-07"], "Nimal"); await push("7", ["AAA-07"], "Nimal");
 
   await p.goto(BASE + "app/#supervisors");
+  await p.evaluate(() => localStorage.removeItem("labour.sup.cal"));
+  await p.reload();
   await p.locator(".sup-cal").waitFor({ timeout: 30000 });
-  const cell = (sup, day) => p.locator(".sup-cal-grid tbody tr", { has: p.locator(`th:text-is("${sup}") , th:has-text("${sup} ")`) }).locator("td").nth(Number(day) - 1);
-  const read = async (sup, day) => ({ cls: (await cell(sup, day).getAttribute("class")).replace(" last", ""), text: (await cell(sup, day).innerText()).trim() });
-  const k5 = await read("Kamal", 5), k7 = await read("Kamal", 7), n6 = await read("Nimal", 6), n7 = await read("Nimal", 7);
-  console.log("Kamal 5:", k5, "| Kamal 7:", k7, "| Nimal 6:", n6, "| Nimal 7:", n7);
-  if (k5.cls !== "c-full" || !k5.text.startsWith("2")) throw new Error("Kamal's two sheets on the 5th should be full");
-  if (k7.cls !== "c-short" || !k7.text.startsWith("1/2")) throw new Error("Kamal's one sheet on the 7th should be short (1/2)");
-  if (n6.cls !== "c-missing") throw new Error("Nimal's 6th should be missing");
-  if (n7.cls !== "c-full") throw new Error("Nimal's 7th should be full (usually one)");
-  const usual = await p.locator(".sup-cal-grid tbody th", { hasText: "Kamal" }).innerText();
-  console.log("Kamal row head:", usual.replace(/\s+/g, " "), "| today line:", await p.locator(".sup-cal-today").innerText());
-  if (!/×2/.test(usual)) throw new Error("Kamal usually has 2");
-  if (!/Sheet 7.*1 of 2 supervisors complete.*Kamal/.test(await p.locator(".sup-cal-today").innerText())) throw new Error("today line");
-  const foot = await p.locator(".sup-cal-grid tfoot td").nth(5).innerText();
-  console.log("complete on the 6th:", foot);
-  if (SHOTS) await p.locator(".sup-cal").screenshot({ path: `${SHOTS}/supervisor-calendar.png` });
-  // click Kamal on the 5th: that sheet opens below
-  await cell("Kamal", 5).locator("button").click();
+  const list = async () => (await p.locator(".sup-today-list li").allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
+  // opens on the latest day entered (the 7th): Kamal has 1 of his usual 2, Nimal is complete
+  const head = (await p.locator(".sup-today-head").innerText()).replace(/\s+/g, " ");
+  console.log("day 7:", head, "|", (await list()).join(" || "));
+  if (!/1 of 2 supervisors complete/.test(head)) throw new Error("summary for the 7th");
+  const l7 = await list();
+  if (!/Kamal.*1 of 2 sheets entered/.test(l7[0]) || !/Nimal.*Entered · 1 sheet/.test(l7[1])) throw new Error("day 7 lines (short first)");
+  // the day strip: the 6th is part-done, the 5th done; pick the 6th: Nimal not entered comes first
+  const cls = async (d) => p.locator(".sup-day").nth(d - 1).getAttribute("class");
+  console.log("strip 5:", await cls(5), "| 6:", await cls(6));
+  if (!/d-done/.test(await cls(5)) || !/d-part/.test(await cls(6))) throw new Error("day strip colours");
+  await p.locator(".sup-day").nth(5).click();
+  const l6 = await list();
+  console.log("day 6:", l6.join(" || "));
+  if (!/Nimal.*Not entered/.test(l6[0]) || !/Kamal.*Entered · 2 sheets/.test(l6[1])) throw new Error("day 6 lines");
+  if (SHOTS) await p.locator(".sup-cal").screenshot({ path: `${SHOTS}/supervisor-day.png` });
+  // the whole month as a grid
+  await p.getByRole("button", { name: "Whole month" }).click();
+  const cell = (sup, day) => p.locator(".sup-cal-grid tbody tr", { has: p.locator(`th:has-text("${sup} ")`) }).locator("td").nth(Number(day) - 1);
+  const k5 = await cell("Kamal", 5).getAttribute("class"), k7 = await cell("Kamal", 7).innerText(), n6 = await cell("Nimal", 6).getAttribute("class");
+  console.log("grid: Kamal 5", k5, "| Kamal 7", k7, "| Nimal 6", n6);
+  if (k5 !== "c-full" || k7.trim() !== "1/2" || n6 !== "c-missing") throw new Error("month grid");
+  if (SHOTS) await p.locator(".sup-cal").screenshot({ path: `${SHOTS}/supervisor-month.png` });
+  // back to one day and open Kamal's sheet of the 5th
+  await p.locator(".sup-day").nth(4).click();
+  await p.locator(".sup-today-list li", { hasText: "Kamal" }).getByRole("button", { name: "Open" }).click();
   await p.locator('.mp-day[data-sheet="5"][data-supervisor="Kamal"]').waitFor();
-  console.log("click opens Kamal's sheet 5: yes");
+  console.log("Open shows Kamal's sheet 5: yes");
   if (errs.length) throw new Error(errs.join("\n"));
   await b.close();
   console.log("supervisor-calendar e2e: ok");

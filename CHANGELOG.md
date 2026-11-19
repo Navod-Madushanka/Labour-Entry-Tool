@@ -1,5 +1,24 @@
 # Changelog
 
+## Supervisors: "Manpower sheets entered" made clear: one day at a time (19 Nov 2026)
+
+Feedback: the day-by-day grid did not look good or clear enough.
+
+- **One day at a time** (the latest day entered, to start): a line per supervisor with a big
+  coloured status: **✕ Not entered**, **! 1 of 2 sheets entered**, **✓ Entered · 2 sheets**
+  (or day off / not started), the ones still to do first and shaded. Each line says how many
+  sheets they usually hand in, the workers, whether it was checked against the paper, and has an
+  **Open** button for the sheet. Over the list: "Tuesday, October 6 — 1 of 3 supervisors complete"
+  with a progress bar.
+- **A strip of the month's days** above it, each day coloured by how complete it is (green all
+  in, amber some, red none) with "2/3"; click a day to see it.
+- **Whole month**: the grid is still there behind a switch, with bigger cells (✓, 1/3, ✕), the key
+  above it, and day numbers that open that day.
+- Days with entries but no supervisor given (pushed before the tool asked, or typed in Excel) say
+  so instead of looking like a day off. Light, dark and phone widths checked.
+- `e2e/supervisor-calendar.cjs` updated: the day list and its order, the day strip, switching
+  days, the month grid and Open.
+
 ## Supervisors: manpower sheets entered, day by day (18 Nov 2026)
 
 Asked for: a diagram on the Supervisors page showing, for each day, whether each supervisor's
