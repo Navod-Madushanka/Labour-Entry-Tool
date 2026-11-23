@@ -16,6 +16,8 @@ interface Props {
   autoReload: boolean; // read Excel again by itself (back from Excel, every 2 min, the rest every 10)
   onAutoReload: (on: boolean) => void;
   lastRead: Date | null;
+  askSupervisor: boolean; // ask whose manpower sheet it is at push
+  onAskSupervisor: (on: boolean) => void;
 }
 
 const longDate = (iso: string | null | undefined) =>
@@ -30,7 +32,7 @@ const kind = (type: unknown) => {
 
 const FIELD = { H01: "date", H02: "day type", H03: "sheet number" } as Record<string, string>;
 
-export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading, autoReload, onAutoReload, lastRead }: Props) {
+export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, acknowledged, onPick, onAcknowledge, onFix, onReload, reloading, autoReload, onAutoReload, lastRead, askSupervisor, onAskSupervisor }: Props) {
   const h = day?.header;
   const issues = day?.header_issues ?? [];
   const blocking = issues.some((i) => i.severity === "BLOCK");
@@ -93,6 +95,12 @@ export function DayBar({ sheets, sheet, counts, types, disrupted = {}, day, ackn
               · read {lastRead.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
+        </label>
+        <label
+          className="auto-switch small"
+          title="Ticked: Push asks whose manpower sheet it is (for the Supervisors page). Not ticked: Push writes at once, with no supervisor."
+        >
+          <input type="checkbox" checked={askSupervisor} onChange={(e) => onAskSupervisor(e.target.checked)} /> Ask supervisor at push
         </label>
       </div>
       {issues.length > 0 && (

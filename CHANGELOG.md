@@ -1,5 +1,19 @@
 # Changelog
 
+## Choosing a supervisor at push is optional (23 Nov 2026)
+
+Asked for: make entering the supervisor optional, with a tick beside "Reload from Excel".
+
+- **"Ask supervisor at push"** (tick beside Reload from Excel and Auto, remembered on this PC):
+  ticked, Push asks "Whose manpower sheet is this?" as before; not ticked, Push writes at once,
+  with no supervisor and no dialog. A correction of an entry pushed earlier with a supervisor
+  still keeps that supervisor.
+- Ticked unless turned off, so nothing changes until you untick it. Without a supervisor the
+  entries do not show on the Supervisors page and the lost-time question (in the same dialog) is
+  not asked.
+- `e2e/ask-supervisor.cjs` (made-up data): off pushes at once without a supervisor, the choice is
+  remembered, on asks again.
+
 ## Supervisors: "Manpower sheets entered" made clear: one day at a time (19 Nov 2026)
 
 Feedback: the day-by-day grid did not look good or clear enough.

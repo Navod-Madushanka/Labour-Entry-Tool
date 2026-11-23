@@ -138,6 +138,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // turned off on this PC).
   const [autoSave, setAutoSave] = useState(() => store.get("labour.auto.save") !== "0");
   const [autoReload, setAutoReload] = useState(() => store.get("labour.auto.reload") !== "0");
+  // Ask "Whose manpower sheet is this?" at push (tick beside "Reload from Excel"; on unless turned
+  // off on this PC). Off: Push writes at once with no supervisor; a correction of an entry pushed
+  // earlier with a supervisor still keeps that supervisor.
+  const [askSupervisor, setAskSupervisor] = useState(() => store.get("labour.askSupervisor") !== "0");
   const [lastRead, setLastRead] = useState<Date | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null); // why the automatic save waits
@@ -743,7 +747,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               month={month}
               busy={busy}
               ready={queue.length > 0 && queue.every((q) => q.plan && !q.plan.blocking.length && !q.plan.unconfirmed.length)}
-              onWrite={() => setSupervisorOpen(true)}
+              onWrite={() => (askSupervisor ? setSupervisorOpen(true) : commit(false, undefined, undefined, true))}
               onEdit={editQueued}
               onRemove={removeQueued}
               allSheets={master.sheets}
@@ -973,6 +977,11 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
                 store.set("labour.auto.reload", on ? "1" : "0");
               }}
               lastRead={lastRead}
+              askSupervisor={askSupervisor}
+              onAskSupervisor={(on) => {
+                setAskSupervisor(on);
+                store.set("labour.askSupervisor", on ? "1" : "0");
+              }}
             />
             <EntryForm
               master={master}
