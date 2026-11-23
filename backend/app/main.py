@@ -62,6 +62,19 @@ def excel_worker() -> ExcelWorker:
     return ExcelWorker()
 
 
+class AppFiles(StaticFiles):
+    """The built entry UI. The page itself (index.html) is checked with the server every time:
+    after an update (a new build, a git pull) the browser loads the new screen at once instead of
+    an old copy that still points at the old code. The code files have their content's hash in
+    their names, so they never change and are kept by the browser."""
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        hashed = "/assets/" in str(full_path).replace("\\", "/")
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if hashed else "no-cache"
+        return response
+
+
 def create_app(
     config: Config | None = None,
     service_factory: Callable[[Config], EntryService] | None = None,
@@ -178,7 +191,7 @@ def create_app(
     app.include_router(combined.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
-        app.mount("/app", StaticFiles(directory=APP, html=True), name="app")
+        app.mount("/app", AppFiles(directory=APP, html=True), name="app")
 
     @app.get("/", include_in_schema=False)
     def index() -> RedirectResponse:

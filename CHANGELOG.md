@@ -1,5 +1,16 @@
 # Changelog
 
+## The browser always loads the new screen after an update (23 Nov 2026)
+
+Reported: after pulling the latest version the new "Ask supervisor at push" tick did not show.
+
+- The page itself (index.html) was sent without a caching rule, so a browser could keep using
+  an old copy for a while after an update, and an old copy loads the old screen. Now the page is
+  checked with the tool every time it is opened ("no-cache"); the code files have their content's
+  hash in their names and are kept by the browser as before (they never change).
+- To pick up the new screen once, now: restart the tool and press Ctrl+F5 on the page.
+- Test: the page answers "no-cache", the code files "immutable".
+
 ## Choosing a supervisor at push is optional (23 Nov 2026)
 
 Asked for: make entering the supervisor optional, with a tick beside "Reload from Excel".

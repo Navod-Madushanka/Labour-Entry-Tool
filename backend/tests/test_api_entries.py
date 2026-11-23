@@ -248,3 +248,20 @@ def test_a_stuck_excel_does_not_look_like_a_lost_connection(client, fake, monkey
     job.result(5)
     assert client.get("/api/days/1").status_code == 200
     assert client.get("/api/status").json()["excel_busy"] is None
+
+
+def test_the_page_is_never_an_old_copy():
+    """After an update the browser must load the new screen: index.html is checked every time
+    (no-cache); the code files have their hash in the name and can be kept."""
+    import re
+
+    from app.config import Config
+    from app.main import APP, create_app
+
+    if not (APP / "index.html").exists():
+        return  # no built UI here
+    with TestClient(create_app(Config(month="2026-10"))) as c:
+        page = c.get("/app/")
+        assert page.headers["cache-control"] == "no-cache"
+        js = re.search(r"assets/[^\"]+\.js", page.text).group(0)
+        assert "immutable" in c.get(f"/app/{js}").headers["cache-control"]
