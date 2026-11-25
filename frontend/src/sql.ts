@@ -504,7 +504,16 @@ function parseStatement(src: string): Statement {
     }
     return expr();
   };
-  const list = (): Expr[] => { eat("("); const l = [listItem()]; while (accept(",")) l.push(listItem()); eat(")"); return l; };
+  const list = (): Expr[] => {
+    eat("(");
+    // a sub-query ("IN (SELECT …)") is not read here: say so, with what does the usual job
+    if (peek()?.text.toLowerCase() === "select")
+      throw new CommandError("A query inside another (IN (SELECT …)) is not supported. For workers by days worked, the workers table has days_worked (0 for none): SELECT calling_name, days_worked FROM workers WHERE days_worked <= 20.", peek());
+    const l = [listItem()];
+    while (accept(",")) l.push(listItem());
+    eat(")");
+    return l;
+  };
   /** "( a, b )" coming: a list (a comma at its own level), not a bracketed expression. */
   const listAhead = (): boolean => {
     if (peek()?.text !== "(") return false;
@@ -658,6 +667,7 @@ interface Env {
   group: Row[] | null;
   idx?: number; // this row's place among the rows windows run over
   wins?: Map<Expr, Val[]>; // window function values, by expression
+  aliases?: Map<string, Expr>; // HAVING: names given in the SELECT list (… AS days) come first
 }
 
 function colOf(env: Env, e: Expr): ColDef | null {
@@ -668,7 +678,11 @@ function evaluate(e: Expr, env: Env): Val {
   switch (e.k) {
     case "lit": return e.v;
     case "star": return 1;
-    case "col": return env.row[findCol(env.t, e.name).name] ?? null;
+    case "col": {
+      const alias = env.aliases?.get(e.name.toLowerCase());
+      if (alias) return evaluate(alias, { ...env, aliases: undefined });
+      return env.row[findCol(env.t, e.name).name] ?? null;
+    }
     case "neg": { const v = evaluate(e.e, env); return v === null ? null : -Number(v); }
     case "not": return truthy(evaluate(e.e, env)) ? 0 : 1;
     case "isnull": { const v = evaluate(e.e, env); return (v === null || v === "") !== e.neg ? 1 : 0; }
@@ -1189,7 +1203,9 @@ export function runSql(st: Statement, ctx: CommandContext): CommandResult {
       }
       if (!groups.size && !st.group.length) groups.set("[]", []);
       envs = [...groups.values()].map((g) => ({ t, row: g[0] ?? {}, group: g }));
-      if (st.having) envs = envs.filter((env) => truthy(evaluate(st.having!, env)));
+      // HAVING days <= 20 means the SELECT list's "… AS days", not a column also called days
+      const aliases = new Map(items.filter((x) => x.alias).map((x) => [x.alias!.toLowerCase(), x.e] as [string, Expr]));
+      if (st.having) envs = envs.filter((env) => truthy(evaluate(st.having!, { ...env, aliases })));
     } else envs = rows.map((row) => ({ t, row, group: null }));
     // window functions (… OVER (…)) run over these rows, before the SELECT list is worked out
     computeWindows([...items.map((x) => x.e), ...st.order.map((o) => o.e)], envs);

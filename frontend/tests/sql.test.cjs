@@ -332,4 +332,12 @@ t("!= / <> / NOT IN leave a worker out; a misspelt name there stops an UPDATE (i
   assert.match(err("DELETE FROM entries WHERE day = 1 AND calling_name NOT IN ('BBB-01', 'BBB-0x')"), /"BBB-0x" is not a calling name/);
   assert.ok(sql("SELECT calling_name FROM entries WHERE day = 1 AND calling_name != 'BBB=01'").notes.some((x) => /leaves nobody out/.test(x)));
 });
+t("HAVING uses the SELECT list's names (days = the count, not the day column); days_worked; no sub-queries", () => {
+  // every made-up worker has entries on days 1-5
+  assert.equal(sql("SELECT calling_name, COUNT(DISTINCT day) AS days FROM entries GROUP BY calling_name HAVING days <= 4").table.rows.length, 0);
+  assert.equal(sql("SELECT calling_name, COUNT(DISTINCT day) AS days FROM entries GROUP BY calling_name HAVING days <= 5").table.rows.length, 9);
+  assert.equal(sql("SELECT calling_name, COUNT(DISTINCT day) FROM entries GROUP BY calling_name HAVING COUNT(DISTINCT day) <= 4").table.rows.length, 0);
+  assert.deepEqual(sql("SELECT DISTINCT days_worked FROM workers").table.rows, [[5]]);
+  assert.match(err("SELECT calling_name FROM workers WHERE calling_name NOT IN (SELECT calling_name FROM entries)"), /not supported.*days_worked/);
+});
 console.log(`sql: ${n} tests passed`);

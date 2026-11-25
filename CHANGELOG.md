@@ -1,5 +1,16 @@
 # Changelog
 
+## SQL panel: HAVING with a name from the SELECT list; a clear word on sub-queries (25 Nov 2026)
+
+Asked: the SQL to list workers who worked 20 days or less.
+
+- **Fixed**: `HAVING days <= 20` after `COUNT(DISTINCT day) AS days` checked the day column (also
+  called "days") instead of the count, so workers with more days came back too. HAVING now looks
+  at the names given in the SELECT list first, as ORDER BY does.
+- A query inside another (`IN (SELECT …)`) is not supported: it now says so, and points to the
+  workers table's `days_worked` column (which also lists workers with no day at all).
+- Unit tests with made-up data.
+
 ## The browser always loads the new screen after an update (23 Nov 2026)
 
 Reported: after pulling the latest version the new "Ask supervisor at push" tick did not show.
