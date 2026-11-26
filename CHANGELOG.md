@@ -1,5 +1,23 @@
 # Changelog
 
+## Excel's recovered copy: said on every page; never saved somewhere hidden (26 Nov 2026)
+
+From a log of 5–26 Nov, after "the PC froze and I lost data": from 17 Nov 18:12 the tool had been
+working on **"… Supply(AutoRecovered).xlsb"**, the copy Excel opens after a crash, not the
+workbook file. Every push and save for nine days went into that copy; the file "… Supply.xlsb"
+stayed as it was on 17 Nov. Opening the file again on 26 Nov looked like lost work.
+
+- **A red banner on every page** while the open workbook is Excel's recovered copy ("(Auto-
+  Recovered)", "(Recovered)", "[Repaired]") or has never been saved to a file: it says where
+  pushes and saves actually go, that the workbook file is not updated, and what to do (in Excel,
+  File › Save As over the workbook file, then choose it again).
+- **No saving into a hidden place**: a workbook never saved to a file has no folder, and the Excel
+  library then saved it in the tool's own working folder (where nobody looks). Saving such a
+  workbook is now refused, saying to use File › Save As first; auto-save says it is waiting.
+- The status now carries the workbook's file path and whether it is a recovered copy.
+- Tests: the refusal, the recovered-copy names; `e2e/recovered-banner.cjs` (status faked): the
+  banner on every page, none for the normal file.
+
 ## Auto-save done by the tool itself, also for changes typed in Excel (26 Nov 2026)
 
 Reported: the workbook was not saved automatically; the PC froze, had to be restarted, and some

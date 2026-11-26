@@ -208,6 +208,8 @@ class Status(BaseModel):
     autosave: bool = True  # the tool saves the workbook by itself (switch beside "Save Excel file")
     saved_at: dt.datetime | None = None  # the latest save from the tool
     save_note: str | None = None  # why the latest automatic save did not happen (Excel busy…)
+    file_path: str | None = None  # where the workbook is saved (None: never saved to a file)
+    recovered_copy: bool = False  # Excel's recovered copy ("… (AutoRecovered).xlsb"), not the file
 
 
 class WorkerView(BaseModel):
@@ -444,8 +446,16 @@ class EntryService:
             return Status(connected=False, mode=self.mode, error=str(exc))
         name = wb.status_name() if hasattr(wb, "status_name") else wb.name
         backup = self.backups.session_backup(name)
+        # where it is saved: asked again only when the name changes (Save As)
+        if getattr(self, "_path_of", (None, None))[0] != name:
+            try:
+                path = getattr(wb, "full_path", None)
+            except WorkbookError:
+                path = None
+            self._path_of = (name, str(path) if path else None)
         return Status(connected=True, mode=self.mode, workbook=name, saved_at=self.saved_at,
-                      save_note=self.save_note,
+                      save_note=self.save_note, file_path=self._path_of[1],
+                      recovered_copy=is_recovered_copy(name),
                       unsaved_changes=self.unsaved,
                       backup=str(backup) if backup else None)  # fmt: skip
 
@@ -1277,6 +1287,15 @@ def entry_as_input(e: Entry, overwrite: bool = False) -> EntryInput:
         activities=[ActivityInput(code=text(a.code), hours=as_number(a.hours))
                     for a in e.activities if not (is_blank(a.code) and is_blank(a.hours))],
     )  # fmt: skip
+
+
+_RECOVERED = re.compile(r"\((auto ?recovered|recovered|autosaved)\)|\[repaired\]|version \d+\.xls", re.I)
+
+
+def is_recovered_copy(name: str) -> bool:
+    """Excel's copy after a crash ("Supply(AutoRecovered).xlsb", "… [Repaired]"), not the file
+    people keep working on: saving it does not change their workbook."""
+    return bool(_RECOVERED.search(name or ""))
 
 
 def clean_name(name: str) -> str:

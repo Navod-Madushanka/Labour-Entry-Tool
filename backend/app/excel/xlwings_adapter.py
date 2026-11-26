@@ -452,6 +452,13 @@ class XlwingsWorkbook:
             time.sleep(0.25)
 
     def save(self) -> None:
+        # A workbook never saved to a file (Excel's recovered copy, a new book) has no folder:
+        # xlwings would then save it in the tool's own working folder, where nobody looks.
+        if self.full_path is None:
+            raise WorkbookError(
+                f"{self.name} has never been saved to a file (Excel's recovered copy?). In Excel, "
+                "use File > Save As and save it over your workbook file, then choose it again here."
+            )
         self._com(self.book.save)
 
     def has_unsaved_changes(self) -> bool:

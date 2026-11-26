@@ -158,6 +158,7 @@ class App:
 class Book:
     def __init__(self, fake):
         self.fake, self.app, self.name = fake, App(), fake.name
+        self.fullname = f"C:\\Labour\\{fake.name}"  # saved to a file (a recovered copy has none)
         self.saved, self.copies = 0, []
         self.api = type("Api", (), {"SaveCopyAs": lambda _, p: self.copies.append(p)})()
 
@@ -559,3 +560,15 @@ def test_member_not_found_is_excel_busy_and_unknown_interface_is_excel_gone():
 
     assert isinstance(xa.translate_com_error(Com(-2147352573, "Member not found.")), WorkbookBusyError)
     assert isinstance(xa.translate_com_error(Com(-2147023179, "The interface is unknown.")), NotConnectedError)
+
+
+def test_a_workbook_never_saved_to_a_file_is_not_saved_somewhere_hidden(book):
+    """Excel's recovered copy has no folder: xlwings would save it in the tool's own folder, where
+    nobody looks (seen: nine days of work saved there). Refused, with what to do."""
+    from app.excel.adapter import WorkbookError
+
+    book.fullname = "Labour Entry Sheet November 2026 - Supply(AutoRecovered).xlsb"  # no folder
+    wb = xa.XlwingsWorkbook(book, book.fake.template, busy_timeout=1)
+    with pytest.raises(WorkbookError, match="never been saved to a file.*Save As"):
+        wb.save()
+    assert book.saved == 0

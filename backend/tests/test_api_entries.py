@@ -34,7 +34,8 @@ def test_status(client, fake):
     body = client.get("/api/status").json()
     assert body == {"connected": True, "mode": "live", "workbook": fake.name, "error": None,
                     "unsaved_changes": False, "backup": None, "excel_busy": None,
-                    "autosave": True, "saved_at": None, "save_note": None}  # fmt: skip
+                    "autosave": True, "saved_at": None, "save_note": None,
+                    "file_path": None, "recovered_copy": False}  # fmt: skip
 
 
 def test_preview_writes_nothing(client, fake):

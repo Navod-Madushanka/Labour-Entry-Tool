@@ -820,6 +820,21 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           },
         }}
       />
+      {status?.connected && status.mode === "live" && (status.recovered_copy || !status.file_path) && (
+        <div className="recovered-banner" role="alert">
+          <b>⚠ {status.recovered_copy ? "This is Excel's recovered copy, not your workbook file" : "This workbook has never been saved to a file"}:</b>{" "}
+          {status.workbook}.{" "}
+          {status.file_path ? (
+            <>
+              Pushes and saves go into <code>{status.file_path}</code>, and your own workbook file is <b>not</b> updated.
+            </>
+          ) : (
+            <>Nothing can be saved until it has a file.</>
+          )}{" "}
+          In Excel: <b>File › Save As</b>, save it over your workbook file (replace it), then choose that workbook again on the start page
+          (Check workbook).
+        </div>
+      )}
       {story && (
         <StoryNote
           award={story}

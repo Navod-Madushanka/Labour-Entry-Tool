@@ -1621,3 +1621,7 @@ button.sup-cal-cell { cursor: pointer; } button.sup-cal-cell:hover { outline: 2p
 .sup-cal-legend { margin: 10px 0 0; }
 .sup-today-sum { flex-wrap: wrap; } .sup-today-sum .big { white-space: nowrap; }
 @media (max-width: 520px) { .sup-today-sum .bar { width: 100%; } }
+
+/* Working on Excel's recovered copy (or a workbook never saved to a file): said on every page */
+.recovered-banner { padding: 10px 16px; background: var(--critical-bg); color: var(--critical); border-bottom: 2px solid var(--critical); font-size: 14px; line-height: 1.5; }
+.recovered-banner code { color: var(--text); background: var(--panel); padding: 1px 5px; border-radius: 4px; word-break: break-all; }

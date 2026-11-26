@@ -25,6 +25,8 @@ export interface Status {
   autosave?: boolean; // the tool saves the workbook by itself
   saved_at?: string | null; // the latest save from the tool
   save_note?: string | null; // why the latest automatic save did not happen
+  file_path?: string | null; // where the workbook is saved (null: never saved to a file)
+  recovered_copy?: boolean; // Excel's recovered copy ("… (AutoRecovered).xlsb")
 }
 
 export type CodeStatus = "valid" | "missing" | "error" | "zero" | "invalid";
