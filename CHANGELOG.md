@@ -1,5 +1,28 @@
 # Changelog
 
+## Auto-save done by the tool itself, also for changes typed in Excel (26 Nov 2026)
+
+Reported: the workbook was not saved automatically; the PC froze, had to be restarted, and some
+work was lost.
+
+- **The gaps**: auto-save ran in the browser page. It saved only when the page noticed a write:
+  a write the page did not follow (medical leave, employee codes, added activity codes, time
+  cards) waited for its status check, which pauses while the tool is minimised or behind Excel.
+  So after a push and a switch to Excel the save could wait until you came back. And nothing
+  typed straight into Excel was ever saved by the tool.
+- **Now the tool saves by itself**, whether the page is open, hidden or closed:
+  - a few seconds after any write by the tool (push, undo, header fix, codes, medical leave…);
+  - every 2 minutes, if Excel says the workbook holds unsaved changes, including ones typed in
+    Excel;
+  - only while no push or read is running; Excel busy (a cell being edited, a dialog open):
+    tried again 30 s later, and the status bar says "Auto-save waiting".
+- The **Auto-save** tick beside "Save Excel file" is now the tool's own setting (kept in its
+  settings file, so it holds with the page closed). On unless turned off. "✓ Saved 10:42" shows
+  the tool's latest save. The backup made before the first write of the session is untouched.
+- Tests: saved after a push without the page, the switch, Excel's own unsaved changes, Excel busy
+  (retried, said); `e2e/autosave-no-page.cjs`: a push through the API with no page open is saved
+  within seconds.
+
 ## SQL panel: HAVING with a name from the SELECT list; a clear word on sub-queries (25 Nov 2026)
 
 Asked: the SQL to list workers who worked 20 days or less.

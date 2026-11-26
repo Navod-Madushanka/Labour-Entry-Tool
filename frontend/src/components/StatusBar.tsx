@@ -88,7 +88,7 @@ export function StatusBar(props: Props) {
       <button onClick={onSave} disabled={!status?.connected || !status.unsaved_changes}>
         Save Excel file
       </button>
-      <label className="auto-switch small" title="Save the workbook by itself a few seconds after the tool writes to Excel (a push, an undo, a fix)">
+      <label className="auto-switch small" title="The tool saves the workbook by itself: a few seconds after it writes to Excel (a push, an undo, a fix), and every 2 minutes if Excel holds unsaved changes (also ones typed in Excel). Works with this page closed too.">
         <input type="checkbox" checked={autoSave} onChange={(e) => onAutoSave(e.target.checked)} /> Auto-save
       </label>
       <button

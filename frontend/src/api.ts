@@ -22,6 +22,9 @@ export interface Status {
   unsaved_changes: boolean;
   backup: string | null;
   excel_busy?: number | null; // seconds Excel has been busy with a job (not answering yet)
+  autosave?: boolean; // the tool saves the workbook by itself
+  saved_at?: string | null; // the latest save from the tool
+  save_note?: string | null; // why the latest automatic save did not happen
 }
 
 export type CodeStatus = "valid" | "missing" | "error" | "zero" | "invalid";
@@ -535,6 +538,7 @@ export const api = {
     return res.blob();
   },
   status: () => call<Status>("GET", "/api/status"),
+  setAutosave: (on: boolean) => call<{ autosave: boolean }>("POST", "/api/autosave", { on }),
   // Analysis, advanced mode: several open workbooks at once (read-only)
   combined: (names: string[]) =>
     call<{ books: { workbook: string; master: Master; days: Record<string, DayView>; owners: { sheet: string; calling_name: string; supervisor: string }[] }[]; notes: string[] }>(

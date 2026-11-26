@@ -454,6 +454,11 @@ class XlwingsWorkbook:
     def save(self) -> None:
         self._com(self.book.save)
 
+    def has_unsaved_changes(self) -> bool:
+        """Excel's own flag: anything changed since the workbook was last saved (typed in Excel
+        or written by the tool). Asked briefly: a busy Excel answers next time."""
+        return not self._com(lambda: self.book.api.Saved, timeout=2.0)
+
     def save_copy(self, path: Path) -> None:
         path = Path(path).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)

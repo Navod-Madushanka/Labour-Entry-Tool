@@ -205,6 +205,9 @@ class Status(BaseModel):
     unsaved_changes: bool = False
     backup: str | None = None
     excel_busy: float | None = None  # seconds Excel has been busy with a job (not answering yet)
+    autosave: bool = True  # the tool saves the workbook by itself (switch beside "Save Excel file")
+    saved_at: dt.datetime | None = None  # the latest save from the tool
+    save_note: str | None = None  # why the latest automatic save did not happen (Excel busy…)
 
 
 class WorkerView(BaseModel):
@@ -287,8 +290,22 @@ class EntryService:
         self._workbook: LiveWorkbook | None = None
         self._master: MasterData | None = None
         self._days: dict[str, DaySheet] = {}
-        self.unsaved = False
+        self._unsaved = False
+        self.last_write = 0.0  # time.monotonic() of the latest write by the tool (automatic save)
+        self.saved_at: dt.datetime | None = None  # the latest save of the workbook from the tool
+        self.save_note: str | None = None  # why the latest automatic save did not happen
         self._last_reread = float("-inf")
+
+    @property
+    def unsaved(self) -> bool:
+        """The tool has written to Excel since the workbook was last saved."""
+        return self._unsaved
+
+    @unsaved.setter
+    def unsaved(self, value: bool) -> None:
+        if value:
+            self.last_write = time.monotonic()
+        self._unsaved = value
 
     # --- connection ---
 
@@ -427,7 +444,8 @@ class EntryService:
             return Status(connected=False, mode=self.mode, error=str(exc))
         name = wb.status_name() if hasattr(wb, "status_name") else wb.name
         backup = self.backups.session_backup(name)
-        return Status(connected=True, mode=self.mode, workbook=name,
+        return Status(connected=True, mode=self.mode, workbook=name, saved_at=self.saved_at,
+                      save_note=self.save_note,
                       unsaved_changes=self.unsaved,
                       backup=str(backup) if backup else None)  # fmt: skip
 
@@ -1236,6 +1254,14 @@ class EntryService:
     def save(self) -> None:
         self.workbook.save()
         self.unsaved = False
+        self.saved_at = dt.datetime.now().astimezone()
+        self.save_note = None
+
+    def excel_has_changes(self) -> bool:
+        """Excel itself holds changes not saved yet (typed in Excel, or the tool's): its Saved
+        flag. False where that cannot be asked (practice copies)."""
+        ask = getattr(self.workbook, "has_unsaved_changes", None)
+        return bool(ask()) if ask else False
 
     def recent_batches(self, limit: int = 20) -> list[Batch]:
         return self.audit.recent(limit, workbook=self.workbook.name)

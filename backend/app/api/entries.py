@@ -124,11 +124,28 @@ async def get_status(request: Request) -> Status:
     # Polled every 10 s: while Excel is busy with a job, answer from the last status at once (with
     # how long Excel has been busy) instead of queueing a call into Excel behind it.
     last: Status | None = getattr(request.app.state, "last_status", None)
+    from app import autosave
+
+    on = autosave.enabled(request.app)
     if (busy := request.app.state.get_worker().busy_for()) > 3 and last is not None and last.connected:
-        return last.model_copy(update={"excel_busy": round(busy)})
+        return last.model_copy(update={"excel_busy": round(busy), "autosave": on})
     status = await run_service(request, lambda s: s.status())
+    status.autosave = on
     request.app.state.last_status = status
     return status
+
+
+class AutosaveRequest(BaseModel):
+    on: bool
+
+
+@router.post("/autosave")
+def set_autosave(body: AutosaveRequest, request: Request) -> dict:
+    """The "Auto-save" switch: kept in the tool's settings (works with the page closed too)."""
+    from app import autosave
+
+    autosave.set_enabled(request.app, body.on)
+    return {"autosave": body.on}
 
 
 def unchanged_or_json(request: Request, view: BaseModel, exclude: Any = None) -> Response:

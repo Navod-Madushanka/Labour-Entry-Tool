@@ -136,15 +136,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const syncing = useRef(false);
   // Automatic save and reload (switches beside "Save Excel file" and "Reload from Excel"; on unless
   // turned off on this PC).
-  const [autoSave, setAutoSave] = useState(() => store.get("labour.auto.save") !== "0");
+  const autoSave = status?.autosave ?? true;
   const [autoReload, setAutoReload] = useState(() => store.get("labour.auto.reload") !== "0");
   // Ask "Whose manpower sheet is this?" at push (tick beside "Reload from Excel"; on unless turned
   // off on this PC). Off: Push writes at once with no supervisor; a correction of an entry pushed
   // earlier with a supervisor still keeps that supervisor.
   const [askSupervisor, setAskSupervisor] = useState(() => store.get("labour.askSupervisor") !== "0");
   const [lastRead, setLastRead] = useState<Date | null>(null);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [saveNote, setSaveNote] = useState<string | null>(null); // why the automatic save waits
   useEffect(() => {
     const sync = () => {
       // Not while the last re-read is still on its way (on a slow PC reading through Excel can
@@ -518,40 +516,15 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
     try {
       await api.save();
       setMessage("Workbook saved.");
-      setSavedAt(new Date());
-      setSaveNote(null);
       refreshStatus();
     } catch (e) {
       fail(e);
     }
   };
 
-  // Automatic save: a few seconds after the tool has written to Excel (a push, an undo, a header
-  // fix, codes), the workbook is saved, as "Save Excel file" does. Not while a push is running;
-  // Excel busy (a cell being edited, a dialog open): tried again a little later, quietly. The
-  // backup made before the first write of the session stays as it was.
-  const [saveRetry, setSaveRetry] = useState(0);
-  useEffect(() => {
-    if (!autoSave || !status?.connected || !status.unsaved_changes || busy) return;
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        await api.save();
-        if (cancelled) return;
-        setSavedAt(new Date());
-        setSaveNote(null);
-        refreshStatus();
-      } catch (e) {
-        if (cancelled) return;
-        setSaveNote(`Auto-save waiting: ${e instanceof Error ? e.message : String(e)}`);
-        setTimeout(() => setSaveRetry((n) => n + 1), 30_000);
-      }
-    }, 4000);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [autoSave, status?.connected, status?.unsaved_changes, busy, saveRetry, refreshStatus]);
+  // Automatic save is done by the tool itself (backend/app/autosave.py): a few seconds after any
+  // write, and whenever Excel holds unsaved changes, even with this page closed or behind Excel.
+  // The page only shows it (status) and sets the switch.
 
   // Commands: the month as loaded plus the queue are the current state; results only go to the queue.
   const commandCtx = useMemo((): CommandContext | null => {
@@ -821,11 +794,11 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         onSave={save}
         autoSave={autoSave}
         onAutoSave={(on) => {
-          setAutoSave(on);
-          store.set("labour.auto.save", on ? "1" : "0");
+          setStatus((st) => (st ? { ...st, autosave: on } : st));
+          api.setAutosave(on).then(refreshStatus).catch(fail);
         }}
-        savedAt={savedAt}
-        saveNote={autoSave ? saveNote : null}
+        savedAt={status?.saved_at ? new Date(status.saved_at) : null}
+        saveNote={autoSave ? (status?.save_note ?? null) : null}
         onChangeUser={() => setAskName(true)}
         onChangeWorkbook={() => leave(onChangeWorkbook)}
         books={books}

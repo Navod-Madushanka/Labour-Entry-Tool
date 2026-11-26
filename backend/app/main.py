@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import sys
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -87,8 +89,16 @@ def create_app(
         import asyncio
 
         evening = asyncio.create_task(report.scheduler(app))  # the PM and QS report (#10)
+        from app import autosave
+
+        # saves the workbooks (switch: Auto-save); not under the test runner, whose tests call
+        # autosave.tick themselves (a save at a random moment would upset the others)
+        saver = asyncio.create_task(
+            autosave.run(app) if "PYTEST_CURRENT_TEST" not in os.environ else asyncio.sleep(0)
+        )
         yield
         evening.cancel()
+        saver.cancel()
         if app.state.worker is not None:
             app.state.worker.stop()
         app.state.session.cleanup()
