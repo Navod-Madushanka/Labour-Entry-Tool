@@ -297,6 +297,8 @@ class EntryService:
         self.last_write = 0.0  # time.monotonic() of the latest write by the tool (automatic save)
         self.saved_at: dt.datetime | None = None  # the latest save of the workbook from the tool
         self.save_note: str | None = None  # why the latest automatic save did not happen
+        self.snapshot_at: dt.datetime | None = None  # the latest whole copy (app/snapshots.py)
+        self.snapshot_note: str | None = None  # why the latest copy did not happen
         # when this session started: pushes before it and newer than the file's latest save are
         # missing from the file (save tracking, app/recovery.py)
         self.started_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")

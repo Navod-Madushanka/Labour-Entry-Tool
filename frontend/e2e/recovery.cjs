@@ -42,6 +42,14 @@ const SHOTS = process.argv[2];
   await dlg.locator(".recovery-sum").waitFor();
   if (!(await dlg.getByLabel("Recover AAA-04 on sheet 12").isChecked() === false)) throw new Error("already waiting: not ticked again");
   console.log("Recover… link opens it; the entry already waiting is not ticked again: yes");
+  // whole copies (not faked): make one now, it is listed
+  const snaps = dlg.locator("details.snapshots");
+  await snaps.waitFor();
+  const before = await snaps.locator(".snapshot-list tr").count();
+  await snaps.getByRole("button", { name: "Make a copy now" }).click();
+  await p.waitForFunction((n) => document.querySelectorAll("details.snapshots .snapshot-list tr").length === n + 1, before, { timeout: 15000 });
+  console.log("copies listed:", before, "->", before + 1, "|", (await snaps.locator(".snapshot-list tr").first().innerText()).replace(/\s+/g, " "));
+  if (SHOTS) await dlg.screenshot({ path: `${SHOTS}/recovery-snapshots.png` });
   if (errs.length) throw new Error(errs.join("\n"));
   await b.close();
   console.log("recovery e2e: ok");

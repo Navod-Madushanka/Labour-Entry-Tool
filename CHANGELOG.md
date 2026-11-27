@@ -1,5 +1,24 @@
 # Changelog
 
+## Rolling snapshots: whole copies of the workbook kept by the tool (27 Nov 2026)
+
+Recovery option 2: for what the change log cannot know (typed straight into Excel).
+
+- Every **10 minutes**, when the workbook **changed** since the last copy (the tool wrote to it,
+  it was saved, or Excel holds unsaved changes), the tool saves a **whole copy** with Excel's
+  "save a copy": the workbook in use, its name and its saved state are not touched. Only while
+  the Excel thread is free (never in the middle of a push or a read); Excel busy: tried again
+  half a minute later. Live workbooks only (not practice copies).
+- Kept in `Labour Entry Tool\snapshots\<workbook>\` (its recovered copy shares the folder): the
+  **newest 12** (about two hours of work), plus the **newest of each day for 14 days**, and never
+  more than **400 MB** per workbook (the oldest go first).
+- In **Recover…**: "Whole copies of the workbook": the list (time, size) with **Open** (opens the
+  copy in Excel as a separate workbook, to copy from), **Make a copy now**, **Show folder**, and the
+  switch (on unless turned off; kept in the tool's settings).
+- Tests: a copy when changed (by the tool, or typed in Excel) and not otherwise, once per
+  interval; the switch, a copy by hand, nothing opened outside the folder; the keeping rules and
+  the size limit; `e2e/recovery.cjs` makes a copy from the dialog.
+
 ## Recover pushed entries from the tool's own change log; save tracking (27 Nov 2026)
 
 Asked for (options 1 + 4 of the recovery research): the tool's own recovery, better than Excel's

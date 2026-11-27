@@ -30,6 +30,15 @@ export interface Status {
   missing_pushes?: { count: number; first: string; last: string; saved_at: string } | null; // pushes this file has not got
 }
 
+/** Rolling snapshots: whole copies of the workbook (backend/app/snapshots.py). */
+export interface SnapshotsView {
+  on: boolean;
+  every_min: number;
+  folder: string;
+  note: string | null;
+  items: { file: string; at: string; size_mb: number }[];
+}
+
 /** Recovery from the tool's change log (backend/app/recovery.py). */
 export interface RecoveryResult {
   workbook: string;
@@ -553,6 +562,10 @@ export const api = {
   },
   status: () => call<Status>("GET", "/api/status"),
   recovery: () => call<RecoveryResult>("GET", "/api/recovery"),
+  snapshots: () => call<SnapshotsView>("GET", "/api/snapshots"),
+  snapshotsSwitch: (on: boolean) => call<SnapshotsView>("POST", "/api/snapshots/switch", { on }),
+  snapshotTake: () => call<SnapshotsView>("POST", "/api/snapshots/take"),
+  snapshotOpen: (file?: string) => call<{ opened: string }>("POST", "/api/snapshots/open", { file: file ?? null }),
   setAutosave: (on: boolean) => call<{ autosave: boolean }>("POST", "/api/autosave", { on }),
   // Analysis, advanced mode: several open workbooks at once (read-only)
   combined: (names: string[]) =>

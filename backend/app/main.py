@@ -19,6 +19,7 @@ from app.api import (
     bpbill,
     combined,
     recovery,
+    snapshots as snapshots_api,
     entries,
     health,
     registration,
@@ -201,6 +202,7 @@ def create_app(
     app.include_router(bpbill.router)
     app.include_router(combined.router)
     app.include_router(recovery.router)
+    app.include_router(snapshots_api.router)
 
     if (APP / "index.html").exists():  # the built entry UI (frontend/, `npm run build`)
         app.mount("/app", AppFiles(directory=APP, html=True), name="app")

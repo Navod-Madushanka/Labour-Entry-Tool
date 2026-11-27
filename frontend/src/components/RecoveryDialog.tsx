@@ -3,7 +3,7 @@
 // file) are listed and go back onto the manpower sheet, to check and push again. Entries changed
 // in Excel since are shown, never touched. Nothing is written here.
 import { useEffect, useState } from "react";
-import { api, type EntryInput, type RecoveryResult } from "../api";
+import { api, type EntryInput, type RecoveryResult, type SnapshotsView } from "../api";
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -139,6 +139,7 @@ export function RecoveryDialog({ waiting, onRestore, onClose }: {
                 </ul>
               </details>
             )}
+            <Snapshots />
             <div className="actions">
               <button
                 className="primary"
@@ -155,5 +156,77 @@ export function RecoveryDialog({ waiting, onRestore, onClose }: {
         )}
       </div>
     </div>
+  );
+}
+
+/** Whole copies of the workbook, kept by the tool every few minutes when it changed: for what
+ * the change log cannot know (typed straight into Excel). Opened as a separate workbook. */
+function Snapshots() {
+  const [v, setV] = useState<SnapshotsView | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async (f: () => Promise<SnapshotsView | unknown>, after?: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await f();
+      if (r && typeof r === "object" && "items" in r) setV(r as SnapshotsView);
+      if (after) setMsg(after);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    api.snapshots().then(setV, (e) => setMsg(e instanceof Error ? e.message : String(e)));
+  }, []);
+  if (!v) return msg ? <p className="error-text small">{msg}</p> : null;
+  return (
+    <details className="snapshots" open>
+      <summary>
+        Whole copies of the workbook <span className="muted small">({v.items.length})</span>
+      </summary>
+      <p className="muted small">
+        Also for what the change log cannot know (typed straight into Excel): every {v.every_min} minutes, when the workbook changed, the
+        tool keeps a whole copy (the newest 12, plus one a day for two weeks). A copy opens as a separate workbook: copy what you need
+        from it; the workbook in use is not touched. Kept in <code>{v.folder}</code>.
+      </p>
+      <label className="check small">
+        <input type="checkbox" checked={v.on} disabled={busy} onChange={(e) => run(() => api.snapshotsSwitch(e.target.checked))} /> Keep a
+        copy every {v.every_min} minutes when the workbook changed
+      </label>
+      {v.note && <p className="warn-text small">{v.note}</p>}
+      {v.items.length ? (
+        <div className="table-wrap snapshot-list">
+          <table className="data">
+            <tbody>
+              {v.items.map((s) => (
+                <tr key={s.file}>
+                  <td>{when(s.at)}</td>
+                  <td className="muted small">{s.size_mb} MB</td>
+                  <td>
+                    <button className="small" disabled={busy} onClick={() => run(() => api.snapshotOpen(s.file), `Opened ${s.file} in Excel.`)}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="muted small">No copies yet.</p>
+      )}
+      <div className="row">
+        <button className="small" disabled={busy} onClick={() => run(() => api.snapshotTake(), "A copy was made.")}>
+          Make a copy now
+        </button>
+        <button className="link small" disabled={busy} onClick={() => run(() => api.snapshotOpen(), "Opened the folder.")}>
+          Show folder
+        </button>
+      </div>
+      {msg && <p className="small muted">{msg}</p>}
+    </details>
   );
 }

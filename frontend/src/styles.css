@@ -1632,3 +1632,7 @@ button.sup-cal-cell { cursor: pointer; } button.sup-cal-cell:hover { outline: 2p
 .recovery-sum .ok b { color: var(--positive); } .recovery-sum .bad b { color: var(--critical); }
 .recovery-sum b { font-size: 20px; }
 .recovery-table { max-height: 46vh; overflow: auto; }
+.recovery-dialog .snapshots { margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--row); }
+.recovery-dialog .snapshots summary { cursor: pointer; font-weight: 600; }
+.recovery-dialog .snapshots code { word-break: break-all; }
+.snapshot-list { max-height: 200px; overflow: auto; margin: 6px 0; }
