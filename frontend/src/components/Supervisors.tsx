@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type Master, type Owned, type Review, type Supervisor } from "../api";
+import { api, type DayView, type EntryInput, type Master, type Owned, type Review, type Supervisor } from "../api";
 import type { Month } from "../history";
 import { fingerprint, ManpowerRecord, recordColumns } from "./ManpowerSheet";
 import { CardHelp } from "./CardHelp";
@@ -43,7 +43,35 @@ const dayText = (iso: string | null | undefined) =>
 
 /** Each day's entries by supervisor (whose manpower sheet they came from, given at push): find a
  * supervisor's sheet again and compare it with the paper. */
-export function Supervisors({ master, month, user }: { master: Master; month: Month; user: string }) {
+/** A worker's entry as it is in Excel now (as pushed when it is not there any more): to change it
+ * on the manpower sheet and push again (it replaces what is in Excel). */
+export function editInput(o: Owned, day: DayView | undefined): EntryInput {
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+  const v = day?.entries.find((e) => e.entry.calling_name === o.calling_name)?.entry;
+  if (!v) return { ...o.entry, sheet: o.sheet, calling_name: o.calling_name, overwrite: !day, acknowledged: [] };
+  return {
+    sheet: o.sheet,
+    calling_name: o.calling_name,
+    time_in: num(v.time_in),
+    time_out: num(v.time_out),
+    activities: v.activities
+      .filter((a) => (typeof a.code === "string" && a.code.trim()) || typeof a.hours === "number")
+      .map((a) => ({ code: typeof a.code === "string" ? a.code.trim() : null, hours: num(a.hours) })),
+    additional: num(v.additional),
+    remark: v.remark === null || v.remark === undefined || v.remark === "" ? null : String(v.remark),
+    overwrite: true,
+    acknowledged: [],
+  };
+}
+
+export function Supervisors({ master, month, user, waiting = new Set(), onEdit, editor }: {
+  master: Master;
+  month: Month;
+  user: string;
+  waiting?: Set<string>; // "sheet|calling name" already on the manpower sheet
+  onEdit?: (inputs: EntryInput[]) => void; // a sheet onto the manpower sheet, to change and push
+  editor?: React.ReactNode; // the manpower sheet of waiting entries, with Push
+}) {
   const [owned, setOwned] = useState<Owned[] | null>(null);
   const [names, setNames] = useState<Supervisor[]>([]);
   const [who, setWho] = useState(""); // "" = everyone
@@ -465,6 +493,7 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
             </p>
           )}
 
+          {editor}
           <div className="manpower-pages">
             {shown
               .filter((g) => visible.includes(g.key))
@@ -514,6 +543,25 @@ export function Supervisors({ master, month, user }: { master: Master; month: Mo
                           >
                             ⚠ No, something is different…
                           </button>
+                          {onEdit && (() => {
+                            const left = g.owned.filter((o) => !waiting.has(`${o.sheet}|${o.calling_name}`));
+                            return left.length ? (
+                              <button
+                                className="small sup-edit"
+                                title="Put this sheet on the manpower sheet below: change times, hours or codes there, then push"
+                                onClick={() => onEdit(left.map((o) => editInput(o, month[g.sheet])))}
+                              >
+                                ✎ Edit this sheet
+                              </button>
+                            ) : (
+                              <button
+                                className="link small"
+                                onClick={() => document.getElementById("sup-manpower")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                              >
+                                ✎ Being edited below
+                              </button>
+                            );
+                          })()}
                           {st.review && (
                             <button className="link small" onClick={() => review(g, "cleared")}>
                               Undo my answer

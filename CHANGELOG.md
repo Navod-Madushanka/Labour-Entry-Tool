@@ -1,5 +1,15 @@
 # Changelog
 
+## Supervisors: edit a supervisor's sheet in place (27 Nov 2026)
+
+- Each opened sheet on the Supervisors page has **✎ Edit this sheet**: its workers, as they are
+  in Excel now, go onto the editable manpower sheet right under the list (the same one as on
+  the Entry page: change In/Out, hours, tick or add codes, remove a worker), then **Push**.
+- The pushed changes replace what is in Excel and stay that supervisor's sheet (the dialog
+  keeps the supervisor for corrections). Workers already waiting on the manpower sheet are not
+  replaced; once all are there the button reads **✎ Being edited below**.
+- Browser test: `e2e/supervisor-edit.cjs`.
+
 ## Rolling snapshots: whole copies of the workbook kept by the tool (27 Nov 2026)
 
 Recovery option 2: for what the change log cannot know (typed straight into Excel).

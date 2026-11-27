@@ -90,6 +90,10 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   const [codesTab, setCodesTab] = useState<CodesTab>(() => codesTabOf(window.location.hash));
   const [story, setStory] = useState<Award | null>(null); // the corner note after a push
   const [supervisorOpen, setSupervisorOpen] = useState(false); // "whose manpower sheet?" at push
+  const [supEditing, setSupEditing] = useState(false); // a sheet was put on the manpower sheet from Supervisors
+  useEffect(() => {
+    if (page !== "supervisors") setSupEditing(false);
+  }, [page]);
   const [lostItems, setLostItems] = useState<Lost[]>([]); // lost-time reasons and day disruptions
   // whose manpower sheet each pushed entry came from: the SQL supervisor column, and kept at push
   const [owned, setOwned] = useState<Owned[]>([]);
@@ -909,7 +913,27 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         ) : page === "analysis" ? (
           <Analysis master={master} month={month} loaded={Object.keys(month).length} total={master.sheets.length} onMasterChanged={() => api.master(true).then(setMaster).catch(fail)} user={user} books={books} />
         ) : page === "supervisors" ? (
-          <Supervisors master={master} month={month} user={user} />
+          <Supervisors
+            master={master}
+            month={month}
+            user={user}
+            waiting={new Set(queue.map((q) => `${q.input.sheet}|${q.input.calling_name}`))}
+            onEdit={(inputs) => {
+              // a supervisor's sheet onto the manpower sheet (here, under the list): change, push
+              const waiting = new Set(queue.map((q) => `${q.input.sheet}|${q.input.calling_name}`));
+              const add = inputs.filter((i) => !waiting.has(`${i.sheet}|${i.calling_name}`));
+              if (add.length) addToQueue(add);
+              setSupEditing(true);
+              setTimeout(() => document.getElementById("sup-manpower")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+            }}
+            editor={
+              queue.length > 0 || (result && supEditing) ? (
+                <section className="sql-manpower" id="sup-manpower" aria-label="Waiting to go to Excel">
+                  {pushArea}
+                </section>
+              ) : null
+            }
+          />
         ) : page === "cards" ? (
           <TimeCards master={master} month={month} user={user} />
         ) : page === "codes" ? (
