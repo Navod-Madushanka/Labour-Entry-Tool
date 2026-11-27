@@ -82,6 +82,16 @@ CREATE TABLE IF NOT EXISTS lost_time (
     note        TEXT
 );
 CREATE INDEX IF NOT EXISTS lost_time_book ON lost_time(workbook);
+-- Saves of a workbook to its file, with the last batch in it at that moment: tells, when a file
+-- is opened again, which pushes it does not hold (a crash, Excel's recovered copy, a wrong file).
+CREATE TABLE IF NOT EXISTS saves (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    workbook   TEXT NOT NULL,
+    path       TEXT,           -- the file it was saved to
+    last_batch INTEGER         -- the newest batch of the workbook (any copy of it) at that save
+);
+CREATE INDEX IF NOT EXISTS saves_path ON saves(path, id);
 -- The log is kept for every month and workbook, so it only grows: each lookup the tool makes
 -- (this workbook's batches, the supervisors list, owners by batch, an undo's batch) has an index.
 CREATE INDEX IF NOT EXISTS batches_book ON batches(workbook, id);
@@ -345,6 +355,34 @@ class AuditStore:
                 " GROUP BY supervisor ORDER BY n DESC"
             ).fetchall()
         return [(r["supervisor"], r["last"]) for r in rows]
+
+    # --- saves (recovery) ---
+
+    def record_save(self, workbook: str, path: str | None, last_batch: int | None) -> None:
+        now = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO saves (created_at, workbook, path, last_batch) VALUES (?, ?, ?, ?)",
+                (now, workbook, path, last_batch),
+            )
+
+    def last_save(self, path: str) -> tuple[str, int | None] | None:
+        """(when, newest batch in it) of the latest save to this file, None if never saved here."""
+        with self._lock:
+            r = self._db.execute(
+                "SELECT created_at, last_batch FROM saves WHERE path = ? ORDER BY id DESC LIMIT 1",
+                (path,),
+            ).fetchone()
+        return (r["created_at"], r["last_batch"]) if r else None
+
+    def done_batches(self) -> list[tuple[int, str, str, str, str]]:
+        """(id, created_at, user, workbook, kind) of every batch written to Excel, oldest first."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, created_at, user, workbook, kind FROM batches WHERE status = 'done'"
+                " ORDER BY id"
+            ).fetchall()
+        return [(r["id"], r["created_at"], r["user"], r["workbook"], r["kind"]) for r in rows]
 
     def batch(self, batch_id: int) -> Batch | None:
         rows = self._batches("WHERE b.id = ?", "", (batch_id,))

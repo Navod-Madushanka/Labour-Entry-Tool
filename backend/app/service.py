@@ -210,6 +210,7 @@ class Status(BaseModel):
     save_note: str | None = None  # why the latest automatic save did not happen (Excel busy…)
     file_path: str | None = None  # where the workbook is saved (None: never saved to a file)
     recovered_copy: bool = False  # Excel's recovered copy ("… (AutoRecovered).xlsb"), not the file
+    missing_pushes: dict | None = None  # pushes this file has not got: {count, first, last, saved_at}
 
 
 class WorkerView(BaseModel):
@@ -296,6 +297,9 @@ class EntryService:
         self.last_write = 0.0  # time.monotonic() of the latest write by the tool (automatic save)
         self.saved_at: dt.datetime | None = None  # the latest save of the workbook from the tool
         self.save_note: str | None = None  # why the latest automatic save did not happen
+        # when this session started: pushes before it and newer than the file's latest save are
+        # missing from the file (save tracking, app/recovery.py)
+        self.started_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
         self._last_reread = float("-inf")
 
     @property
@@ -453,8 +457,16 @@ class EntryService:
             except WorkbookError:
                 path = None
             self._path_of = (name, str(path) if path else None)
+            from app.recovery import missing_pushes
+
+            try:
+                gap = missing_pushes(self, self._path_of[1], self.started_at)
+            except Exception:
+                gap = None
+            self._missing = gap.model_dump() if gap else None
         return Status(connected=True, mode=self.mode, workbook=name, saved_at=self.saved_at,
                       save_note=self.save_note, file_path=self._path_of[1],
+                      missing_pushes=getattr(self, "_missing", None),
                       recovered_copy=is_recovered_copy(name),
                       unsaved_changes=self.unsaved,
                       backup=str(backup) if backup else None)  # fmt: skip
@@ -1266,6 +1278,16 @@ class EntryService:
         self.unsaved = False
         self.saved_at = dt.datetime.now().astimezone()
         self.save_note = None
+        # save tracking: the newest push of this workbook (any copy of it) is now in this file
+        from app.recovery import family
+
+        try:
+            path = getattr(self.workbook, "full_path", None)
+            fam = family(self.workbook.name)
+            last = max((b[0] for b in self.audit.done_batches() if family(b[3]) == fam), default=None)
+            self.audit.record_save(self.workbook.name, str(path) if path else None, last)
+        except Exception as exc:  # never fail a save over its bookkeeping
+            log.warning("save tracking: %s", exc)
 
     def excel_has_changes(self) -> bool:
         """Excel itself holds changes not saved yet (typed in Excel, or the tool's): its Saved

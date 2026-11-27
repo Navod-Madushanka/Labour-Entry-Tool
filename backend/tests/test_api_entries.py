@@ -35,7 +35,7 @@ def test_status(client, fake):
     assert body == {"connected": True, "mode": "live", "workbook": fake.name, "error": None,
                     "unsaved_changes": False, "backup": None, "excel_busy": None,
                     "autosave": True, "saved_at": None, "save_note": None,
-                    "file_path": None, "recovered_copy": False}  # fmt: skip
+                    "file_path": None, "recovered_copy": False, "missing_pushes": None}  # fmt: skip
 
 
 def test_preview_writes_nothing(client, fake):

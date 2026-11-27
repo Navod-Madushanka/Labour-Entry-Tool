@@ -8,6 +8,7 @@ interface Props {
   historyLoaded: number;
   historyTotal: number;
   onSave: () => void;
+  onRecover: () => void; // Recover pushed entries from the change log
   autoSave: boolean; // save by itself after the tool writes to Excel
   onAutoSave: (on: boolean) => void;
   savedAt: Date | null;
@@ -24,7 +25,7 @@ interface Props {
 
 export function StatusBar(props: Props) {
   const { page, status, user, historyLoaded, historyTotal, onSave, onChangeUser, onChangeWorkbook, story } = props;
-  const { books, onSwitch, onAddWorkbook, onCloseBook, onChangeMonth, autoSave, onAutoSave, savedAt, saveNote } = props;
+  const { books, onSwitch, onAddWorkbook, onCloseBook, onChangeMonth, autoSave, onAutoSave, savedAt, saveNote, onRecover } = props;
   const savedText = savedAt ? savedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : null;
   const active = books.find((b) => b.active)?.name ?? status?.workbook ?? "";
   const backup = status?.backup ? `Backup: ${status.backup}` : "No backup yet";
@@ -100,6 +101,9 @@ export function StatusBar(props: Props) {
       </button>
       <button className="link" onClick={onChangeWorkbook} title="Check this workbook again, or change its settings">
         Check workbook
+      </button>
+      <button className="link" onClick={onRecover} title="Compare what the tool pushed (its change log) with this workbook, and put lost entries back on the manpower sheet">
+        Recover…
       </button>
       <button className="link" onClick={onChangeUser} title="Change name">
         {user || "Set name"}

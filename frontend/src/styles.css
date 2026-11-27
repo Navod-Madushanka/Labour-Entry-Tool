@@ -1625,3 +1625,10 @@ button.sup-cal-cell { cursor: pointer; } button.sup-cal-cell:hover { outline: 2p
 /* Working on Excel's recovered copy (or a workbook never saved to a file): said on every page */
 .recovered-banner { padding: 10px 16px; background: var(--critical-bg); color: var(--critical); border-bottom: 2px solid var(--critical); font-size: 14px; line-height: 1.5; }
 .recovered-banner code { color: var(--text); background: var(--panel); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+
+/* Recovery from the change log */
+.missing-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; background: var(--caution-bg); color: var(--text); border-bottom: 2px solid var(--caution); font-size: 14px; }
+.recovery-dialog .recovery-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; margin: 8px 0; font-size: 15px; }
+.recovery-sum .ok b { color: var(--positive); } .recovery-sum .bad b { color: var(--critical); }
+.recovery-sum b { font-size: 20px; }
+.recovery-table { max-height: 46vh; overflow: auto; }

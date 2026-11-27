@@ -27,6 +27,18 @@ export interface Status {
   save_note?: string | null; // why the latest automatic save did not happen
   file_path?: string | null; // where the workbook is saved (null: never saved to a file)
   recovered_copy?: boolean; // Excel's recovered copy ("… (AutoRecovered).xlsb")
+  missing_pushes?: { count: number; first: string; last: string; saved_at: string } | null; // pushes this file has not got
+}
+
+/** Recovery from the tool's change log (backend/app/recovery.py). */
+export interface RecoveryResult {
+  workbook: string;
+  pushes: number;
+  entries: number;
+  present: number;
+  lost: { sheet: string; calling_name: string; pushed_at: string; user: string; batch_id: number; what: string; input: EntryInput }[];
+  changed: { sheet: string; calling_name: string; pushed_at: string; why: string }[];
+  other_names: string[];
 }
 
 export type CodeStatus = "valid" | "missing" | "error" | "zero" | "invalid";
@@ -540,6 +552,7 @@ export const api = {
     return res.blob();
   },
   status: () => call<Status>("GET", "/api/status"),
+  recovery: () => call<RecoveryResult>("GET", "/api/recovery"),
   setAutosave: (on: boolean) => call<{ autosave: boolean }>("POST", "/api/autosave", { on }),
   // Analysis, advanced mode: several open workbooks at once (read-only)
   combined: (names: string[]) =>

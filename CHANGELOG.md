@@ -1,5 +1,30 @@
 # Changelog
 
+## Recover pushed entries from the tool's own change log; save tracking (27 Nov 2026)
+
+Asked for (options 1 + 4 of the recovery research): the tool's own recovery, better than Excel's
+AutoRecover.
+
+- **Recover…** (beside "Check workbook"): compares everything the tool pushed (its change log on
+  this PC, written before Excel is touched) with the workbook open now, worker-day by worker-day:
+  - **present**: the cells hold what the tool last wrote;
+  - **lost**: back to what was there before the tool wrote (a crash before a save, Excel's
+    recovered copy used for a while, an older file opened): listed with what was pushed, when
+    and by whom, ticked, and **"Put N entries back on the manpower sheet"**: checked there and
+    pushed as usual. An entry of a worker already waiting is not ticked again;
+  - **changed in Excel since** (or the row now someone else's): shown, never touched.
+  Pushes made while the same file had another name ("… (AutoRecovered).xlsb", "(Recovered)",
+  "[Repaired]") count, and undos are taken into account. Read-only: one read per day sheet, one
+  sheet at a time (the tool keeps answering). Day-sheet entries only (not header fixes or
+  Labour Detail codes).
+- **Save tracking**: each save from the tool records the newest push in the file. Opening a file
+  that pushes from before this session never reached (saved into another copy, or never saved
+  before a crash) shows an amber bar: "This file does not have 9 pushes made between 12 Oct and
+  20 Oct … — Check and recover". It starts from the first save with this version, so older
+  gaps (like the one in November) are found with Recover… itself.
+- Tests: lost / present / changed on the made-up workbook, putting a lost entry back and pushing
+  it, pushes under the recovered copy's name, save tracking; `e2e/recovery.cjs` (screen flow).
+
 ## Excel's recovered copy: said on every page; never saved somewhere hidden (26 Nov 2026)
 
 From a log of 5–26 Nov, after "the PC froze and I lost data": from 17 Nov 18:12 the tool had been

@@ -20,6 +20,7 @@ import { MedicalDialog } from "./components/MedicalDialog";
 import { NamePrompt } from "./components/NamePrompt";
 import { CommitResultView, Queue, type QueueItem } from "./components/Queue";
 import { StatusBar } from "./components/StatusBar";
+import { RecoveryDialog } from "./components/RecoveryDialog";
 import { StoryNote, StoryReader } from "./components/StoryCorner";
 import { award as storyAward, dayState, refreshStories, setStoryEnabled, storyEnabled, todaysStory, type Award } from "./story";
 import { clearInput, emptyForm, fromEntry, fromInput, type FormState } from "./form";
@@ -142,6 +143,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // off on this PC). Off: Push writes at once with no supervisor; a correction of an entry pushed
   // earlier with a supervisor still keeps that supervisor.
   const [askSupervisor, setAskSupervisor] = useState(() => store.get("labour.askSupervisor") !== "0");
+  const [recoverOpen, setRecoverOpen] = useState(false); // Recover pushed entries (change log)
   const [lastRead, setLastRead] = useState<Date | null>(null);
   useEffect(() => {
     const sync = () => {
@@ -792,6 +794,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
         historyLoaded={Object.keys(month).length}
         historyTotal={master?.sheets.length ?? 0}
         onSave={save}
+        onRecover={() => setRecoverOpen(true)}
         autoSave={autoSave}
         onAutoSave={(on) => {
           setStatus((st) => (st ? { ...st, autosave: on } : st));
@@ -820,6 +823,32 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
           },
         }}
       />
+      {recoverOpen && (
+        <RecoveryDialog
+          waiting={new Set(queue.map((q) => `${q.input.sheet}|${q.input.calling_name}`))}
+          onClose={() => setRecoverOpen(false)}
+          onRestore={(inputs) => {
+            addToQueue(inputs);
+            if (page !== "entry") window.location.hash = "";
+            setMessage(`${inputs.length} ${inputs.length === 1 ? "entry is" : "entries are"} back on the manpower sheet from the change log: check them, then push.`);
+          }}
+        />
+      )}
+      {status?.connected && status.missing_pushes && (
+        <div className="missing-banner" role="alert">
+          <b>
+            ⚠ This file does not have {status.missing_pushes.count} push{status.missing_pushes.count === 1 ? "" : "es"} made between{" "}
+            {new Date(status.missing_pushes.first).toLocaleDateString(undefined, { day: "numeric", month: "short" })} and{" "}
+            {new Date(status.missing_pushes.last).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+          </b>{" "}
+          (saved into another copy, or lost in a crash before a save; the tool last saved this file{" "}
+          {new Date(status.missing_pushes.saved_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+          ).{" "}
+          <button className="small primary" onClick={() => setRecoverOpen(true)}>
+            Check and recover
+          </button>
+        </div>
+      )}
       {status?.connected && status.mode === "live" && (status.recovered_copy || !status.file_path) && (
         <div className="recovered-banner" role="alert">
           <b>⚠ {status.recovered_copy ? "This is Excel's recovered copy, not your workbook file" : "This workbook has never been saved to a file"}:</b>{" "}
