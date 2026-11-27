@@ -98,7 +98,12 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
   // whose manpower sheet each pushed entry came from: the SQL supervisor column, and kept at push
   const [owned, setOwned] = useState<Owned[]>([]);
   const refreshOwned = useCallback(() => api.supervisorSheets().then(setOwned).catch(() => undefined), []);
-  const ownerOf = useMemo(() => new Map(owned.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor])), [owned]);
+  // entries moved to another day on the Supervisors page: they keep their supervisor at push
+  const [movedOwners, setMovedOwners] = useState<Map<string, string>>(new Map());
+  const ownerOf = useMemo(
+    () => new Map([...owned.map((o) => [`${o.sheet}|${o.calling_name}`, o.supervisor] as const), ...movedOwners]),
+    [owned, movedOwners],
+  );
   const [causeLabels, setCauseLabels] = useState<Record<string, string>>({});
   const disruptedDays = useMemo(
     () => Object.fromEntries(lostItems.filter((i) => !i.supervisor && i.causes.length).map((i) => [i.sheet, i.causes.map((c) => causeLabels[c] ?? c).join(", ")])),
@@ -431,6 +436,7 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
       }
       if (res.status === "written" || res.status === "unchanged") {
         setQueue((items) => items.filter((it) => !planOf.has(it.id)));
+        setMovedOwners((m) => (m.size ? new Map([...m].filter(([k]) => !keys.includes(k))) : m));
         setForm((f) => (f.worker ? f : emptyForm())); // pushed: clear leftovers, keep a worker being typed
         if (lost && (lost.causes.length || lost.dayTags.length || lost.note)) {
           // the reason for this sheet's unallocated hours and the day's disruption (roadmap #5)
@@ -923,6 +929,13 @@ export function App({ books, onSwitch, onAddWorkbook, onCloseBook, onChangeWorkb
               const waiting = new Set(queue.map((q) => `${q.input.sheet}|${q.input.calling_name}`));
               const add = inputs.filter((i) => !waiting.has(`${i.sheet}|${i.calling_name}`));
               if (add.length) addToQueue(add);
+              setSupEditing(true);
+              setTimeout(() => document.getElementById("sup-manpower")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+            }}
+            pushed={owned}
+            onMove={(inputs, owners) => {
+              addToQueue(inputs);
+              setMovedOwners((m) => new Map([...m, ...Object.entries(owners)]));
               setSupEditing(true);
               setTimeout(() => document.getElementById("sup-manpower")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
             }}

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type DayView, type EntryInput, type Master, type Owned, type Review, type Supervisor } from "../api";
 import type { Month } from "../history";
 import { fingerprint, ManpowerRecord, recordColumns } from "./ManpowerSheet";
 import { CardHelp } from "./CardHelp";
 import { EmptyState } from "./EmptyState";
+import { clearInput } from "../form";
 import { SupervisorCalendar } from "./SupervisorCalendar";
 
 type ReviewState = "todo" | "ok" | "problem" | "changed";
@@ -64,12 +65,31 @@ export function editInput(o: Owned, day: DayView | undefined): EntryInput {
   };
 }
 
-export function Supervisors({ master, month, user, waiting = new Set(), onEdit, editor }: {
+/** A supervisor's sheet moved to another day, in one push: each worker's entry (as in Excel now)
+ * onto the new day, and cleared from the old one; all of them stay the supervisor's. */
+export function moveInputs(owned: Owned[], from: DayView | undefined, to: string, target: DayView | undefined, supervisor: string) {
+  const inputs: EntryInput[] = [];
+  const owners: Record<string, string> = {};
+  for (const o of owned) {
+    const there = target ? target.entries.some((e) => e.entry.calling_name === o.calling_name) : true; // day not read: replace if there
+    inputs.push({ ...editInput(o, from), sheet: to, overwrite: there, acknowledged: [] });
+    owners[`${to}|${o.calling_name}`] = supervisor;
+    if (!from || from.entries.some((e) => e.entry.calling_name === o.calling_name)) {
+      inputs.push(clearInput(o.sheet, o.calling_name));
+      owners[`${o.sheet}|${o.calling_name}`] = supervisor;
+    }
+  }
+  return { inputs, owners };
+}
+
+export function Supervisors({ master, month, user, waiting = new Set(), onEdit, onMove, editor, pushed }: {
+  pushed?: unknown; // changes after each push (the app's own copy): read the sheets again
   master: Master;
   month: Month;
   user: string;
   waiting?: Set<string>; // "sheet|calling name" already on the manpower sheet
   onEdit?: (inputs: EntryInput[]) => void; // a sheet onto the manpower sheet, to change and push
+  onMove?: (inputs: EntryInput[], owners: Record<string, string>) => void; // the sheet to another day
   editor?: React.ReactNode; // the manpower sheet of waiting entries, with Push
 }) {
   const [owned, setOwned] = useState<Owned[] | null>(null);
@@ -97,6 +117,11 @@ export function Supervisors({ master, month, user, waiting = new Set(), onEdit, 
     api.supervisorReviews().then(setReviews).catch(fail);
   };
   useEffect(load, []);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) first.current = false;
+    else api.supervisorSheets().then(setOwned).catch(fail);
+  }, [pushed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups = useMemo(() => {
     const by = new Map<string, Group>();
@@ -562,6 +587,45 @@ export function Supervisors({ master, month, user, waiting = new Set(), onEdit, 
                               </button>
                             );
                           })()}
+                          {onMove && (
+                            <select
+                              className="small sup-move-day"
+                              aria-label={`Move sheet ${g.sheet} of ${g.supervisor} to another day`}
+                              value=""
+                              disabled={g.owned.some((o) => waiting.has(`${o.sheet}|${o.calling_name}`))}
+                              title={
+                                g.owned.some((o) => waiting.has(`${o.sheet}|${o.calling_name}`))
+                                  ? "Push or remove this sheet's workers waiting below first"
+                                  : "Entered on the wrong day? Moves every worker of this sheet to another day (cleared from this one), in one push"
+                              }
+                              onChange={(e) => {
+                                const to = e.target.value;
+                                if (!to) return;
+                                const target = month[to];
+                                const taken = target
+                                  ? g.owned.filter((o) => target.entries.some((v) => v.entry.calling_name === o.calling_name)).map((o) => o.calling_name)
+                                  : [];
+                                const name = (s: string) => `sheet ${s}${month[s]?.header.date ? ` (${dayText(month[s].header.date)})` : ""}`;
+                                const msg =
+                                  `Move ${g.supervisor}'s ${g.owned.length} ${g.owned.length === 1 ? "worker" : "workers"} from ${name(g.sheet)} to ${name(to)}?\n\n` +
+                                  `They go onto the manpower sheet below: on push they are written to ${name(to)} and cleared from ${name(g.sheet)}, still ${g.supervisor}'s.` +
+                                  (taken.length ? `\n\nAlready on ${name(to)} in Excel, replaced: ${taken.join(", ")}.` : "");
+                                if (!window.confirm(msg)) return;
+                                const m = moveInputs(g.owned, month[g.sheet], to, target, g.supervisor);
+                                onMove(m.inputs, m.owners);
+                              }}
+                            >
+                              <option value="">Move to another day…</option>
+                              {master.sheets
+                                .filter((s) => s !== g.sheet)
+                                .map((s) => (
+                                  <option key={s} value={s}>
+                                    Sheet {s}
+                                    {month[s]?.header.date ? ` · ${dayText(month[s].header.date)}` : ""}
+                                  </option>
+                                ))}
+                            </select>
+                          )}
                           {st.review && (
                             <button className="link small" onClick={() => review(g, "cleared")}>
                               Undo my answer

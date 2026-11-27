@@ -138,6 +138,17 @@ class Change(BaseModel):
     new: CellValue = None
 
 
+def _cleared(entry: dict) -> bool:
+    """An entry pushed as a clear (nothing left in the worker's block)."""
+    return (
+        entry.get("time_in") is None
+        and entry.get("time_out") is None
+        and entry.get("additional") is None
+        and not str(entry.get("remark") or "").strip()
+        and all(a.get("code") in (None, "") and a.get("hours") is None for a in entry.get("activities") or [])
+    )
+
+
 class Owned(BaseModel):
     """One worker's entry on a day sheet, and whose manpower sheet it came from."""
 
@@ -275,7 +286,8 @@ class AuditStore:
                 supervisor=r["supervisor"], created_at=r["created_at"], user=r["user"],
                 batch_id=r["batch_id"], entry=json.loads(r["entry"]),
             )  # fmt: skip
-        return list(latest.values())
+        # a worker cleared from the day (moved to another day, or removed) is off that sheet
+        return [o for o in latest.values() if not _cleared(o.entry)]
 
     def reassign(self, workbook: str, ids: list[int], supervisor: str) -> int:
         """A wrong supervisor chosen at push: give these entries (owner rows) to another one."""

@@ -146,3 +146,41 @@ def test_audit_log_is_indexed_and_in_wal_mode(tmp_path):
         "SELECT supervisor, MAX(created_at), MAX(id) FROM sheet_owners GROUP BY supervisor"
     )
     store.close()
+
+
+@pytest.fixture
+def two_days(small_snapshot, tmp_path):
+    import datetime as dt
+
+    from app.domain.models import DaySheet
+
+    d1 = small_snapshot.days[0]
+    d2 = DaySheet(header=d1.header.model_copy(update={"sheet": "2", "date": dt.date(2026, 10, 2), "date_raw": 46297.0, "sheet_no": 2.0}),
+                  block_names=d1.block_names, entries=[])  # fmt: skip
+    fake = FakeWorkbook(small_snapshot.model_copy(update={"days": [d1, d2]}))
+
+    def factory(config):
+        return EntryService(lambda: fake, config, AuditStore(), BackupManager(tmp_path / "b"))
+
+    with TestClient(create_app(Config(month="2026-10"), service_factory=factory)) as c:
+        yield c
+
+
+def test_moving_a_sheet_to_another_day_keeps_the_supervisor(two_days):
+    client = two_days
+    """Supervisors page, Move to another day: the old day cleared, the new day written, one push;
+    the moved entries stay the supervisor's (owners), and the cleared ones leave the old sheet."""
+    assert push(client, [A, B], "Kamal Perera")["status"] == "written"
+    clear = {"time_in": None, "time_out": None, "activities": [], "additional": None,
+             "remark": None, "overwrite": True, "acknowledged": []}  # fmt: skip
+    moved = [{**A, "sheet": "2", "overwrite": False}, {**B, "sheet": "2", "overwrite": False},
+             {**clear, "sheet": "1", "calling_name": "INB-01 CH"},
+             {**clear, "sheet": "1", "calling_name": "INC-02"}]  # fmt: skip
+    keep = {f"{e['sheet']}|{e['calling_name']}": "Kamal Perera" for e in moved}
+    body = {"user": "Clerk", "entries": moved, "supervisor": None, "owners": keep}
+    res = client.post("/api/entries", json=body).json()
+    why = [(p["input"]["sheet"], p["input"]["calling_name"], p["blocking"], p["unconfirmed"]) for p in res["plans"]]
+    assert res["status"] == "written", why
+    assert owners(client) == {("2", "INB-01 CH"): "Kamal Perera", ("2", "INC-02"): "Kamal Perera"}
+    day1 = {e["entry"]["calling_name"]: e["entry"] for e in client.get("/api/days/1").json()["entries"]}
+    assert day1.get("INC-02", {}).get("time_in") is None

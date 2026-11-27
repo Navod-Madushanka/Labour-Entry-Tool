@@ -1,6 +1,6 @@
 // Supervisors page: a supervisor's sheet opened there can be edited in place ("Edit this sheet"
 // puts it on the manpower sheet under the list), changed and pushed again; it stays that
-// supervisor's sheet. Made-up data:
+// supervisor's sheet; and moved to another day (cleared from the old one), still theirs. Made-up data:
 //   cd backend && python ../scripts/demo_two_books.py      (fresh server)
 //   node e2e/supervisor-edit.cjs [screenshot-dir]
 const { chromium } = require("playwright");
@@ -55,6 +55,30 @@ const SHOTS = process.argv[2];
   console.log("AAA-02 out:", out, "| AAA-01 out:", one, "| owners:", sups.join(", "));
   if (out !== 17 || one !== 19) throw new Error("the edit should be in Excel, the rest unchanged");
   if (!sups.includes("AAA-02:Kamal Perera") || !sups.includes("AAA-01:Kamal Perera")) throw new Error("still Kamal's sheet");
+
+  // Move the sheet to another day: day 7 gets both, day 6 is cleared, still Kamal's
+  await p.locator('select[aria-label="Day"]').selectOption("");
+  await p.locator('.mp-day[data-sheet="6"]').waitFor();
+  await p.getByLabel("Move sheet 6 of Kamal Perera to another day").selectOption("7");
+  await p.locator("#sup-manpower .manpower").first().waitFor();
+  await p.waitForFunction(() => !document.querySelector("#sup-manpower .push-bar button")?.disabled, null, { timeout: 20000 });
+  if (SHOTS) await p.locator("#sup-manpower").screenshot({ path: `${SHOTS}/supervisor-move.png` });
+  await p.locator("#sup-manpower .push-bar button").click();
+  const dlg3 = p.getByRole("dialog", { name: "Whose manpower sheet is this?" }); await dlg3.waitFor();
+  const dtext = await dlg3.innerText();
+  await dlg3.getByRole("button", { name: /^Push/ }).first().click();
+  await p.waitForFunction(() => !document.querySelector("#sup-manpower .manpower"), null, { timeout: 30000 });
+  const d6 = await (await p.request.get(BASE + "api/days/6")).json();
+  const d7 = await (await p.request.get(BASE + "api/days/7")).json();
+  const on = (d, n) => d.entries.find((e) => e.entry.calling_name === n)?.entry;
+  const owners2 = (await (await p.request.get(BASE + "api/supervisor-sheets")).json()).filter((o) => ["6", "7"].includes(o.sheet)).map((o) => `${o.sheet}/${o.calling_name}:${o.supervisor}`);
+  console.log("dialog kept the supervisor:", /Kamal Perera/.test(dtext), "| day 7:", on(d7, "AAA-01")?.time_out, on(d7, "AAA-02")?.time_out,
+    "| day 6:", on(d6, "AAA-01")?.time_in ?? "cleared", on(d6, "AAA-02")?.time_in ?? "cleared", "| owners:", owners2.join(", "));
+  if (on(d7, "AAA-01")?.time_out !== 19 || on(d7, "AAA-02")?.time_out !== 17) throw new Error("day 7 should have both");
+  if (on(d6, "AAA-01")?.time_in != null || on(d6, "AAA-02")?.time_in != null) throw new Error("day 6 should be cleared");
+  if (owners2.sort().join() !== "7/AAA-01:Kamal Perera,7/AAA-02:Kamal Perera") throw new Error("only day 7, Kamal's");
+  await p.locator('.mp-day[data-sheet="7"]').waitFor();
+  if (await p.locator('.mp-day[data-sheet="6"]').count()) throw new Error("sheet 6 should be gone from the list");
   if (errs.length) throw new Error(errs.join("\n"));
   await b.close();
   console.log("supervisor-edit e2e: ok");

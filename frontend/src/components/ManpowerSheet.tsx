@@ -524,10 +524,14 @@ export function ManpowerSheet(props: Props) {
                         if (!to) return;
                         const toDate = shortDate(month[to]?.header.date);
                         const names = new Set(items.filter((i) => i.input.sheet === sheet).map((i) => i.input.calling_name));
+                        const stay = [...names].filter((n) => day?.entries.some((v) => v.entry.calling_name === n));
                         const clash = items.filter((i) => i.input.sheet === to && names.has(i.input.calling_name)).length;
                         const msg =
                           `Move the ${waiting} ${waiting === 1 ? "entry" : "entries"} waiting for sheet ${sheet}${when ? ` (${shortDate(day?.header.date)})` : ""} ` +
                           `to sheet ${to}${toDate ? ` (${toDate})` : ""}?` +
+                          (stay.length
+                            ? `\n\n${stay.join(", ")} ${stay.length === 1 ? "is" : "are"} already in Excel on sheet ${sheet} and stay there (only the waiting entries move). To move a pushed supervisor's sheet, use "Move to another day…" on the Supervisors page.`
+                            : "") +
                           (clash ? `\n\n${clash} of these workers ${clash === 1 ? "is" : "are"} already waiting on sheet ${to}: ${clash === 1 ? "that entry is" : "those entries are"} replaced.` : "") +
                           "\n\nThey are checked again for that day. Nothing is written to Excel until you push.";
                         if (window.confirm(msg)) onMoveSheet(sheet, to);

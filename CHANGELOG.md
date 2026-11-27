@@ -1,5 +1,20 @@
 # Changelog
 
+## Supervisors: move a supervisor's sheet to another day (27 Nov 2026)
+
+- Each opened sheet on the Supervisors page has **Move to another day…**: every worker of
+  that sheet goes onto the manpower sheet for the new day, with a "clear the day" entry for the
+  old one, so one push writes the new day and empties the old. They stay that supervisor's
+  (no supervisor to pick again). Workers already on the new day in Excel are named in the
+  confirmation and replaced.
+- A worker cleared from a day no longer stays on that supervisor's sheet as "Not in Excel now".
+- After a push, the Supervisors list reads the sheets again (an edited or moved sheet shows at
+  once, without "≠ Excel").
+- The manpower sheet's own "Move to" (for entries not pushed yet) now warns when the workers
+  are already in Excel on that day: those stay there, and it points to the Supervisors page.
+- Tests: `test_moving_a_sheet_to_another_day_keeps_the_supervisor`; `e2e/supervisor-edit.cjs`
+  extended with a move.
+
 ## Supervisors: edit a supervisor's sheet in place (27 Nov 2026)
 
 - Each opened sheet on the Supervisors page has **✎ Edit this sheet**: its workers, as they are
